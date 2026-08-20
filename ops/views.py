@@ -17,12 +17,15 @@ from django.views.decorators.http import require_http_methods, require_POST
 from .forms import TaskForm
 from .models import CatalogItem, ReturnBatch, ReturnRequest, SupplyOrder, Task, WhatsAppRoleContact
 from .whatsapp import (
+    collect_notify_phones,
     connection_state,
     fetch_qr,
     logout_instance,
     normalize_whatsapp,
     notify_roles,
     notify_user,
+    resolve_instance_name,
+    send_test_to_roles,
 )
 
 User = get_user_model()
@@ -435,7 +438,7 @@ def return_create(request):
         request,
         f'تم حفظ ملف المرتجع {batch.return_number} بـ {len(rows)} صنف.',
     )
-    notify_roles(
+    wa = notify_roles(
         'مرتجع جديد',
         f'{batch.return_number}\n'
         f'الفرع: {batch.branch}\n'
@@ -443,6 +446,10 @@ def return_create(request):
         f'المندوب: {representative.display_name}\n'
         f'بواسطة: {request.user.display_name}',
     )
+    if wa.get('sent'):
+        messages.info(request, f'تم إرسال إشعار واتساب إلى {wa["sent"]} رقم.')
+    elif wa.get('error'):
+        messages.warning(request, f'واتساب: {wa["error"]}')
     return _redirect_returns(batch.pk)
 
 
@@ -752,13 +759,16 @@ def whatsapp_hub(request):
         })
 
     state = connection_state()
+    notify_phones = collect_notify_phones()
     return render(request, 'ops/whatsapp.html', {
         'active_nav': 'whatsapp',
         'role_rows': role_rows,
         'wa_state': state,
-        'instance_name': getattr(settings, 'EVOLUTION_INSTANCE_NAME', ''),
+        'instance_name': state.get('instance') or resolve_instance_name() or getattr(settings, 'EVOLUTION_INSTANCE_NAME', ''),
         'server_url': getattr(settings, 'EVOLUTION_SERVER_URL', ''),
         'notify_enabled': getattr(settings, 'EVOLUTION_NOTIFY_ENABLED', False),
+        'notify_phones_count': len(notify_phones),
+        'notify_phones': notify_phones,
     })
 
 
@@ -777,6 +787,12 @@ def whatsapp_status_api(request):
 @require_POST
 def whatsapp_logout_api(request):
     return JsonResponse(logout_instance())
+
+
+@manager_required
+@require_POST
+def whatsapp_test_api(request):
+    return JsonResponse(send_test_to_roles())
 
 
 @login_required

@@ -10,11 +10,17 @@ User = get_user_model()
 
 
 def normalize_whatsapp(number: str) -> str:
-    """Normalize to digits only; convert leading 00 to country format."""
+    """Normalize to international digits (default Saudi 966)."""
     raw = (number or "").strip()
     digits = re.sub(r"\D", "", raw)
     if digits.startswith("00"):
         digits = digits[2:]
+    # 05xxxxxxxx → 9665xxxxxxxx
+    if len(digits) == 10 and digits.startswith("05"):
+        digits = "966" + digits[1:]
+    # 5xxxxxxxx (9 digits) → 9665xxxxxxxx
+    if len(digits) == 9 and digits.startswith("5"):
+        digits = "966" + digits
     return digits
 
 
@@ -22,12 +28,15 @@ def is_configured() -> bool:
     return bool(
         getattr(settings, "EVOLUTION_SERVER_URL", "")
         and getattr(settings, "EVOLUTION_API_KEY", "")
-        and getattr(settings, "EVOLUTION_INSTANCE_NAME", "")
     )
 
 
 def notify_enabled() -> bool:
-    return bool(getattr(settings, "EVOLUTION_NOTIFY_ENABLED", False) and is_configured())
+    return bool(
+        getattr(settings, "EVOLUTION_NOTIFY_ENABLED", False)
+        and getattr(settings, "EVOLUTION_SERVER_URL", "")
+        and getattr(settings, "EVOLUTION_API_KEY", "")
+    )
 
 
 def _headers() -> dict:
@@ -61,43 +70,95 @@ def _api(path: str, method: str = "GET", json_body=None, timeout: int = 20):
             except ValueError:
                 data = {"raw": raw[:500]}
         else:
-            # nginx/Django HTML error pages (wrong host / bad domain)
             snippet = " ".join(raw.split())[:180]
             data = {
                 "error": (
                     f"الرابط لا يفتح Evolution API (HTTP {response.status_code}). "
-                    "انسخ رابط الدومين الصحيح من Dokploy → خدمة Evolution → Domains، "
-                    "أو استخدم الرابط الداخلي مثل http://اسم-الخدمة:8080"
+                    "استخدم http://IP:8081 إن كان يعمل مع نظامك الآخر."
                 ),
                 "raw": snippet,
             }
         return response.status_code, data
     except requests.RequestException as exc:
         logger.exception("Evolution API error: %s %s", method, path)
-        return 0, {
-            "error": f"تعذّر الاتصال بـ Evolution: {exc}",
-        }
+        return 0, {"error": f"تعذّر الاتصال بـ Evolution: {exc}"}
+
+
+def list_instances() -> list:
+    status, data = _api("/instance/fetchInstances")
+    if status != 200:
+        return []
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for key in ("instance", "instances", "data"):
+            if isinstance(data.get(key), list):
+                return data[key]
+    return []
+
+
+def resolve_instance_name() -> str:
+    """Prefer configured name; otherwise first open instance."""
+    configured = (getattr(settings, "EVOLUTION_INSTANCE_NAME", "") or "").strip()
+    instances = list_instances()
+    names = {
+        (i.get("name") or i.get("instanceName") or ""): (
+            i.get("connectionStatus") or i.get("status") or ""
+        )
+        for i in instances
+        if (i.get("name") or i.get("instanceName"))
+    }
+    if configured and configured in names:
+        return configured
+    for name, st in names.items():
+        if str(st).lower() in ("open", "connected"):
+            logger.info("Using open Evolution instance %s (configured was %s)", name, configured)
+            return name
+    if configured:
+        return configured
+    if names:
+        return next(iter(names.keys()))
+    return configured
 
 
 def connection_state() -> dict:
-    """Return {ok, state, configured, instance, detail}."""
-    if not is_configured():
+    if not getattr(settings, "EVOLUTION_SERVER_URL", "") or not getattr(
+        settings, "EVOLUTION_API_KEY", ""
+    ):
         return {
             "ok": False,
             "configured": False,
             "state": "unconfigured",
             "instance": "",
-            "detail": "أضف إعدادات Evolution في البيئة (SERVER / API_KEY / INSTANCE).",
+            "detail": "أضف EVOLUTION_SERVER_URL و EVOLUTION_API_KEY.",
         }
-    instance = settings.EVOLUTION_INSTANCE_NAME
+
+    instance = resolve_instance_name()
+    if not instance:
+        return {
+            "ok": False,
+            "configured": True,
+            "state": "no_instance",
+            "instance": "",
+            "detail": "لا يوجد انستانس. أنشئ واحداً من لوحة Evolution.",
+        }
+
     status, data = _api(f"/instance/connectionState/{instance}")
     state = (
         (data.get("instance") or {}).get("state")
         or data.get("state")
         or ("error" if status >= 400 or status == 0 else "unknown")
     )
+    # fallback to fetchInstances status
+    if status != 200 or str(state).lower() not in ("open", "close", "connecting"):
+        for inst in list_instances():
+            name = inst.get("name") or inst.get("instanceName")
+            if name == instance:
+                state = inst.get("connectionStatus") or inst.get("status") or state
+                break
+
     return {
-        "ok": status == 200 and str(state).lower() == "open",
+        "ok": str(state).lower() == "open",
         "configured": True,
         "state": state,
         "instance": instance,
@@ -107,17 +168,29 @@ def connection_state() -> dict:
 
 
 def fetch_qr() -> dict:
-    """
-    Request QR / pairing for the configured instance.
-    Returns {ok, base64, pairingCode, code, state, error}.
-    """
-    if not is_configured():
+    if not getattr(settings, "EVOLUTION_SERVER_URL", "") or not settings.EVOLUTION_API_KEY:
         return {"ok": False, "error": "إعدادات Evolution غير مكتملة."}
 
-    instance = settings.EVOLUTION_INSTANCE_NAME
-    status, data = _api(f"/instance/connect/{instance}")
+    instance = resolve_instance_name() or settings.EVOLUTION_INSTANCE_NAME
+    if not instance:
+        created = create_instance()
+        if not created.get("ok"):
+            return {"ok": False, "error": created.get("error") or "تعذّر إنشاء انستانس."}
+        instance = settings.EVOLUTION_INSTANCE_NAME or resolve_instance_name()
 
-    # Some deployments nest QR under qrcode.base64
+    state_info = connection_state()
+    if state_info.get("ok"):
+        return {
+            "ok": True,
+            "connected": True,
+            "base64": "",
+            "pairingCode": "",
+            "state": "open",
+            "instance": state_info.get("instance"),
+            "message": "الواتساب متصل بالفعل — لا حاجة لـ QR.",
+        }
+
+    status, data = _api(f"/instance/connect/{instance}")
     base64 = (
         data.get("base64")
         or (data.get("qrcode") or {}).get("base64")
@@ -125,12 +198,10 @@ def fetch_qr() -> dict:
     )
     if base64 and not str(base64).startswith("data:"):
         base64 = f"data:image/png;base64,{base64}"
-
     pairing = data.get("pairingCode") or ""
     code = data.get("code") or ""
 
     if status == 404:
-        # try create then connect again
         created = create_instance()
         if created.get("ok"):
             return fetch_qr()
@@ -152,24 +223,10 @@ def fetch_qr() -> dict:
             "server_url": settings.EVOLUTION_SERVER_URL,
         }
 
-    state_info = connection_state()
-    if state_info.get("ok"):
-        return {
-            "ok": True,
-            "connected": True,
-            "base64": "",
-            "pairingCode": "",
-            "state": "open",
-            "message": "الواتساب متصل بالفعل.",
-        }
-
     if not base64 and not pairing:
         return {
             "ok": False,
-            "error": (
-                "Evolution لم يُرجع صورة QR. تأكد أن الانستانس موجود ومتوقف عن الاتصال، "
-                f"ثم اضغط تحديث. الرابط الحالي: {settings.EVOLUTION_SERVER_URL}"
-            ),
+            "error": "لم يُرجع Evolution صورة QR. اقطع الاتصال ثم حدّث، أو أنشئ انستانس جديد.",
             "detail": data,
             "state": state_info.get("state"),
         }
@@ -181,14 +238,15 @@ def fetch_qr() -> dict:
         "pairingCode": pairing,
         "code": code,
         "state": state_info.get("state"),
+        "instance": instance,
         "detail": data,
     }
 
 
 def create_instance() -> dict:
-    if not is_configured():
+    if not settings.EVOLUTION_API_KEY or not settings.EVOLUTION_SERVER_URL:
         return {"ok": False, "error": "إعدادات Evolution غير مكتملة."}
-    instance = settings.EVOLUTION_INSTANCE_NAME
+    instance = (settings.EVOLUTION_INSTANCE_NAME or "farsh").strip()
     status, data = _api(
         "/instance/create",
         method="POST",
@@ -200,7 +258,6 @@ def create_instance() -> dict:
     )
     if status in (200, 201):
         return {"ok": True, "detail": data}
-    # already exists
     msg = str(data)
     if "already" in msg.lower() or status == 403:
         return {"ok": True, "detail": data, "exists": True}
@@ -212,22 +269,28 @@ def create_instance() -> dict:
 
 
 def logout_instance() -> dict:
-    if not is_configured():
-        return {"ok": False, "error": "غير مُعدّ."}
-    instance = settings.EVOLUTION_INSTANCE_NAME
+    instance = resolve_instance_name()
+    if not instance:
+        return {"ok": False, "error": "لا يوجد انستانس."}
     status, data = _api(f"/instance/logout/{instance}", method="DELETE")
     return {"ok": status in (200, 201), "detail": data, "status_code": status}
 
 
 def send_text(number: str, text: str) -> bool:
     if not notify_enabled():
+        logger.warning("WhatsApp notify disabled or incomplete settings")
         return False
     phone = normalize_whatsapp(number)
     if not phone or not text:
         return False
 
+    instance = resolve_instance_name()
+    if not instance:
+        logger.warning("No Evolution instance for send")
+        return False
+
     status, data = _api(
-        f"/message/sendText/{settings.EVOLUTION_INSTANCE_NAME}",
+        f"/message/sendText/{instance}",
         method="POST",
         json_body={"number": phone, "text": text},
     )
@@ -238,7 +301,6 @@ def send_text(number: str, text: str) -> bool:
 
 
 def notify_user(user, title: str, body: str = "") -> bool:
-    """Send WhatsApp to a single user if they have a number. Never raises."""
     if not user or not notify_enabled():
         return False
     phone = normalize_whatsapp(getattr(user, "whatsapp", "") or "")
@@ -251,46 +313,61 @@ def notify_user(user, title: str, body: str = "") -> bool:
     return send_text(phone, message)
 
 
-def _role_contact_phones(roles) -> set[str]:
+def collect_notify_phones() -> list[str]:
+    """Unique phones for NOTIFY_ROLES (role contacts + users)."""
     from ops.models import WhatsAppRoleContact
 
-    phones = set()
-    for contact in WhatsAppRoleContact.objects.filter(role__in=roles).exclude(phone=""):
+    seen = []
+    found = set()
+
+    for contact in WhatsAppRoleContact.objects.filter(role__in=User.NOTIFY_ROLES).exclude(phone=""):
         phone = normalize_whatsapp(contact.phone)
-        if phone:
-            phones.add(phone)
-    return phones
+        if phone and phone not in found:
+            found.add(phone)
+            seen.append(phone)
+
+    for user in (
+        User.objects.filter(is_active=True, role__in=User.NOTIFY_ROLES)
+        .exclude(whatsapp="")
+        .only("whatsapp")
+    ):
+        phone = normalize_whatsapp(user.whatsapp)
+        if phone and phone not in found:
+            found.add(phone)
+            seen.append(phone)
+    return seen
 
 
-def notify_roles(title: str, body: str = "") -> int:
+def notify_roles(title: str, body: str = "") -> dict:
     """
     Send WhatsApp to role contact numbers + active users in NOTIFY_ROLES.
-    Returns count of successful sends. Never raises.
+    Returns {sent, total, phones, error}.
     """
     if not notify_enabled():
-        return 0
+        return {"sent": 0, "total": 0, "phones": [], "error": "الإشعارات غير مفعّلة أو الإعدادات ناقصة."}
+
+    phones = collect_notify_phones()
+    if not phones:
+        return {
+            "sent": 0,
+            "total": 0,
+            "phones": [],
+            "error": "لا توجد أرقام واتساب. احفظ أرقام الأدوار في شاشة واتساب أولاً.",
+        }
 
     message = f"[عمليات الفرش] {title}"
     if body:
         message = f"{message}\n{body}"
 
-    seen = _role_contact_phones(User.NOTIFY_ROLES)
-
-    recipients = (
-        User.objects.filter(
-            is_active=True,
-            role__in=User.NOTIFY_ROLES,
-        )
-        .exclude(whatsapp="")
-        .only("id", "whatsapp", "username")
-    )
-    for user in recipients:
-        phone = normalize_whatsapp(user.whatsapp)
-        if phone:
-            seen.add(phone)
-
     sent = 0
-    for phone in seen:
+    for phone in phones:
         if send_text(phone, message):
             sent += 1
-    return sent
+    err = None
+    if sent == 0:
+        err = "فشل الإرسال (الانستانس قد يكون مغلقاً — أعد ربط واتساب)."
+    return {"sent": sent, "total": len(phones), "phones": phones, "error": err}
+
+
+def send_test_to_roles() -> dict:
+    return notify_roles("اختبار إشعار", "هذه رسالة تجريبية من عمليات الفرش.")

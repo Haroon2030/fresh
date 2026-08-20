@@ -55,7 +55,14 @@
             <div id="waConnectedBox" class="{% if not wa_state.ok %}hidden{% endif %} text-center">
                 <span class="material-symbols-outlined text-[56px] text-emerald-600">check_circle</span>
                 <p class="font-extrabold text-[18px] mt-2 text-emerald-800" style="font-family:'Cairo',sans-serif">الواتساب متصل</p>
-                <p class="text-[13px] text-slate-500 mt-1" style="font-family:'Cairo',sans-serif">جاهز لإرسال إشعارات العمليات والمهام.</p>
+                <p class="text-[13px] text-slate-500 mt-1 max-w-sm mx-auto" style="font-family:'Cairo',sans-serif">
+                    لا يظهر QR لأن الجهاز مربوط مسبقاً. لعرض QR جديد: اضغط «قطع الاتصال» ثم «تحديث QR».
+                </p>
+                <button type="button" id="btnTestWa" class="btn-primary-app mt-4" style="font-family:'Cairo',sans-serif">
+                    <span class="material-symbols-outlined text-[18px]">send</span>
+                    إرسال رسالة اختبار
+                </button>
+                <p id="waTestMsg" class="text-[13px] font-bold mt-2" style="font-family:'Cairo',sans-serif"></p>
             </div>
             <div id="waQrBox" class="{% if wa_state.ok %}hidden{% endif %} flex flex-col items-center gap-3 w-full">
                 <div class="w-[260px] h-[260px] rounded-xl border-2 border-dashed border-sky-200 bg-sky-50/50 flex items-center justify-center overflow-hidden">
@@ -79,8 +86,15 @@
                 <span class="material-symbols-outlined text-[#1d4ed8]">contact_phone</span>
                 <span class="font-bold text-[16px] text-black" style="font-family:'Cairo',sans-serif">أرقام الأدوار</span>
             </div>
-            <span class="text-[11px] font-bold text-slate-500" style="font-family:'Cairo',sans-serif">إشعار للدور عند حفظ العمليات</span>
+            <span class="text-[11px] font-bold text-slate-500" style="font-family:'Cairo',sans-serif">
+                أرقام جاهزة للإشعار: {{ notify_phones_count }}
+            </span>
         </div>
+        {% if notify_phones_count == 0 %}
+        <div class="mx-4 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-bold text-amber-900" style="font-family:'Cairo',sans-serif">
+            لم تُحفظ أرقام بعد. عبّئ رقم المدير/المحاسب أدناه ثم اضغط «حفظ الأرقام» — بدونها لن يصل إشعار عند المرتجع.
+        </div>
+        {% endif %}
         <form method="post" class="bg-white">
             {% csrf_token %}
             <input type="hidden" name="action" value="save_roles">
@@ -145,6 +159,7 @@
 (function () {
     const qrUrl = "{% url 'ops:whatsapp_qr' %}";
     const statusUrl = "{% url 'ops:whatsapp_status' %}";
+    const testUrl = "{% url 'ops:whatsapp_test' %}";
     const logoutUrl = "{% url 'ops:whatsapp_logout' %}";
     const csrf = "{{ csrf_token }}";
 
@@ -236,6 +251,30 @@
         });
         showQrMode();
         loadQr();
+    });
+
+    document.getElementById('btnTestWa')?.addEventListener('click', async () => {
+        const msg = document.getElementById('waTestMsg');
+        if (msg) { msg.textContent = 'جاري الإرسال…'; msg.className = 'text-[13px] font-bold mt-2 text-slate-500'; }
+        try {
+            const res = await fetch(testUrl, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrf, 'Accept': 'application/json' },
+            });
+            const data = await res.json();
+            if (data.sent > 0) {
+                msg.textContent = 'تم الإرسال إلى ' + data.sent + ' من ' + data.total + ' رقم.';
+                msg.className = 'text-[13px] font-bold mt-2 text-emerald-700';
+            } else {
+                msg.textContent = data.error || 'فشل الإرسال';
+                msg.className = 'text-[13px] font-bold mt-2 text-red-600';
+            }
+        } catch (e) {
+            if (msg) {
+                msg.textContent = String(e);
+                msg.className = 'text-[13px] font-bold mt-2 text-red-600';
+            }
+        }
     });
 
     {% if not wa_state.ok %}
