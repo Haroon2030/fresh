@@ -1,0 +1,432 @@
+{% extends "base.html" %}
+
+{% block title %}المشتريات - عمليات الفرش{% endblock %}
+
+{% block extra_head %}
+<style>
+    .stat-card {
+        min-height: 150px;
+        background: #ffffff;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .stat-card-grid {
+        position: absolute;
+        inset: 0;
+        opacity: 0.45;
+        background-image:
+            linear-gradient(rgba(0,0,0,0.035) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,0,0,0.035) 1px, transparent 1px);
+        background-size: 16px 16px;
+        pointer-events: none;
+    }
+    .stat-label {
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: #000;
+    }
+    .stat-hint {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        opacity: 0.7;
+    }
+    .stat-value {
+        display: block;
+        font-size: 34px;
+        line-height: 1.1;
+        font-weight: 700;
+        color: #000;
+        font-variant-numeric: tabular-nums;
+    }
+    .stat-unit {
+        font-size: 16px;
+        font-weight: 500;
+        color: #404040;
+    }
+    .stat-sub {
+        display: block;
+        margin-top: 4px;
+        font-size: 12px;
+        color: #333;
+    }
+    .stat-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid transparent;
+    }
+    .stat-icon .material-symbols-outlined {
+        color: inherit !important;
+        font-size: 22px;
+    }
+    .stat-bar {
+        width: 100%;
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(0,0,0,0.08);
+        overflow: hidden;
+    }
+    .stat-bar-fill {
+        height: 100%;
+        border-radius: 999px;
+        transition: width 0.3s ease;
+    }
+
+    .stat-card-blue {
+        border-color: #93c5fd;
+        border-right: 4px solid #1d4ed8;
+        background: linear-gradient(145deg, #eff6ff 0%, #ffffff 55%);
+    }
+    .stat-card-blue .stat-hint { color: #1d4ed8; }
+    .stat-card-blue .stat-icon {
+        background: #1d4ed8;
+        color: #fff;
+        border-color: #1e40af;
+    }
+    .stat-card-blue .stat-bar-fill { background: #1d4ed8; }
+
+    .stat-card-amber {
+        border-color: #fcd34d;
+        border-right: 4px solid #d97706;
+        background: linear-gradient(145deg, #fffbeb 0%, #ffffff 55%);
+    }
+    .stat-card-amber .stat-hint { color: #b45309; }
+    .stat-card-amber .stat-icon {
+        background: #d97706;
+        color: #fff;
+        border-color: #b45309;
+    }
+    .stat-card-amber .stat-bar-fill { background: #d97706; }
+
+    .stat-card-slate {
+        border-color: #cbd5e1;
+        border-right: 4px solid #334155;
+        background: linear-gradient(145deg, #f8fafc 0%, #ffffff 55%);
+    }
+    .stat-card-slate .stat-hint { color: #475569; }
+    .stat-card-slate .stat-icon {
+        background: #334155;
+        color: #fff;
+        border-color: #1e293b;
+    }
+    .stat-card-slate .stat-bar-fill { background: #334155; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-md">
+    <div>
+        <h2 class="font-headline-lg text-headline-lg font-bold text-primary">المشتريات</h2>
+        <p class="font-body-md text-body-md text-on-surface-variant mt-xs">إدارة ومتابعة طلبات الشراء من المندوبين.</p>
+    </div>
+    <button type="button" class="btn-primary-app w-full sm:w-auto"
+            onclick="document.getElementById('newSupplyModal').classList.remove('hidden')">
+        <span class="material-symbols-outlined">add</span>
+        طلب شراء جديد
+    </button>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-md">
+    <div class="stat-card stat-card-blue relative overflow-hidden rounded-xl p-md flex flex-col gap-sm border">
+        <div class="stat-card-grid" aria-hidden="true"></div>
+        <div class="flex justify-between items-start z-10">
+            <div>
+                <span class="stat-label">إجمالي الطلبات</span>
+                <p class="stat-hint mt-1">TOTAL_ORDERS</p>
+            </div>
+            <span class="stat-icon">
+                <span class="material-symbols-outlined text-inherit">shopping_bag</span>
+            </span>
+        </div>
+        <div class="z-10 mt-auto">
+            <span class="stat-value">{{ total_orders }}</span>
+            <span class="stat-sub">جميع الطلبات في النظام</span>
+        </div>
+    </div>
+    <div class="stat-card stat-card-amber relative overflow-hidden rounded-xl p-md flex flex-col gap-sm border">
+        <div class="stat-card-grid" aria-hidden="true"></div>
+        <div class="flex justify-between items-start z-10">
+            <div>
+                <span class="stat-label">قيد الانتظار</span>
+                <p class="stat-hint mt-1">PENDING_QUEUE</p>
+            </div>
+            <span class="stat-icon">
+                <span class="material-symbols-outlined text-inherit">pending_actions</span>
+            </span>
+        </div>
+        <div class="z-10 mt-auto">
+            <span class="stat-value">{{ pending_count }}</span>
+            <span class="stat-sub">يحتاجون للمراجعة</span>
+        </div>
+    </div>
+    <div class="stat-card stat-card-slate relative overflow-hidden rounded-xl p-md flex flex-col gap-sm border">
+        <div class="stat-card-grid" aria-hidden="true"></div>
+        <div class="flex justify-between items-start z-10">
+            <div>
+                <span class="stat-label">الميزانية المستهلكة</span>
+                <p class="stat-hint mt-1">BUDGET_USED</p>
+            </div>
+            <span class="stat-icon">
+                <span class="material-symbols-outlined text-inherit">payments</span>
+            </span>
+        </div>
+        <div class="z-10 mt-auto">
+            <span class="stat-value">{{ budget_spent|floatformat:0 }} <span class="stat-unit">ر.س</span></span>
+            <div class="stat-bar mt-2">
+                <div class="stat-bar-fill" style="width: {{ budget_pct }}%"></div>
+            </div>
+            <span class="stat-sub mt-1">{{ budget_pct }}% من الميزانية</span>
+        </div>
+    </div>
+</div>
+
+<div class="app-table-frame w-full">
+    <div class="app-toolbar">
+        <div class="flex items-center gap-sm">
+            <span class="material-symbols-outlined">filter_list</span>
+            <span class="font-label-md text-label-md font-bold text-on-surface">التصفية</span>
+        </div>
+        <form method="get" class="flex flex-wrap gap-sm w-full sm:w-auto">
+            <select name="status" onchange="this.form.submit()"
+                    class="bg-white border border-[#bfdbfe] rounded-lg py-2 px-3 pr-8 font-body-md text-body-md text-on-surface focus:ring-1 focus:ring-[#1d4ed8] focus:border-[#1d4ed8] w-full sm:w-auto">
+                <option value="" {% if not status_filter %}selected{% endif %}>جميع الحالات</option>
+                <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>مكتمل</option>
+                <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>قيد الانتظار</option>
+                <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>مرفوض</option>
+            </select>
+            <select name="period" onchange="this.form.submit()"
+                    class="bg-white border border-[#bfdbfe] rounded-lg py-2 px-3 pr-8 font-body-md text-body-md text-on-surface focus:ring-1 focus:ring-[#1d4ed8] focus:border-[#1d4ed8] w-full sm:w-auto">
+                <option value="all" {% if period_filter == 'all' %}selected{% endif %}>كل الفترات</option>
+                <option value="week" {% if period_filter == 'week' %}selected{% endif %}>هذا الأسبوع</option>
+                <option value="month" {% if period_filter == 'month' %}selected{% endif %}>هذا الشهر</option>
+                <option value="quarter" {% if period_filter == 'quarter' %}selected{% endif %}>آخر 3 أشهر</option>
+            </select>
+        </form>
+    </div>
+    <div class="app-table-sheet overflow-x-auto">
+        <table class="excel-grid app-data-grid">
+            <thead>
+            <tr>
+                <th>رقم الطلب</th>
+                <th>اسم المندوب</th>
+                <th>الاسم</th>
+                <th>رقم الصنف</th>
+                <th>الوحدة</th>
+                <th>العبوة</th>
+                <th>الكمية</th>
+                <th>التاريخ</th>
+                <th>الحالة</th>
+                <th>إجراء</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for order in orders %}
+            <tr>
+                <td class="cell-strong">{{ order.order_number }}</td>
+                <td>
+                    <div class="flex items-center gap-sm">
+                        <div class="w-8 h-8 rounded-full bg-[#dbeafe] text-[#1e3a8a] flex items-center justify-center font-bold text-xs">
+                            {{ order.representative.initials }}
+                        </div>
+                        <span>{{ order.representative.display_name }}</span>
+                    </div>
+                </td>
+                <td>{{ order.item_name }}</td>
+                <td>{% if order.item_number %}{{ order.item_number }}{% else %}—{% endif %}</td>
+                <td>{% if order.unit %}{{ order.unit }}{% else %}—{% endif %}</td>
+                <td>{% if order.package %}{{ order.package }}{% else %}—{% endif %}</td>
+                <td class="cell-center cell-strong">{{ order.quantity }}</td>
+                <td>{{ order.created_at|date:"Y/m/d" }}</td>
+                <td class="cell-center">
+                    {% if order.status == 'completed' %}
+                    <span class="status-chip status-ok">مكتمل</span>
+                    {% elif order.status == 'pending' %}
+                    <span class="status-chip status-pending">قيد الانتظار</span>
+                    {% else %}
+                    <span class="status-chip status-bad">مرفوض</span>
+                    {% endif %}
+                </td>
+                <td class="cell-center">
+                    <a href="{% url 'ops:supply_detail' order.pk %}" class="act-btn act-ok" title="عرض">
+                        <span class="material-symbols-outlined text-[16px] text-inherit">visibility</span>
+                        عرض
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="10" class="empty-row">لا توجد طلبات.</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="pt-md flex justify-between items-center">
+        <span class="font-body-md text-body-md text-on-surface-variant">
+            {% if page_obj.paginator.count %}
+            عرض {{ page_obj.start_index }}-{{ page_obj.end_index }} من {{ page_obj.paginator.count }}
+            {% else %}
+            لا نتائج
+            {% endif %}
+        </span>
+        <div class="flex gap-sm">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}&status={{ status_filter }}&period={{ period_filter }}"
+               class="p-2 border border-[#bfdbfe] rounded-lg text-[#1d4ed8] hover:bg-[#eff6ff]">
+                <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+            </a>
+            {% else %}
+            <button class="p-2 border border-[#dbeafe] rounded-lg text-on-surface-variant opacity-50" disabled>
+                <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+            </button>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&status={{ status_filter }}&period={{ period_filter }}"
+               class="p-2 border border-[#bfdbfe] rounded-lg text-[#1d4ed8] hover:bg-[#eff6ff]">
+                <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+            </a>
+            {% else %}
+            <button class="p-2 border border-[#dbeafe] rounded-lg text-on-surface-variant opacity-50" disabled>
+                <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="hidden fixed inset-0 z-50 flex items-center justify-center p-md bg-[#1b1b1d]/50 backdrop-blur-sm" id="newSupplyModal">
+    <div class="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant w-full max-w-6xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="px-lg py-md border-b border-outline-variant flex justify-between items-center bg-surface-bright">
+            <h3 class="font-headline-md text-headline-md font-bold text-on-surface">طلب شراء جديد</h3>
+            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full transition-colors"
+                    onclick="document.getElementById('newSupplyModal').classList.add('hidden')">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <form method="post" action="{% url 'ops:supply_create' %}" class="flex flex-col overflow-hidden" id="supplyMultiForm">
+            {% csrf_token %}
+            <div class="p-lg overflow-y-auto flex flex-col gap-md">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+                    {% if user.is_representative %}
+                    <input type="hidden" name="representative" value="{{ user.pk }}">
+                    {% else %}
+                    <div class="flex flex-col gap-sm">
+                        <label class="font-label-md text-label-md text-on-surface" for="supplyRep">اسم المندوب</label>
+                        <select name="representative" id="supplyRep" required
+                                class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface">
+                            <option value="">اختر المندوب...</option>
+                            {% for rep in representatives %}
+                            <option value="{{ rep.pk }}">{{ rep.display_name }}</option>
+                            {% empty %}
+                            <option value="" disabled>لا يوجد مناديب — أضفهم من شاشة المستخدمين</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    <div class="flex flex-col gap-sm">
+                        <label class="font-label-md text-label-md text-on-surface" for="expectedDate">التاريخ المتوقع</label>
+                        <input type="date" name="expected_date" id="expectedDate"
+                               class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface">
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between gap-sm">
+                    <span class="font-label-md text-label-md font-bold text-on-surface">أصناف الطلب</span>
+                    <button type="button" id="addSupplyRow"
+                            class="flex items-center gap-xs px-md py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface hover:bg-surface-container-low transition-colors">
+                        <span class="material-symbols-outlined text-[18px]">add</span>
+                        إضافة صف
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto border border-outline-variant rounded-xl">
+                    <table class="w-full text-right border-collapse min-w-[900px]">
+                        <thead class="bg-surface-container-low">
+                        <tr>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-10">#</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">الاسم</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">رقم الصنف</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">الوحدة</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">العبوة</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-24">الكمية</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">ملاحظات</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-14"></th>
+                        </tr>
+                        </thead>
+                        <tbody id="supplyRows" class="divide-y divide-outline-variant"></tbody>
+                    </table>
+                </div>
+                <p class="font-body-md text-body-md text-on-surface-variant text-xs">يمكنك إضافة أكثر من صف ثم حفظها دفعة واحدة.</p>
+            </div>
+            <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
+                <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-low transition-colors"
+                        onclick="document.getElementById('newSupplyModal').classList.add('hidden')">
+                    إلغاء
+                </button>
+                <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:bg-primary/90 transition-colors">
+                    حفظ الطلبات
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const tbody = document.getElementById('supplyRows');
+    const addBtn = document.getElementById('addSupplyRow');
+    if (!tbody || !addBtn) return;
+
+    const inputClass = 'w-full bg-surface border border-outline-variant rounded-lg py-2 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface';
+
+    function renumber() {
+        tbody.querySelectorAll('tr').forEach((tr, i) => {
+            const num = tr.querySelector('[data-row-num]');
+            if (num) num.textContent = String(i + 1);
+        });
+    }
+
+    function addRow() {
+        const tr = document.createElement('tr');
+        tr.className = 'bg-surface-container-lowest';
+        tr.innerHTML = `
+            <td class="p-2 text-on-surface-variant font-label-md text-label-md text-center" data-row-num></td>
+            <td class="p-2"><input name="item_name" type="text" required placeholder="الاسم" class="${inputClass}"></td>
+            <td class="p-2"><input name="item_number" type="text" placeholder="رقم الصنف" class="${inputClass}"></td>
+            <td class="p-2"><input name="unit" type="text" placeholder="قطعة / كرتون" class="${inputClass}"></td>
+            <td class="p-2"><input name="package" type="text" placeholder="العبوة" class="${inputClass}"></td>
+            <td class="p-2"><input name="quantity" type="number" min="1" value="1" required class="${inputClass}"></td>
+            <td class="p-2"><input name="notes" type="text" placeholder="اختياري" class="${inputClass}"></td>
+            <td class="p-2 text-center">
+                <button type="button" class="text-error hover:bg-error-container p-1 rounded-full remove-row" title="حذف الصف">
+                    <span class="material-symbols-outlined text-[20px]">delete</span>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        renumber();
+    }
+
+    addBtn.addEventListener('click', addRow);
+    tbody.addEventListener('click', (e) => {
+        const btn = e.target.closest('.remove-row');
+        if (!btn) return;
+        if (tbody.querySelectorAll('tr').length <= 1) return;
+        btn.closest('tr').remove();
+        renumber();
+    });
+
+    addRow();
+})();
+</script>
+{% endblock %}

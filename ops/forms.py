@@ -1,0 +1,172 @@
+from django import forms
+from django.contrib.auth import get_user_model
+
+from .models import ReturnRequest, SupplyOrder, Task
+
+User = get_user_model()
+
+
+class SupplyOrderForm(forms.ModelForm):
+    class Meta:
+        model = SupplyOrder
+        fields = [
+            'representative', 'item_name', 'item_number', 'unit', 'package',
+            'quantity', 'expected_date', 'notes', 'unit_price',
+        ]
+        widgets = {
+            'representative': forms.Select(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+            }),
+            'item_name': forms.TextInput(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+                'placeholder': 'الاسم',
+            }),
+            'item_number': forms.TextInput(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+            }),
+            'unit': forms.TextInput(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+            }),
+            'package': forms.TextInput(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+            }),
+            'quantity': forms.NumberInput(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+                'min': '1',
+                'placeholder': '0',
+            }),
+            'expected_date': forms.DateInput(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+                'type': 'date',
+            }),
+            'notes': forms.Textarea(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors resize-none',
+                'rows': 3,
+            }),
+            'unit_price': forms.NumberInput(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+                'min': '0',
+                'step': '0.01',
+                'placeholder': '0',
+            }),
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['representative'].queryset = User.objects.filter(is_active=True)
+        self.fields['representative'].label = 'اسم المندوب'
+        self.fields['representative'].empty_label = 'اختر المندوب...'
+        self.fields['item_name'].label = 'الاسم'
+        self.fields['item_number'].label = 'رقم الصنف'
+        self.fields['unit'].label = 'الوحدة'
+        self.fields['package'].label = 'العبوة'
+        self.fields['quantity'].label = 'الكمية'
+        self.fields['expected_date'].label = 'التاريخ المتوقع'
+        self.fields['notes'].label = 'ملاحظات إضافية (اختياري)'
+        self.fields['unit_price'].label = 'السعر (ر.س)'
+        self.fields['item_number'].required = False
+        self.fields['unit'].required = False
+        self.fields['package'].required = False
+        self.fields['notes'].required = False
+        self.fields['expected_date'].required = False
+        self.fields['unit_price'].required = False
+
+        if user and user.is_representative:
+            self.fields['representative'].initial = user
+            self.fields['representative'].widget = forms.HiddenInput()
+            self.fields['representative'].queryset = User.objects.filter(pk=user.pk)
+
+
+class ReturnRequestForm(forms.ModelForm):
+    class Meta:
+        model = ReturnRequest
+        fields = ['representative', 'item_name', 'item_number', 'unit', 'package', 'quantity', 'reason']
+        widgets = {
+            'representative': forms.Select(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+            }),
+            'item_name': forms.TextInput(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+                'placeholder': 'الاسم',
+            }),
+            'item_number': forms.TextInput(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+                'placeholder': 'رقم الصنف',
+            }),
+            'unit': forms.TextInput(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+                'placeholder': 'الوحدة',
+            }),
+            'package': forms.TextInput(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+                'placeholder': 'العبوة',
+            }),
+            'quantity': forms.NumberInput(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+                'min': '1',
+            }),
+            'reason': forms.Textarea(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors resize-none',
+                'rows': 3,
+                'placeholder': 'سبب الإرجاع...',
+            }),
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['representative'].queryset = User.objects.filter(role=User.Role.REPRESENTATIVE)
+        self.fields['representative'].label = 'اسم المندوب'
+        self.fields['representative'].empty_label = 'اختر المندوب...'
+        self.fields['item_name'].label = 'الاسم'
+        self.fields['item_number'].label = 'رقم الصنف'
+        self.fields['unit'].label = 'الوحدة'
+        self.fields['package'].label = 'العبوة'
+        self.fields['quantity'].label = 'الكمية'
+        self.fields['reason'].label = 'سبب الإرجاع'
+        self.fields['item_number'].required = False
+        self.fields['unit'].required = False
+        self.fields['package'].required = False
+
+        if user and user.is_representative:
+            self.fields['representative'].initial = user
+            self.fields['representative'].widget = forms.HiddenInput()
+            self.fields['representative'].queryset = User.objects.filter(pk=user.pk)
+
+
+class TaskForm(forms.ModelForm):
+    class Meta:
+        model = Task
+        fields = ['title', 'description', 'priority', 'assigned_to', 'due_at']
+        widgets = {
+            'title': forms.TextInput(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+                'placeholder': 'عنوان المهمة',
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors resize-none',
+                'rows': 3,
+            }),
+            'priority': forms.Select(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+            }),
+            'assigned_to': forms.Select(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+            }),
+            'due_at': forms.DateTimeInput(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+                'type': 'datetime-local',
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['assigned_to'].queryset = User.objects.filter(is_active=True)
+        self.fields['assigned_to'].required = False
+        self.fields['assigned_to'].empty_label = 'اختر المستخدم...'
+        self.fields['description'].required = False
+        self.fields['due_at'].required = False
+        self.fields['title'].label = 'العنوان'
+        self.fields['description'].label = 'الوصف'
+        self.fields['priority'].label = 'الأولوية'
+        self.fields['assigned_to'].label = 'تعيين إلى'
+        self.fields['due_at'].label = 'الموعد'

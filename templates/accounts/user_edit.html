@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}تعديل مستخدم - عمليات الفرش{% endblock %}
+
+{% block content %}
+<div class="flex items-center gap-md mb-md">
+    <a href="{% url 'accounts:users' %}" class="text-on-surface-variant hover:text-primary p-sm rounded-full hover:bg-surface-container-high">
+        <span class="material-symbols-outlined">arrow_forward</span>
+    </a>
+    <div>
+        <h2 class="font-headline-lg text-headline-lg font-bold text-primary">تعديل المستخدم</h2>
+        <p class="font-body-md text-body-md text-on-surface-variant">{{ edited_user.display_name }}</p>
+    </div>
+</div>
+
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg max-w-lg">
+    <form method="post" class="flex flex-col gap-md">
+        {% csrf_token %}
+        {% for field in form %}
+        <div class="flex flex-col gap-sm">
+            {% if field.field.widget.input_type == 'checkbox' %}
+            <label class="flex items-center gap-sm font-label-md text-label-md text-on-surface cursor-pointer">
+                {{ field }}
+                <span>{{ field.label }}</span>
+            </label>
+            {% else %}
+            <label class="font-label-md text-label-md text-on-surface">{{ field.label }}</label>
+            {{ field }}
+            {% endif %}
+            {% if field.errors %}<p class="text-error text-xs">{{ field.errors|striptags }}</p>{% endif %}
+        </div>
+        {% endfor %}
+        <div class="flex justify-end gap-sm pt-md border-t border-outline-variant">
+            <a href="{% url 'accounts:users' %}" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface-variant">إلغاء</a>
+            <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md">حفظ التعديلات</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

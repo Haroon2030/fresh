@@ -1,0 +1,906 @@
+{% extends "base.html" %}
+
+{% block title %}المرتجعات - عمليات الفرش{% endblock %}
+
+{% block header_search %}
+<form method="get" class="relative w-full">
+    <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+    <input name="q" value="{{ q }}" class="w-full bg-surface-container-low border border-outline-variant rounded-full py-2 pr-10 pl-4 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors" placeholder="البحث برقم المرتجع، المندوب، أو الاسم..." type="text">
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row md:items-center justify-between mb-lg gap-md">
+    <div>
+        <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">إدارة المرتجعات</h2>
+        <p class="text-on-surface-variant font-body-md text-body-md mt-xs">مراجعة ومعالجة العناصر المرتجعة إلى المستودع.</p>
+    </div>
+    <div class="flex flex-col sm:flex-row gap-sm w-full md:w-auto">
+        <form method="get" class="relative w-full md:hidden">
+            <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+            <input name="q" value="{{ q }}" class="w-full pr-10 pl-4 py-2 bg-surface-container-lowest border border-outline-variant rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md" placeholder="بحث..." type="text">
+        </form>
+        <button type="button" class="btn-primary-app"
+                onclick="document.getElementById('newReturnModal').classList.remove('hidden')">
+            <span class="material-symbols-outlined">add</span>
+            مرتجع جديد
+        </button>
+    </div>
+</div>
+
+<div class="returns-list-frame app-table-frame w-full max-w-full">
+    <div class="excel-sheet returns-list-sheet overflow-auto bg-white w-full">
+        <table class="excel-grid returns-list-grid resizable-cols w-full text-right border-collapse" data-resize-key="returns-list">
+            <colgroup>
+                <col style="width:48px">
+                <col style="width:140px">
+                <col style="width:120px">
+                <col style="width:130px">
+                <col style="width:110px">
+                <col style="width:80px">
+                <col style="width:120px">
+            </colgroup>
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>اسم المندوب</th>
+                <th>الفرع</th>
+                <th>التاريخ</th>
+                <th>الحالة</th>
+                <th>الأصناف</th>
+                <th>إجراءات</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for batch in batches %}
+            <tr class="batch-row {% if batch.display_status != 'pending' %}row-done{% endif %}" data-open-batch="{{ batch.pk }}" style="cursor:pointer">
+                <td class="row-num">{{ forloop.counter }}</td>
+                <td class="cell-strong">{{ batch.representative.display_name }}</td>
+                <td>{{ batch.branch }}</td>
+                <td>{{ batch.created_at|date:"Y/m/d H:i" }}</td>
+                <td class="cell-center">
+                    {% with st=batch.display_status %}
+                    {% if st == 'pending' %}
+                    <span class="status-chip status-pending">قيد الانتظار</span>
+                    {% elif st == 'accepted' %}
+                    <span class="status-chip status-ok">مقبول</span>
+                    {% elif st == 'rejected' %}
+                    <span class="status-chip status-bad">مرفوض</span>
+                    {% else %}
+                    <span class="status-chip status-wait">متعدد</span>
+                    {% endif %}
+                    {% endwith %}
+                </td>
+                <td class="cell-center cell-strong">{{ batch.items.all|length }}</td>
+                <td class="cell-action" onclick="event.stopPropagation()">
+                    <button type="button" class="act-btn act-ok" data-open-batch="{{ batch.pk }}">عرض الأصناف</button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="empty-row">لا توجد ملفات مرتجعات.</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="hidden fixed inset-0 z-50 flex items-center justify-center p-md bg-[#1b1b1d]/50 backdrop-blur-sm" id="newReturnModal">
+    <div class="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant w-full max-w-6xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="px-lg py-md border-b border-outline-variant flex justify-between items-center bg-surface-bright">
+            <h3 class="font-headline-md text-headline-md font-bold text-on-surface">مرتجع جديد</h3>
+            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full"
+                    onclick="document.getElementById('newReturnModal').classList.add('hidden')">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <form method="post" action="{% url 'ops:return_create' %}" class="flex flex-col overflow-hidden" id="returnMultiForm">
+            {% csrf_token %}
+            <div class="p-lg overflow-y-auto flex flex-col gap-md">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+                    {% if user.is_representative %}
+                    <input type="hidden" name="representative" value="{{ user.pk }}">
+                    <div class="flex flex-col gap-sm">
+                        <label class="font-label-md text-label-md text-on-surface">اسم المندوب</label>
+                        <div class="w-full max-w-md bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-3 font-body-md text-body-md text-on-surface">
+                            {{ user.display_name }}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="flex flex-col gap-sm">
+                        <label class="font-label-md text-label-md text-on-surface" for="returnRep">اسم المندوب</label>
+                        <select name="representative" id="returnRep" required
+                                class="return-rep-select w-full max-w-md bg-surface border border-outline-variant rounded-lg py-2.5 pr-3 pl-12 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface">
+                            <option value="">اختر المندوب...</option>
+                            {% for rep in representatives %}
+                            <option value="{{ rep.pk }}">{{ rep.display_name }}</option>
+                            {% empty %}
+                            <option value="" disabled>لا يوجد مناديب — أضفهم من شاشة المستخدمين</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    <div class="flex flex-col gap-sm">
+                        <label class="font-label-md text-label-md text-on-surface" for="returnBranch">الفرع</label>
+                        <input type="text" name="branch" id="returnBranch" required
+                               class="w-full max-w-md bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface"
+                               placeholder="اسم الفرع">
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between gap-sm">
+                    <span class="font-label-md text-label-md font-bold text-on-surface">أصناف المرتجع</span>
+                    <button type="button" id="addReturnRow"
+                            class="flex items-center gap-xs px-md py-2 rounded-lg font-label-md text-label-md text-white bg-blue-600 border border-blue-600 hover:bg-blue-700 transition-colors">
+                        <span class="material-symbols-outlined text-[18px] text-white">add</span>
+                        إضافة صف
+                    </button>
+                </div>
+
+                <div class="excel-sheet overflow-x-auto border border-[#b4b4b4] rounded-sm bg-white shadow-sm">
+                    <table class="excel-grid resizable-cols w-full text-right border-collapse" data-resize-key="return-create">
+                        <colgroup>
+                            <col style="width:44px">
+                            <col style="width:160px">
+                            <col style="width:110px">
+                            <col style="width:90px">
+                            <col style="width:90px">
+                            <col style="width:70px">
+                            <col style="width:120px">
+                            <col style="width:160px">
+                            <col style="width:140px">
+                        </colgroup>
+                        <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>الاسم</th>
+                            <th>رقم الصنف</th>
+                            <th>الوحدة</th>
+                            <th>العبوة</th>
+                            <th>الكمية</th>
+                            <th>نوع المرتجع</th>
+                            <th>سبب الإرجاع</th>
+                            <th>إجراءات</th>
+                        </tr>
+                        </thead>
+                        <tbody id="returnRows"></tbody>
+                    </table>
+                </div>
+                <p class="font-body-md text-body-md text-on-surface-variant text-xs">يمكنك إضافة أكثر من صف ثم حفظها دفعة واحدة — التنقل بين الخلايا مثل Excel.</p>
+            </div>
+            <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
+                <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface-variant"
+                        onclick="document.getElementById('newReturnModal').classList.add('hidden')">إلغاء</button>
+                <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md">حفظ الملف</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% for batch in batches %}
+<div class="hidden fixed inset-0 z-50 flex items-center justify-center p-md bg-[#1b1b1d]/50 backdrop-blur-sm batch-detail-modal" id="batchModal-{{ batch.pk }}">
+    <div class="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant w-full max-w-6xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="px-lg py-md border-b border-outline-variant flex justify-between items-start gap-md bg-surface-bright">
+            <div>
+                <h3 class="font-headline-md text-headline-md font-bold text-on-surface">ملف {{ batch.return_number }}</h3>
+                <p class="font-body-md text-body-md text-on-surface-variant mt-1">
+                    {{ batch.representative.display_name }} · {{ batch.branch }} · {{ batch.created_at|date:"Y/m/d H:i" }}
+                </p>
+            </div>
+            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full close-batch-modal"
+                    data-close-batch="{{ batch.pk }}">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="p-lg overflow-y-auto flex flex-col gap-md">
+            {% for item in batch.items.all %}
+                {% if item.status == 'pending' %}
+                    {% if user.is_manager or item.representative_id == user.id %}
+                    <form id="edit-item-{{ item.pk }}" method="post" action="{% url 'ops:return_item_update' item.pk %}" class="sr-only" aria-hidden="true">
+                        {% csrf_token %}
+                    </form>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+            <div class="excel-sheet batch-detail-sheet overflow-x-auto border border-[#b4b4b4] rounded-sm bg-white shadow-sm">
+                <table class="excel-grid batch-detail-grid resizable-cols w-full text-right border-collapse" data-resize-key="batch-detail-{{ batch.pk }}">
+                    <colgroup>
+                        <col style="width:44px">
+                        <col style="width:140px">
+                        <col style="width:100px">
+                        <col style="width:90px">
+                        <col style="width:90px">
+                        <col style="width:70px">
+                        <col style="width:110px">
+                        <col style="width:140px">
+                        <col style="width:100px">
+                        <col style="width:150px">
+                    </colgroup>
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>الاسم</th>
+                        <th>رقم الصنف</th>
+                        <th>الوحدة</th>
+                        <th>العبوة</th>
+                        <th>الكمية</th>
+                        <th>النوع</th>
+                        <th>سبب الإرجاع</th>
+                        <th>الحالة</th>
+                        <th>إجراءات</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for item in batch.items.all %}
+                    {% if item.status == 'pending' and user.is_manager or item.status == 'pending' and item.representative_id == user.id %}
+                    <tr>
+                        <td class="row-num">{{ forloop.counter }}</td>
+                        <td>
+                            <input class="cell-input" form="edit-item-{{ item.pk }}" name="item_name"
+                                   value="{{ item.item_name|default:'' }}" required title="{{ item.item_name }}">
+                        </td>
+                        <td>
+                            <input class="cell-input" form="edit-item-{{ item.pk }}" name="item_number"
+                                   value="{{ item.item_number|default:'' }}" title="{{ item.item_number }}">
+                        </td>
+                        <td>
+                            <input class="cell-input" form="edit-item-{{ item.pk }}" name="unit"
+                                   value="{{ item.unit|default:'' }}" title="{{ item.unit }}">
+                        </td>
+                        <td>
+                            <input class="cell-input" form="edit-item-{{ item.pk }}" name="package"
+                                   value="{{ item.package|default:'' }}" title="{{ item.package }}">
+                        </td>
+                        <td>
+                            <input class="cell-input" form="edit-item-{{ item.pk }}" name="quantity"
+                                   type="number" min="1" value="{{ item.quantity }}" required>
+                        </td>
+                        <td>
+                            <select class="cell-select" form="edit-item-{{ item.pk }}" name="return_type" required>
+                                {% for val, label in return_types %}
+                                <option value="{{ val }}" {% if item.return_type == val %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <input class="cell-input" form="edit-item-{{ item.pk }}" name="reason"
+                                   value="{{ item.reason|default:'' }}" required title="{{ item.reason }}">
+                        </td>
+                        <td class="cell-center cell-pad">
+                            {% if item.rep_decision == 'pending' %}
+                            <span class="status-chip status-wait">بانتظار التعميد</span>
+                            {% elif item.rep_decision == 'authorized' %}
+                            <span class="status-chip status-ok">معتمد</span>
+                            {% else %}
+                            <span class="status-chip status-bad">مرفوض</span>
+                            {% endif %}
+                        </td>
+                        <td class="cell-action">
+                            <div class="row-actions" style="flex-wrap:wrap">
+                                <button type="submit" form="edit-item-{{ item.pk }}" class="edit-row">حفظ</button>
+                                {% if item.rep_decision == 'pending' %}
+                                <form method="post" action="{% url 'ops:return_authorize' item.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-ok">تعميد</button>
+                                </form>
+                                <form method="post" action="{% url 'ops:return_rep_reject' item.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-bad">رفض</button>
+                                </form>
+                                {% elif user.is_manager and item.rep_decision == 'authorized' %}
+                                <form method="post" action="{% url 'ops:return_accept' item.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-ok">قبول</button>
+                                </form>
+                                <form method="post" action="{% url 'ops:return_reject' item.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-bad">رفض</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td class="row-num">{{ forloop.counter }}</td>
+                        <td class="cell-pad cell-text" title="{{ item.item_name }}">{{ item.item_name }}</td>
+                        <td class="cell-pad cell-text">{% if item.item_number %}{{ item.item_number }}{% else %}—{% endif %}</td>
+                        <td class="cell-pad cell-text">{% if item.unit %}{{ item.unit }}{% else %}—{% endif %}</td>
+                        <td class="cell-pad cell-text">{% if item.package %}{{ item.package }}{% else %}—{% endif %}</td>
+                        <td class="cell-pad cell-center">{{ item.quantity }}</td>
+                        <td class="cell-pad cell-text">{{ item.get_return_type_display }}</td>
+                        <td class="cell-pad cell-text cell-reason" title="{{ item.reason }}">{{ item.reason }}</td>
+                        <td class="cell-center cell-pad">
+                            {% if item.status == 'accepted' %}
+                            <span class="status-chip status-ok">مقبول</span>
+                            {% elif item.status == 'rejected' %}
+                            <span class="status-chip status-bad">مرفوض</span>
+                            {% elif item.rep_decision == 'authorized' %}
+                            <span class="status-chip status-ok">معتمد</span>
+                            {% else %}
+                            <span class="status-chip status-wait">بانتظار</span>
+                            {% endif %}
+                        </td>
+                        <td class="cell-action">
+                            {% if user.is_manager and item.status == 'pending' and item.rep_decision == 'authorized' %}
+                            <div class="row-actions">
+                                <form method="post" action="{% url 'ops:return_accept' item.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-ok">قبول</button>
+                                </form>
+                                <form method="post" action="{% url 'ops:return_reject' item.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-bad">رفض</button>
+                                </form>
+                            </div>
+                            {% else %}
+                            <span class="act-muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% empty %}
+                    <tr><td colspan="10" class="empty-row">لا توجد أصناف في هذا الملف.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end">
+            <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface-variant close-batch-modal"
+                    data-close-batch="{{ batch.pk }}">إغلاق</button>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    .return-rep-select {
+        appearance: none;
+        -webkit-appearance: none;
+        background-image:
+            linear-gradient(45deg, transparent 50%, #1d4ed8 50%),
+            linear-gradient(135deg, #1d4ed8 50%, transparent 50%);
+        background-position:
+            18px calc(50% - 2px),
+            23px calc(50% - 2px);
+        background-size: 5px 5px, 5px 5px;
+        background-repeat: no-repeat;
+        padding-left: 2.75rem;
+    }
+    .excel-grid {
+        font-family: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+        font-size: 13px;
+    }
+    .excel-grid th,
+    .excel-grid td {
+        border: 1px solid #c6c6c6;
+        padding: 0;
+        vertical-align: middle;
+        background: #fff;
+    }
+    .excel-grid thead th {
+        background: #1d4ed8;
+        color: #ffffff;
+        font-weight: 600;
+        font-size: 12px;
+        text-align: center;
+        padding: 8px 6px;
+        border-color: #1e40af;
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+    .excel-grid tbody tr:nth-child(even) td {
+        background: #eff6ff;
+    }
+    .excel-grid tbody tr:hover td {
+        background: #dbeafe;
+    }
+    .excel-grid td.row-num {
+        background: #f3f3f3 !important;
+        color: #666;
+        text-align: center;
+        font-size: 12px;
+        font-weight: 600;
+        width: 44px;
+    }
+    .excel-grid .cell-input {
+        width: 100%;
+        min-width: 0;
+        height: 40px;
+        border: 0 !important;
+        border-radius: 0 !important;
+        outline: none !important;
+        box-shadow: none !important;
+        background: #fff !important;
+        padding: 8px 10px;
+        font-size: 13px;
+        line-height: 1.4;
+        color: #111 !important;
+        text-align: right;
+        box-sizing: border-box;
+    }
+    .excel-grid .cell-input:focus {
+        outline: 2px solid #1d4ed8 !important;
+        outline-offset: -2px;
+        background: #fff !important;
+        position: relative;
+        z-index: 2;
+    }
+    .excel-grid .cell-select {
+        width: 100%;
+        min-width: 0;
+        height: 40px;
+        border: 0 !important;
+        border-radius: 0 !important;
+        outline: none !important;
+        box-shadow: none !important;
+        padding: 8px 28px 8px 10px;
+        font-size: 13px;
+        line-height: 1.4;
+            color: #1e3a8a !important;
+            font-weight: 600;
+            text-align: right;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-color: #eff6ff !important;
+            background-image:
+            linear-gradient(45deg, transparent 50%, #1d4ed8 50%),
+            linear-gradient(135deg, #1d4ed8 50%, transparent 50%);
+        background-position:
+            12px calc(50% - 2px),
+            17px calc(50% - 2px);
+        background-size: 5px 5px, 5px 5px;
+        background-repeat: no-repeat;
+        box-sizing: border-box;
+    }
+    .batch-detail-grid {
+        table-layout: fixed;
+        width: max-content;
+        min-width: 100%;
+    }
+    .batch-detail-grid td.cell-pad,
+    .batch-detail-grid td.cell-text {
+        padding: 10px 12px !important;
+        font-size: 13px;
+        color: #111;
+        line-height: 1.45;
+        white-space: normal;
+        word-break: break-word;
+        vertical-align: middle;
+    }
+    .batch-detail-grid td.cell-center {
+        text-align: center;
+    }
+    .batch-detail-grid td.cell-reason {
+        color: #9b1c1c;
+    }
+    .batch-detail-grid td.row-num {
+        padding: 10px 6px !important;
+    }
+    .batch-detail-grid .cell-input,
+    .batch-detail-grid .cell-select {
+        height: 44px;
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+    .batch-detail-grid .cell-select {
+        padding-left: 28px;
+    }
+    .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+    .excel-grid .cell-input[type="number"] {
+        text-align: center;
+        -moz-appearance: textfield;
+    }
+    .excel-grid .cell-input[type="number"]::-webkit-outer-spin-button,
+    .excel-grid .cell-input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    .excel-grid td.cell-action {
+        text-align: center;
+        background: #fafafa !important;
+        padding: 4px 6px !important;
+    }
+    .excel-grid .row-actions {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        flex-wrap: nowrap;
+    }
+    .excel-grid .edit-row,
+    .excel-grid .remove-row {
+        border: 0;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 8px;
+        line-height: 1.3;
+        white-space: nowrap;
+    }
+    .excel-grid .edit-row {
+        background: #e8f1ff;
+        color: #1d4ed8;
+    }
+    .excel-grid .edit-row:hover {
+        background: #dbeafe;
+    }
+    .excel-grid .remove-row {
+        background: #ffecec;
+        color: #ba1a1a;
+    }
+    .excel-grid .remove-row:hover {
+        background: #ffdad6;
+    }
+
+    .status-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        max-width: 100%;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 600;
+        line-height: 1.35;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .status-pending { background: #fff7ed; color: #c2410c; }
+    .status-wait { background: #f3f4f6; color: #4b5563; }
+    .status-ok { background: #eff6ff; color: #1d4ed8; }
+    .status-bad { background: #fef2f2; color: #b91c1c; }
+    .act-btn {
+        border: 0;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 4px 8px;
+        line-height: 1.3;
+        white-space: nowrap;
+    }
+    .act-ok { background: #eff6ff; color: #1e3a8a; }
+    .act-ok:hover { background: #dbeafe; }
+    .act-bad { background: #ffecec; color: #ba1a1a; }
+    .act-bad:hover { background: #ffdad6; }
+    .act-muted { font-size: 11px; color: #6b7280; }
+
+    /* إطار ملون حول جدول المرتجعات */
+    .returns-list-frame {
+        border: 1px solid #bfdbfe;
+        border-radius: 10px;
+        background: #ffffff;
+        padding: 12px;
+        box-shadow: 0 2px 8px rgba(29, 78, 216, 0.06);
+    }
+    .returns-list-sheet {
+        width: 100%;
+        max-width: 100%;
+        max-height: min(70vh, 640px);
+        overflow: auto;
+        border: 1px solid #dbeafe;
+        border-radius: 8px;
+        background: #fff;
+    }
+    .returns-list-grid {
+        width: max-content;
+        min-width: 100%;
+        table-layout: fixed;
+    }
+    .returns-list-grid th,
+    .returns-list-grid td {
+        border-color: #dbeafe !important;
+        padding: 10px 8px !important;
+        font-size: 12px;
+        color: #000;
+        vertical-align: middle;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .returns-list-grid thead th {
+        background: #1d4ed8 !important;
+        border-color: #1e40af !important;
+        color: #ffffff !important;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+    }
+    .returns-list-grid tbody tr:nth-child(odd) td {
+        background: #ffffff !important;
+    }
+    .returns-list-grid tbody tr:nth-child(even) td {
+        background: #eff6ff !important;
+    }
+    .returns-list-grid tbody tr:hover td {
+        background: #dbeafe !important;
+    }
+    .returns-list-grid td.row-num {
+        background: #eff6ff !important;
+        color: #1d4ed8 !important;
+        font-weight: 700;
+    }
+    .returns-list-grid tbody tr:nth-child(even) td.row-num {
+        background: #dbeafe !important;
+    }
+    .returns-list-grid td.cell-strong {
+        font-weight: 600;
+    }
+    .returns-list-grid td.cell-center {
+        text-align: center;
+    }
+    .returns-list-grid td.cell-reason {
+        color: #9b1c1c;
+    }
+    .returns-list-grid tr.row-done td {
+        color: #4b5563;
+        background: #eef6f1 !important;
+    }
+    .returns-list-grid tr.row-done td.row-num {
+        background: #e0eee6 !important;
+    }
+    .returns-list-grid td.empty-row {
+        text-align: center;
+        padding: 28px !important;
+        color: #666;
+        white-space: normal;
+    }
+    .returns-list-grid td.cell-action {
+        white-space: normal;
+        overflow: visible;
+    }
+    .returns-list-grid td.cell-action .row-actions {
+        gap: 4px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    /* سحب وتغيير عرض الأعمدة بشكل مستقل */
+    .excel-grid.resizable-cols {
+        table-layout: fixed;
+        width: max-content;
+        min-width: 100%;
+    }
+    .excel-grid.resizable-cols thead th {
+        position: relative;
+        user-select: none;
+    }
+    .excel-grid.resizable-cols .col-resize-handle {
+        position: absolute;
+        top: 0;
+        left: -4px;
+        width: 8px;
+        height: 100%;
+        cursor: col-resize;
+        z-index: 5;
+    }
+    .excel-grid.resizable-cols .col-resize-handle:hover,
+    .excel-grid.resizable-cols .col-resize-handle.active {
+        background: rgba(255, 255, 255, 0.35);
+    }
+    .excel-grid.resizable-cols.resizing {
+        cursor: col-resize;
+        user-select: none;
+    }
+    body.col-resizing {
+        cursor: col-resize !important;
+        user-select: none !important;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    function enableColumnResize(table) {
+        if (!table) return;
+        const colgroup = table.querySelector('colgroup');
+        const headers = table.querySelectorAll('thead th');
+        if (!colgroup || !headers.length) return;
+
+        let cols = Array.from(colgroup.querySelectorAll('col'));
+        while (cols.length < headers.length) {
+            const col = document.createElement('col');
+            col.style.width = '120px';
+            colgroup.appendChild(col);
+            cols = Array.from(colgroup.querySelectorAll('col'));
+        }
+
+        const storageKey = table.getAttribute('data-resize-key');
+        if (storageKey) {
+            try {
+                const saved = JSON.parse(localStorage.getItem('farsh-col-' + storageKey) || 'null');
+                if (Array.isArray(saved)) {
+                    saved.forEach((w, i) => {
+                        if (cols[i] && w) cols[i].style.width = w + 'px';
+                    });
+                }
+            } catch (err) {}
+        }
+
+        // ثبّت العروض الحالية بالبكسل حتى لا تتأثر الأعمدة الأخرى
+        headers.forEach((th, i) => {
+            if (!cols[i]) return;
+            const current = cols[i].style.width;
+            if (!current || current.endsWith('%') || current === 'auto') {
+                cols[i].style.width = Math.max(48, Math.round(th.getBoundingClientRect().width)) + 'px';
+            }
+        });
+
+        headers.forEach((th, index) => {
+            if (th.querySelector('.col-resize-handle')) return;
+            const handle = document.createElement('span');
+            handle.className = 'col-resize-handle';
+            handle.title = 'اسحب لتغيير عرض العمود';
+            th.appendChild(handle);
+
+            handle.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const startX = e.clientX;
+                const startWidth = cols[index].getBoundingClientRect().width;
+                handle.classList.add('active');
+                table.classList.add('resizing');
+                document.body.classList.add('col-resizing');
+
+                function onMove(ev) {
+                    // RTL: السحب لليسار يوسّع العمود
+                    const delta = startX - ev.clientX;
+                    const next = Math.max(48, Math.round(startWidth + delta));
+                    cols[index].style.width = next + 'px';
+                }
+
+                function onUp() {
+                    handle.classList.remove('active');
+                    table.classList.remove('resizing');
+                    document.body.classList.remove('col-resizing');
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    if (storageKey) {
+                        const widths = cols.map((c) => parseInt(c.style.width, 10) || 100);
+                        localStorage.setItem('farsh-col-' + storageKey, JSON.stringify(widths));
+                    }
+                }
+
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        });
+    }
+
+    document.querySelectorAll('table.resizable-cols').forEach(enableColumnResize);
+    window.enableColumnResize = enableColumnResize;
+})();
+
+(function () {
+    function openBatch(id) {
+        const modal = document.getElementById('batchModal-' + id);
+        if (modal) modal.classList.remove('hidden');
+    }
+    function closeBatch(id) {
+        const modal = document.getElementById('batchModal-' + id);
+        if (modal) modal.classList.add('hidden');
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('open')) {
+            url.searchParams.delete('open');
+            window.history.replaceState({}, '', url.pathname + url.search);
+        }
+    }
+    document.addEventListener('click', (e) => {
+        const openBtn = e.target.closest('[data-open-batch]');
+        if (openBtn) {
+            openBatch(openBtn.getAttribute('data-open-batch'));
+            return;
+        }
+        const closeBtn = e.target.closest('[data-close-batch]');
+        if (closeBtn) {
+            closeBatch(closeBtn.getAttribute('data-close-batch'));
+            return;
+        }
+        if (e.target.classList.contains('batch-detail-modal')) {
+            e.target.classList.add('hidden');
+        }
+    });
+    const openId = '{{ open_batch|default:""|escapejs }}';
+    if (openId) openBatch(openId);
+})();
+
+(function () {
+    const tbody = document.getElementById('returnRows');
+    const addBtn = document.getElementById('addReturnRow');
+    if (!tbody || !addBtn) return;
+
+    function renumber() {
+        tbody.querySelectorAll('tr').forEach((tr, i) => {
+            const num = tr.querySelector('[data-row-num]');
+            if (num) num.textContent = String(i + 1);
+        });
+    }
+
+    function addRow() {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="row-num" data-row-num></td>
+            <td><input class="cell-input" name="item_name" type="text" required placeholder="الاسم"></td>
+            <td><input class="cell-input" name="item_number" type="text" placeholder="رقم الصنف"></td>
+            <td><input class="cell-input" name="unit" type="text" placeholder="الوحدة"></td>
+            <td><input class="cell-input" name="package" type="text" placeholder="العبوة"></td>
+            <td><input class="cell-input" name="quantity" type="number" min="1" value="1" required></td>
+            <td>
+                <select class="cell-select" name="return_type" required>
+                    <option value="unacceptable">غير مقبول</option>
+                    <option value="exchange">تبديل</option>
+                    <option value="return" selected>مرتجع</option>
+                </select>
+            </td>
+            <td><input class="cell-input" name="reason" type="text" required placeholder="سبب الإرجاع"></td>
+            <td class="cell-action">
+                <div class="row-actions">
+                    <button type="button" class="edit-row" title="تعديل الصف">تعديل</button>
+                    <button type="button" class="remove-row" title="حذف الصف">حذف</button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        renumber();
+        const first = tr.querySelector('input[name="item_name"]');
+        if (first) first.focus();
+    }
+
+    addBtn.addEventListener('click', addRow);
+    tbody.addEventListener('click', (e) => {
+        const editBtn = e.target.closest('.edit-row');
+        if (editBtn) {
+            const tr = editBtn.closest('tr');
+            const first = tr?.querySelector('input, select');
+            if (first) first.focus();
+            return;
+        }
+        const btn = e.target.closest('.remove-row');
+        if (!btn) return;
+        if (tbody.querySelectorAll('tr').length <= 1) return;
+        btn.closest('tr').remove();
+        renumber();
+    });
+
+    tbody.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        const cell = e.target.closest('td');
+        if (!cell) return;
+        e.preventDefault();
+        const tr = cell.parentElement;
+        const idx = Array.from(tr.children).indexOf(cell);
+        const nextRow = tr.nextElementSibling;
+        if (nextRow) {
+            const next = nextRow.children[idx]?.querySelector('input,select');
+            if (next) next.focus();
+        } else {
+            addRow();
+        }
+    });
+
+    addRow();
+})();
+</script>
+{% endblock %}

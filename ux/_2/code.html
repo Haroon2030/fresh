@@ -1,0 +1,261 @@
+<!DOCTYPE html><html dir="rtl" lang="ar"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Returns - Farsh Ops</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed": "#111c2d",
+                        "secondary-container": "#d0e1fb",
+                        "on-primary-container": "#8590a6",
+                        "inverse-surface": "#303032",
+                        "inverse-on-surface": "#f3f0f2",
+                        "on-secondary": "#ffffff",
+                        "surface-container-low": "#f5f3f4",
+                        "on-surface": "#1b1b1d",
+                        "surface-dim": "#dcd9db",
+                        "on-surface-variant": "#45474c",
+                        "tertiary-fixed": "#e0e3e5",
+                        "secondary-fixed": "#d3e4fe",
+                        "surface-tint": "#545f73",
+                        "surface-container-lowest": "#ffffff",
+                        "primary": "#091426",
+                        "tertiary": "#111516",
+                        "on-tertiary-container": "#8d9092",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "tertiary-container": "#26292b",
+                        "surface-variant": "#e4e2e3",
+                        "on-primary-fixed-variant": "#3c475a",
+                        "on-tertiary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "on-primary": "#ffffff",
+                        "primary-fixed": "#d8e3fb",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "outline-variant": "#c5c6cd",
+                        "surface": "#fbf8fa",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "on-secondary-container": "#54647a",
+                        "on-secondary-fixed": "#0b1c30",
+                        "surface-container-highest": "#e4e2e3",
+                        "inverse-primary": "#bcc7de",
+                        "on-tertiary-fixed": "#191c1e",
+                        "primary-fixed-dim": "#bcc7de",
+                        "primary-container": "#1e293b",
+                        "surface-container": "#f0edef",
+                        "surface-container-high": "#eae7e9",
+                        "secondary": "#505f76",
+                        "on-background": "#1b1b1d",
+                        "surface-bright": "#fbf8fa",
+                        "background": "#fbf8fa",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "on-error-container": "#93000a",
+                        "outline": "#75777d",
+                        "error-container": "#ffdad6",
+                        "on-error": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "base": "4px",
+                        "margin": "24px",
+                        "xl": "32px",
+                        "xs": "4px",
+                        "md": "16px",
+                        "container-max": "1440px",
+                        "gutter": "20px",
+                        "sm": "8px",
+                        "lg": "24px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["IBM Plex Sans"],
+                        "display-lg": ["IBM Plex Sans"],
+                        "label-md": ["IBM Plex Sans"],
+                        "headline-md": ["IBM Plex Sans"],
+                        "headline-lg": ["IBM Plex Sans"],
+                        "headline-lg-mobile": ["IBM Plex Sans"],
+                        "body-lg": ["IBM Plex Sans"]
+                    },
+                    "fontSize": {
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "display-lg": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "500" }],
+                        "headline-lg": ["28px", { "lineHeight": "36px", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["22px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'IBM Plex Sans', sans-serif; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface h-screen overflow-hidden flex font-body-md text-body-md">
+<!-- SideNavBar -->
+<aside class="hidden md:flex flex-col h-full p-md border-l border-outline-variant w-[280px] fixed right-0 top-0 bg-surface dark:bg-surface text-primary dark:text-primary-fixed z-50">
+<div class="mb-lg flex items-center gap-sm">
+<span class="material-symbols-outlined font-headline-md text-headline-md text-primary" data-icon="inventory_2" data-weight="fill" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<div>
+<h1 class="font-headline-md text-headline-md text-primary font-bold">Farsh Management</h1>
+<p class="font-label-md text-label-md text-on-surface-variant">Operations Portal</p>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-sm">
+<a class="flex items-center gap-sm p-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 ease-in-out font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="shopping_cart">shopping_cart</span>
+<span>Supply</span>
+</a>
+<a class="flex items-center gap-sm p-sm bg-secondary-container text-on-secondary-container rounded-lg font-bold hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 ease-in-out font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="assignment_return">assignment_return</span>
+<span>Returns</span>
+</a>
+<a class="flex items-center gap-sm p-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 ease-in-out font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="checklist">checklist</span>
+<span>Tasks</span>
+</a>
+</nav>
+<div class="mt-auto flex flex-col gap-sm border-t border-outline-variant pt-sm">
+<a class="flex items-center gap-sm p-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span>Settings</span>
+</a>
+<a class="flex items-center gap-sm p-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span>Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col md:mr-[280px] h-full overflow-hidden">
+<!-- TopNavBar (Mobile only since sidebar is on desktop, but keeping layout consistent with spec if needed. Adapting for hybrid approach) -->
+<header class="flex justify-between items-center px-lg sticky top-0 z-40 bg-surface-container-lowest w-full h-16 border-b border-outline-variant dark:border-outline-variant md:hidden">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed" data-icon="inventory_2" data-weight="fill" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed">Farsh Operations</h1>
+</div>
+<div class="flex items-center gap-sm">
+<button class="p-sm text-on-surface-variant hover:bg-surface-container-low dark:hover:bg-surface-container-high transition-colors cursor-pointer active:opacity-80 rounded-full">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-sm text-on-surface-variant hover:bg-surface-container-low dark:hover:bg-surface-container-high transition-colors cursor-pointer active:opacity-80 rounded-full">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+<img alt="Manager Profile" class="w-8 h-8 rounded-full ml-sm object-cover bg-surface-variant" data-alt="A small circular profile picture of a logistics manager in a professional setting, well-lit, corporate headshot style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC4l-3D-UwBGCa8bVbni0VSsufkn5nylK4z2UFGDne2eGo2OaP_oo--C1LzupVAgaJCySas4Wq6nb3jwwUcRLV7BQyWbEAqfpsH0cNYB_5YT-F53oD7Qpl8DztrHyNxgGCukFs_vdgrjdsYwfD_8y7X8_eJFiRqRZL4N6CxvDFqJRnecg7zPnQk_SomiX6nDyHgbvnFj9fE3t--FLF5JIaiR02lyP50QjcIfHF2UgkOJdaQr4aqVTnO">
+</div>
+</header>
+<!-- Canvas -->
+<div class="flex-1 overflow-y-auto p-md md:p-margin bg-surface">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row md:items-center justify-between mb-lg gap-md">
+<div>
+<h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">إدارة المرتجعات</h2>
+<p class="text-on-surface-variant font-body-md text-body-md mt-xs">مراجعة ومعالجة العناصر المرتجعة إلى المستودع.</p>
+</div>
+<!-- Search -->
+<div class="relative w-full md:w-96">
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
+<input class="w-full pr-10 pl-4 py-2 bg-surface-container-lowest border border-outline-variant rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface" placeholder="البحث برقم المرتجع، المندوب، أو العنصر..." type="text">
+</div>
+</div>
+<!-- Bento Grid / Data List -->
+<div class="grid grid-cols-1 gap-md">
+<!-- Return Item Card 1 -->
+<div class="bg-surface-container-lowest rounded-lg border border-outline-variant p-md flex flex-col md:flex-row gap-md justify-between items-start md:items-center shadow-sm">
+<div class="flex flex-col md:flex-row gap-lg flex-1">
+<!-- Status/ID -->
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider mb-xs">رقم المرتجع</span>
+<span class="font-body-md text-body-md font-bold text-on-surface">#RET-8924</span>
+<div class="mt-sm flex items-center gap-xs text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded w-fit">
+<span class="material-symbols-outlined text-[16px]" data-icon="pending">pending</span>
+                                قيد الانتظار
+                            </div>
+</div>
+<!-- Item Details -->
+<div class="flex flex-col flex-1 border-t md:border-t-0 md:border-r border-outline-variant pt-sm md:pt-0 md:pr-lg">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider mb-xs">العنصر</span>
+<div class="flex items-center gap-sm">
+<div class="w-10 h-10 bg-surface-variant rounded flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="chair">chair</span>
+</div>
+<div>
+<span class="font-body-md text-body-md font-bold text-on-surface block">كرسي مكتب مريح - أسود</span>
+<span class="font-body-md text-body-md text-on-surface-variant text-sm">SKU: CHR-099-BLK</span>
+</div>
+</div>
+</div>
+<!-- Rep & Reason -->
+<div class="flex flex-col border-t md:border-t-0 md:border-r border-outline-variant pt-sm md:pt-0 md:pr-lg flex-1">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider mb-xs">المندوب &amp; السبب</span>
+<span class="font-body-md text-body-md text-on-surface block mb-xs">أحمد محمود</span>
+<p class="font-body-md text-body-md text-error text-sm bg-error-container/20 px-2 py-1 rounded inline-block w-fit">
+                                خدوش ظاهرة على المسند الأيمن
+                             </p>
+</div>
+</div>
+<!-- Actions -->
+<div class="flex gap-sm w-full md:w-auto mt-sm md:mt-0 pt-sm md:pt-0 border-t md:border-t-0 border-outline-variant">
+<button class="flex-1 md:flex-none px-md py-2 border border-error text-error hover:bg-error-container rounded font-label-md text-label-md transition-colors flex items-center justify-center gap-xs">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+                            رفض
+                        </button>
+<button class="flex-1 md:flex-none px-md py-2 bg-primary text-on-primary hover:bg-primary/90 rounded font-label-md text-label-md transition-colors flex items-center justify-center gap-xs">
+<span class="material-symbols-outlined" data-icon="check">check</span>
+                            قبول
+                        </button>
+</div>
+</div>
+<!-- Return Item Card 2 -->
+<div class="bg-surface-container-lowest rounded-lg border border-outline-variant p-md flex flex-col md:flex-row gap-md justify-between items-start md:items-center shadow-sm opacity-60">
+<div class="flex flex-col md:flex-row gap-lg flex-1">
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider mb-xs">رقم المرتجع</span>
+<span class="font-body-md text-body-md font-bold text-on-surface">#RET-8923</span>
+<div class="mt-sm flex items-center gap-xs text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded w-fit">
+<span class="material-symbols-outlined text-[16px]" data-icon="done_all">done_all</span>
+                                تم القبول
+                            </div>
+</div>
+<div class="flex flex-col flex-1 border-t md:border-t-0 md:border-r border-outline-variant pt-sm md:pt-0 md:pr-lg">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider mb-xs">العنصر</span>
+<div class="flex items-center gap-sm">
+<div class="w-10 h-10 bg-surface-variant rounded flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="desk">desk</span>
+</div>
+<div>
+<span class="font-body-md text-body-md font-bold text-on-surface block">طاولة اجتماعات 6 أشخاص</span>
+<span class="font-body-md text-body-md text-on-surface-variant text-sm">SKU: DSK-300-WHT</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col border-t md:border-t-0 md:border-r border-outline-variant pt-sm md:pt-0 md:pr-lg flex-1">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider mb-xs">المندوب &amp; السبب</span>
+<span class="font-body-md text-body-md text-on-surface block mb-xs">سارة علي</span>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm bg-surface-variant px-2 py-1 rounded inline-block w-fit">
+                                خطأ في القياسات المطلوبة
+                             </p>
+</div>
+</div>
+<div class="flex gap-sm w-full md:w-auto mt-sm md:mt-0 pt-sm md:pt-0 border-t md:border-t-0 border-outline-variant">
+<span class="font-label-md text-label-md text-on-surface-variant px-md py-2 border border-transparent flex items-center justify-center gap-xs">
+                            تمت المعالجة
+                        </span>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

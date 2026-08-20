@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}المستخدمون - عمليات الفرش{% endblock %}
+
+{% block header_search %}
+<form method="get" class="relative w-full">
+    <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+    <input name="q" value="{{ q }}" type="text"
+           class="w-full bg-surface-container-low border border-outline-variant rounded-full py-2 pr-10 pl-4 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+           placeholder="بحث بالاسم أو اسم المستخدم...">
+    {% if role_filter %}<input type="hidden" name="role" value="{{ role_filter }}">{% endif %}
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-md">
+    <div>
+        <h2 class="font-headline-lg text-headline-lg font-bold text-primary">المستخدمون</h2>
+        <p class="font-body-md text-body-md text-on-surface-variant mt-xs">إدارة حسابات المديرين والمناديب.</p>
+    </div>
+    <button type="button" class="btn-primary-app w-full sm:w-auto"
+            onclick="document.getElementById('newUserModal').classList.remove('hidden')">
+        <span class="material-symbols-outlined">person_add</span>
+        مستخدم جديد
+    </button>
+</div>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-md">
+    <div class="rounded-xl p-md border border-[#93c5fd] bg-gradient-to-br from-[#eff6ff] to-white">
+        <span class="font-label-md text-label-md font-bold text-black">الإجمالي</span>
+        <p class="text-[32px] font-bold text-black mt-1">{{ total_users }}</p>
+    </div>
+    <div class="rounded-xl p-md border border-[#cbd5e1] bg-gradient-to-br from-[#f8fafc] to-white">
+        <span class="font-label-md text-label-md font-bold text-black">المديرون</span>
+        <p class="text-[32px] font-bold text-black mt-1">{{ managers_count }}</p>
+    </div>
+    <div class="rounded-xl p-md border border-[#93c5fd] bg-gradient-to-br from-[#eff6ff] to-white">
+        <span class="font-label-md text-label-md font-bold text-black">المناديب</span>
+        <p class="text-[32px] font-bold text-black mt-1">{{ reps_count }}</p>
+    </div>
+    <div class="rounded-xl p-md border border-[#fcd34d] bg-gradient-to-br from-[#fffbeb] to-white">
+        <span class="font-label-md text-label-md font-bold text-black">غير نشط</span>
+        <p class="text-[32px] font-bold text-black mt-1">{{ inactive_count }}</p>
+    </div>
+</div>
+
+<div class="app-table-frame w-full">
+    <div class="app-toolbar">
+        <div class="flex items-center gap-sm">
+            <span class="material-symbols-outlined">filter_list</span>
+            <span class="font-label-md text-label-md font-bold text-on-surface">التصفية</span>
+        </div>
+        <form method="get" class="flex flex-wrap gap-sm w-full sm:w-auto">
+            {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+            <select name="role" onchange="this.form.submit()"
+                    class="bg-white border border-[#bfdbfe] rounded-lg py-2 px-3 font-body-md text-body-md text-on-surface focus:ring-1 focus:ring-[#1d4ed8] focus:border-[#1d4ed8] w-full sm:w-auto">
+                <option value="" {% if not role_filter %}selected{% endif %}>جميع الأدوار</option>
+                <option value="manager" {% if role_filter == 'manager' %}selected{% endif %}>مدير العمليات</option>
+                <option value="representative" {% if role_filter == 'representative' %}selected{% endif %}>مندوب</option>
+            </select>
+        </form>
+    </div>
+
+    <div class="app-table-sheet overflow-x-auto">
+        <table class="excel-grid app-data-grid">
+            <thead>
+            <tr>
+                <th>المستخدم</th>
+                <th>اسم الدخول</th>
+                <th>الدور</th>
+                <th>الحالة</th>
+                <th>إجراء</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for u in users %}
+            <tr class="{% if not u.is_active %}opacity-60{% endif %}">
+                <td>
+                    <div class="flex items-center gap-sm">
+                        <div class="w-9 h-9 rounded-full {% if u.is_manager %}bg-[#1d4ed8] text-white{% else %}bg-[#dbeafe] text-[#1e3a8a]{% endif %} flex items-center justify-center font-bold text-xs">
+                            {{ u.initials }}
+                        </div>
+                        <span class="font-semibold">{{ u.display_name }}</span>
+                    </div>
+                </td>
+                <td>{{ u.username }}</td>
+                <td class="cell-center">
+                    {% if u.is_manager %}
+                    <span class="status-chip status-ok">مدير</span>
+                    {% else %}
+                    <span class="status-chip status-wait">مندوب</span>
+                    {% endif %}
+                </td>
+                <td class="cell-center">
+                    {% if u.is_active %}
+                    <span class="status-chip status-ok">نشط</span>
+                    {% else %}
+                    <span class="status-chip status-wait">متوقف</span>
+                    {% endif %}
+                </td>
+                <td class="cell-center">
+                    <div class="flex items-center justify-center gap-sm">
+                        <a href="{% url 'accounts:user_edit' u.pk %}" class="act-btn act-ok" title="تعديل">
+                            <span class="material-symbols-outlined text-[16px] text-inherit">edit</span>
+                            تعديل
+                        </a>
+                        {% if u.pk != user.pk %}
+                        <form method="post" action="{% url 'accounts:user_toggle' u.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn {% if u.is_active %}act-bad{% else %}act-ok{% endif %}"
+                                    title="{% if u.is_active %}إيقاف{% else %}تفعيل{% endif %}">
+                                <span class="material-symbols-outlined text-[16px] text-inherit">{% if u.is_active %}block{% else %}check_circle{% endif %}</span>
+                                {% if u.is_active %}إيقاف{% else %}تفعيل{% endif %}
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="empty-row">لا يوجد مستخدمون.</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="pt-md flex justify-between items-center">
+        <span class="font-body-md text-body-md text-on-surface-variant">
+            {% if page_obj.paginator.count %}
+            عرض {{ page_obj.start_index }}-{{ page_obj.end_index }} من {{ page_obj.paginator.count }}
+            {% else %}لا نتائج{% endif %}
+        </span>
+        <div class="flex gap-sm">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}&q={{ q }}&role={{ role_filter }}"
+               class="p-2 border border-[#bfdbfe] rounded-lg text-[#1d4ed8] hover:bg-[#eff6ff]">
+                <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+            </a>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&q={{ q }}&role={{ role_filter }}"
+               class="p-2 border border-[#bfdbfe] rounded-lg text-[#1d4ed8] hover:bg-[#eff6ff]">
+                <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="hidden fixed inset-0 z-50 flex items-center justify-center p-md bg-[#1b1b1d]/50 backdrop-blur-sm" id="newUserModal">
+    <div class="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="px-lg py-md border-b border-outline-variant flex justify-between items-center bg-surface-bright">
+            <h3 class="font-headline-md text-headline-md font-bold text-on-surface">إضافة مستخدم جديد</h3>
+            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full"
+                    onclick="document.getElementById('newUserModal').classList.add('hidden')">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <form method="post" action="{% url 'accounts:user_create' %}" class="flex flex-col overflow-hidden">
+            {% csrf_token %}
+            <div class="p-lg overflow-y-auto flex flex-col gap-md">
+                {% for field in create_form %}
+                <div class="flex flex-col gap-sm">
+                    <label class="font-label-md text-label-md text-on-surface">{{ field.label }}</label>
+                    {{ field }}
+                </div>
+                {% endfor %}
+            </div>
+            <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
+                <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface-variant"
+                        onclick="document.getElementById('newUserModal').classList.add('hidden')">إلغاء</button>
+                <button type="submit" class="px-6 py-2 bg-black text-white rounded-lg font-label-md text-label-md">حفظ</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

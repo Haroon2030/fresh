@@ -1,0 +1,769 @@
+{% load static %}
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>{% block title %}عمليات الفرش{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block" rel="stylesheet">
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-primary-fixed": "#000000",
+                        "secondary-container": "#dbeafe",
+                        "on-primary-container": "#ffffff",
+                        "inverse-surface": "#111111",
+                        "inverse-on-surface": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "surface-container-low": "#fafafa",
+                        "on-surface": "#000000",
+                        "surface-dim": "#ececec",
+                        "on-surface-variant": "#1a1a1a",
+                        "tertiary-fixed": "#ececec",
+                        "secondary-fixed": "#dbeafe",
+                        "surface-tint": "#1d4ed8",
+                        "surface-container-lowest": "#ffffff",
+                        "primary": "#000000",
+                        "tertiary": "#000000",
+                        "on-tertiary-container": "#333333",
+                        "tertiary-fixed-dim": "#d4d4d4",
+                        "tertiary-container": "#111111",
+                        "surface-variant": "#f5f5f5",
+                        "on-primary-fixed-variant": "#1a1a1a",
+                        "on-tertiary": "#ffffff",
+                        "error": "#b91c1c",
+                        "on-primary": "#ffffff",
+                        "primary-fixed": "#ececec",
+                        "on-tertiary-fixed-variant": "#333333",
+                        "outline-variant": "#e5e5e5",
+                        "surface": "#ffffff",
+                        "on-secondary-fixed-variant": "#1e3a8a",
+                        "on-secondary-container": "#1e3a8a",
+                        "on-secondary-fixed": "#1e3a8a",
+                        "surface-container-highest": "#eeeeee",
+                        "inverse-primary": "#1d4ed8",
+                        "on-tertiary-fixed": "#000000",
+                        "primary-fixed-dim": "#d4d4d4",
+                        "primary-container": "#111111",
+                        "surface-container": "#f7f7f7",
+                        "surface-container-high": "#f2f2f2",
+                        "secondary": "#1d4ed8",
+                        "on-background": "#000000",
+                        "surface-bright": "#ffffff",
+                        "background": "#ffffff",
+                        "secondary-fixed-dim": "#bfdbfe",
+                        "on-error-container": "#7f1d1d",
+                        "outline": "#d4d4d4",
+                        "error-container": "#fee2e2",
+                        "on-error": "#ffffff",
+                        "icon": "#1d4ed8",
+                        "icon-muted": "#404040",
+                        "table": "#1d4ed8",
+                        "table-soft": "#eff6ff"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    spacing: {
+                        "base": "4px",
+                        "margin": "24px",
+                        "xl": "32px",
+                        "xs": "4px",
+                        "md": "16px",
+                        "container-max": "1440px",
+                        "gutter": "20px",
+                        "sm": "8px",
+                        "lg": "24px"
+                    },
+                    fontFamily: {
+                        "body-md": ["IBM Plex Sans Arabic", "sans-serif"],
+                        "display-lg": ["IBM Plex Sans Arabic", "sans-serif"],
+                        "label-md": ["IBM Plex Sans Arabic", "sans-serif"],
+                        "headline-md": ["IBM Plex Sans Arabic", "sans-serif"],
+                        "headline-lg": ["IBM Plex Sans Arabic", "sans-serif"],
+                        "headline-lg-mobile": ["IBM Plex Sans Arabic", "sans-serif"],
+                        "body-lg": ["IBM Plex Sans Arabic", "sans-serif"]
+                    },
+                    fontSize: {
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "display-lg": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "500" }],
+                        "headline-lg": ["28px", { "lineHeight": "36px", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["22px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --app-bg: #ffffff;
+            --app-text: #000000;
+            --app-text-muted: #1a1a1a;
+            --app-icon: #1d4ed8;
+            --app-table: #1d4ed8;
+            --app-table-soft: #eff6ff;
+            --app-border: #e5e5e5;
+        }
+        body {
+            font-family: 'IBM Plex Sans Arabic', sans-serif;
+            background: var(--app-bg);
+            color: var(--app-text);
+        }
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined' !important;
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            color: var(--app-icon);
+            visibility: hidden;
+            overflow: hidden;
+            width: 1.15em;
+            height: 1.15em;
+            vertical-align: middle;
+        }
+        .material-symbols-outlined.text-white,
+        .material-symbols-outlined.text-on-primary,
+        .material-symbols-outlined.text-error,
+        .material-symbols-outlined.text-inherit {
+            color: inherit;
+        }
+        .nav-link.bg-secondary-container .material-symbols-outlined {
+            color: #1e3a8a;
+        }
+        html.fonts-icons-ready .material-symbols-outlined {
+            visibility: visible;
+            overflow: visible;
+            width: auto;
+            height: auto;
+        }
+        .filled-icon { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: #cfcfcf; border-radius: 10px; }
+        .table-container { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); }
+        tr:last-child td { border-bottom: none; }
+
+        #sidebar {
+            width: 280px;
+            transition: width 0.25s ease;
+            overflow: visible;
+            background: #ffffff;
+            box-shadow: -4px 0 14px rgba(0, 0, 0, 0.03);
+            border-top-left-radius: 28px;
+            border-bottom-left-radius: 28px;
+        }
+        #sidebar::before {
+            content: '';
+            position: absolute;
+            top: 24px;
+            bottom: 24px;
+            left: 0;
+            width: 2px;
+            border-radius: 999px;
+            background: linear-gradient(
+                180deg,
+                transparent 0%,
+                rgba(0, 0, 0, 0.2) 12%,
+                rgba(29, 78, 216, 0.45) 50%,
+                rgba(0, 0, 0, 0.2) 88%,
+                transparent 100%
+            );
+            box-shadow: none;
+            opacity: 0.85;
+        }
+        #sidebar::after {
+            content: '';
+            position: absolute;
+            top: 18px;
+            bottom: 18px;
+            left: 0;
+            width: 1px;
+            border-radius: 999px;
+            background: linear-gradient(
+                180deg,
+                transparent 0%,
+                rgba(0, 0, 0, 0.06) 15%,
+                rgba(0, 0, 0, 0.1) 50%,
+                rgba(0, 0, 0, 0.06) 85%,
+                transparent 100%
+            );
+            pointer-events: none;
+        }
+        #mainContent {
+            transition: margin-right 0.25s ease;
+        }
+        body.sidebar-collapsed #sidebar {
+            width: 80px;
+        }
+        body.sidebar-collapsed #mainContent {
+            margin-right: 80px !important;
+        }
+        body.sidebar-collapsed #sidebar .nav-label,
+        body.sidebar-collapsed #sidebar .brand-text {
+            display: none;
+        }
+        body.sidebar-collapsed #sidebar .sidebar-user-meta .sidebar-user-text {
+            display: none;
+        }
+        body.sidebar-collapsed #sidebar .brand-wrap {
+            justify-content: center;
+            padding-left: 8px;
+            padding-right: 8px;
+        }
+        body.sidebar-collapsed #sidebar .nav-link {
+            justify-content: center;
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+        body.sidebar-collapsed #sidebar .nav-link .material-symbols-outlined {
+            margin: 0;
+        }
+        #sidebarToggle {
+            position: absolute;
+            left: 0;
+            top: 72px;
+            transform: translateX(-50%);
+            z-index: 40;
+            width: 28px;
+            height: 28px;
+            border-radius: 9999px;
+            border: 1px solid #e0e0e0;
+            background: #ffffff;
+            color: var(--app-icon);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+        }
+        #sidebarToggle:hover {
+            background: #f5f5f5;
+            color: #000000;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.14);
+        }
+        #sidebarToggleIcon {
+            font-size: 18px;
+            transition: transform 0.25s ease;
+            line-height: 1;
+        }
+        #sidebarToggleIcon.collapsed {
+            transform: rotate(180deg);
+        }
+        .sidebar-footer {
+            position: relative;
+            margin-top: auto;
+            padding: 12px 10px;
+            border-radius: 18px;
+            background: #ffffff;
+            box-shadow:
+                inset 0 0 0 1px rgba(0, 0, 0, 0.06),
+                0 2px 10px rgba(29, 78, 216, 0.06);
+        }
+        .sidebar-footer::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 18px;
+            padding: 2px;
+            background: linear-gradient(
+                135deg,
+                #111111 0%,
+                #1d4ed8 35%,
+                #3b82f6 65%,
+                #111111 100%
+            );
+            -webkit-mask:
+                linear-gradient(#fff 0 0) content-box,
+                linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask:
+                linear-gradient(#fff 0 0) content-box,
+                linear-gradient(#fff 0 0);
+            mask-composite: exclude;
+            pointer-events: none;
+        }
+        .sidebar-footer::after {
+            display: none;
+        }
+        .sidebar-user-btn {
+            border: 0;
+            background: transparent;
+            cursor: default;
+            transition: background 0.2s ease;
+        }
+        .sidebar-user-btn:hover {
+            background: rgba(29, 78, 216, 0.08);
+        }
+        body.sidebar-collapsed #sidebar .sidebar-user-btn {
+            justify-content: center;
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+        body.sidebar-collapsed #sidebar .sidebar-user-btn .material-symbols-outlined:last-child {
+            display: none;
+        }
+        .sidebar-brand {
+            position: relative;
+            padding: 12px 10px;
+            border-radius: 18px;
+            background: #ffffff;
+            box-shadow:
+                inset 0 0 0 1px rgba(0, 0, 0, 0.06),
+                0 2px 10px rgba(29, 78, 216, 0.06);
+        }
+        .sidebar-brand::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 18px;
+            padding: 2px;
+            background: linear-gradient(
+                135deg,
+                #111111 0%,
+                #1d4ed8 35%,
+                #3b82f6 65%,
+                #111111 100%
+            );
+            -webkit-mask:
+                linear-gradient(#fff 0 0) content-box,
+                linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask:
+                linear-gradient(#fff 0 0) content-box,
+                linear-gradient(#fff 0 0);
+            mask-composite: exclude;
+            pointer-events: none;
+        }
+        body.sidebar-collapsed #sidebar .sidebar-brand {
+            justify-content: center;
+            padding-left: 8px;
+            padding-right: 8px;
+        }
+        .brand-produce {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            place-items: center;
+            gap: 0;
+            background: linear-gradient(145deg, #fff7ed 0%, #ecfdf5 45%, #eff6ff 100%);
+            border: 1px solid #e5e5e5;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            overflow: hidden;
+            line-height: 1;
+        }
+        .brand-produce span {
+            font-size: 14px;
+            filter: saturate(1.1);
+        }
+        .brand-produce-lg {
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+        }
+        .brand-produce-lg span {
+            font-size: 22px;
+        }
+        body.sidebar-collapsed #sidebar .brand-produce {
+            width: 40px;
+            height: 40px;
+        }
+        body.sidebar-collapsed #sidebar .brand-produce span {
+            font-size: 12px;
+        }
+        #sidebar .sidebar-inner {
+            overflow: hidden;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ===== تصميم مركزي موحّد: جداول + أزرار + شارات ===== */
+        .app-table-frame {
+            border: 1px solid #bfdbfe;
+            border-radius: 10px;
+            background: #ffffff;
+            padding: 12px;
+            box-shadow: 0 2px 8px rgba(29, 78, 216, 0.06);
+        }
+        .app-table-sheet {
+            width: 100%;
+            max-width: 100%;
+            overflow: auto;
+            border: 1px solid #dbeafe;
+            border-radius: 8px;
+            background: #fff;
+        }
+        .excel-grid,
+        .app-data-grid {
+            font-family: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+            font-size: 13px;
+            width: 100%;
+            border-collapse: collapse;
+            text-align: right;
+        }
+        .excel-grid th,
+        .excel-grid td,
+        .app-data-grid th,
+        .app-data-grid td {
+            border: 1px solid #dbeafe;
+            vertical-align: middle;
+            background: #fff;
+            color: #000;
+        }
+        .excel-grid thead th,
+        .app-data-grid thead th {
+            background: #1d4ed8 !important;
+            color: #ffffff !important;
+            font-weight: 700;
+            font-size: 12px;
+            text-align: center;
+            padding: 10px 8px;
+            border-color: #1e40af !important;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            letter-spacing: 0.02em;
+        }
+        .excel-grid tbody tr:nth-child(even) td,
+        .app-data-grid tbody tr:nth-child(even) td {
+            background: #eff6ff;
+        }
+        .excel-grid tbody tr:hover td,
+        .app-data-grid tbody tr:hover td {
+            background: #dbeafe !important;
+        }
+        .app-data-grid td {
+            padding: 10px 8px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        .app-data-grid td.cell-strong { font-weight: 600; }
+        .app-data-grid td.cell-center { text-align: center; }
+        .app-data-grid td.empty-row {
+            text-align: center;
+            padding: 28px !important;
+            color: #666;
+            white-space: normal;
+        }
+        .app-data-grid td.row-num,
+        .excel-grid td.row-num {
+            background: #eff6ff !important;
+            color: #1d4ed8 !important;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            max-width: 100%;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            line-height: 1.35;
+            white-space: nowrap;
+        }
+        .status-pending { background: #fff7ed; color: #c2410c; }
+        .status-wait { background: #f3f4f6; color: #4b5563; }
+        .status-ok { background: #eff6ff; color: #1d4ed8; }
+        .status-bad { background: #fef2f2; color: #b91c1c; }
+        .act-btn {
+            border: 0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 8px;
+            line-height: 1.3;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .act-ok { background: #eff6ff; color: #1e3a8a; }
+        .act-ok:hover { background: #dbeafe; }
+        .act-bad { background: #ffecec; color: #ba1a1a; }
+        .act-bad:hover { background: #ffdad6; }
+        .btn-primary-app {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: #000;
+            color: #fff;
+            border: 1px solid #000;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            transition: background 0.2s;
+            white-space: nowrap;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+        }
+        .btn-primary-app:hover { background: #262626; }
+        .btn-primary-app .material-symbols-outlined {
+            color: #fff !important;
+            font-size: 20px;
+        }
+        .app-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            background: #eff6ff;
+            border: 1px solid #dbeafe;
+            border-radius: 8px;
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-surface text-on-surface antialiased flex flex-col md:flex-row min-h-screen" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+{% if user.is_authenticated %}
+<!-- Mobile Top Bar -->
+<header class="md:hidden flex justify-between items-center px-lg py-md bg-surface-container-lowest border-b border-outline-variant sticky top-0 z-40">
+    <div class="font-headline-lg-mobile text-headline-lg-mobile font-bold text-primary">عمليات الفرش</div>
+    <div class="flex gap-md items-center">
+        <span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+        <form method="post" action="{% url 'accounts:logout' %}">
+            {% csrf_token %}
+            <button type="submit" title="تسجيل الخروج"
+                    class="w-8 h-8 rounded-full bg-error-container text-error flex items-center justify-center border border-error/30">
+                <span class="material-symbols-outlined text-[18px] text-inherit">logout</span>
+            </button>
+        </form>
+    </div>
+</header>
+
+<!-- SideNavBar -->
+<nav id="sidebar" aria-label="Sidebar" class="hidden md:flex flex-col h-screen p-md bg-surface fixed right-0 top-0 z-30">
+    <button type="button" id="sidebarToggle" title="طي / فتح القائمة" aria-label="طي / فتح القائمة">
+        <span id="sidebarToggleIcon" class="material-symbols-outlined">chevron_left</span>
+    </button>
+    <div class="sidebar-inner">
+    <div class="mb-lg brand-wrap sidebar-brand flex items-center gap-md">
+        <div class="brand-produce shrink-0" title="الفرش — خضار">
+            <span aria-hidden="true">🍅</span>
+            <span aria-hidden="true">🥕</span>
+            <span aria-hidden="true">🥬</span>
+            <span aria-hidden="true">🥒</span>
+        </div>
+        <div class="brand-text min-w-0">
+            <h1 class="font-headline-md text-headline-md text-primary font-bold truncate">إدارة الفرش</h1>
+            <p class="font-label-md text-label-md text-on-surface-variant mt-xs truncate">بوابة العمليات</p>
+        </div>
+    </div>
+    <div class="flex flex-col gap-sm flex-grow">
+        <a class="nav-link flex items-center gap-md px-md py-sm rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out {% if active_nav == 'supply' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}" href="{% url 'ops:supply' %}" title="التوريد">
+            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'supply' %}filled-icon{% endif %}">shopping_cart</span>
+            <span class="nav-label">التوريد</span>
+        </a>
+        <a class="nav-link flex items-center gap-md px-md py-sm rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out {% if active_nav == 'returns' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}" href="{% url 'ops:returns' %}" title="المرتجعات">
+            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'returns' %}filled-icon{% endif %}">assignment_return</span>
+            <span class="nav-label">المرتجعات</span>
+        </a>
+        <a class="nav-link flex items-center gap-md px-md py-sm rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out {% if active_nav == 'tasks' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}" href="{% url 'ops:tasks' %}" title="المهام">
+            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'tasks' %}filled-icon{% endif %}">checklist</span>
+            <span class="nav-label">المهام</span>
+        </a>
+        <a class="nav-link flex items-center gap-md px-md py-sm rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out {% if active_nav == 'items' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}" href="{% url 'ops:items' %}" title="الأصناف">
+            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'items' %}filled-icon{% endif %}">inventory_2</span>
+            <span class="nav-label">الأصناف</span>
+        </a>
+        {% if user.is_manager %}
+        <a class="nav-link flex items-center gap-md px-md py-sm rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out {% if active_nav == 'users' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}" href="{% url 'accounts:users' %}" title="المستخدمون">
+            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'users' %}filled-icon{% endif %}">group</span>
+            <span class="nav-label">المستخدمون</span>
+        </a>
+        {% endif %}
+    </div>
+    <div class="sidebar-footer flex flex-col gap-sm mt-auto">
+        <button type="button" class="sidebar-user-btn sidebar-user-meta w-full flex items-center gap-md px-md py-sm rounded-lg text-right"
+                title="{{ user.display_name }} — {{ user.get_role_display }}">
+            <span class="w-9 h-9 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-bold text-xs border border-outline-variant shrink-0">
+                {{ user.initials }}
+            </span>
+            <span class="min-w-0 flex-1 sidebar-user-text">
+                <span class="block font-label-md text-label-md font-bold text-on-surface truncate">{{ user.display_name }}</span>
+                <span class="block font-body-md text-[12px] text-on-surface-variant mt-0.5 truncate">{{ user.get_role_display }}</span>
+            </span>
+            <span class="material-symbols-outlined text-[18px] shrink-0 sidebar-user-text" style="color:var(--app-icon)">badge</span>
+        </button>
+    </div>
+    </div>
+</nav>
+
+<!-- Mobile Bottom Nav -->
+<nav class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-surface-container-lowest border-t border-outline-variant flex justify-around py-2">
+    <a href="{% url 'ops:supply' %}" class="flex flex-col items-center gap-1 px-3 py-1 {% if active_nav == 'supply' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+        <span class="material-symbols-outlined">shopping_cart</span>
+        <span class="text-[10px] font-bold">التوريد</span>
+    </a>
+    <a href="{% url 'ops:returns' %}" class="flex flex-col items-center gap-1 px-3 py-1 {% if active_nav == 'returns' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+        <span class="material-symbols-outlined">assignment_return</span>
+        <span class="text-[10px] font-bold">المرتجعات</span>
+    </a>
+    <a href="{% url 'ops:tasks' %}" class="flex flex-col items-center gap-1 px-3 py-1 {% if active_nav == 'tasks' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+        <span class="material-symbols-outlined">checklist</span>
+        <span class="text-[10px] font-bold">المهام</span>
+    </a>
+    <a href="{% url 'ops:items' %}" class="flex flex-col items-center gap-1 px-3 py-1 {% if active_nav == 'items' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+        <span class="material-symbols-outlined">inventory_2</span>
+        <span class="text-[10px] font-bold">الأصناف</span>
+    </a>
+    {% if user.is_manager %}
+    <a href="{% url 'accounts:users' %}" class="flex flex-col items-center gap-1 px-3 py-1 {% if active_nav == 'users' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+        <span class="material-symbols-outlined">group</span>
+        <span class="text-[10px] font-bold">المستخدمون</span>
+    </a>
+    {% endif %}
+</nav>
+{% endif %}
+
+{% block body %}
+<main id="mainContent" class="flex-1 {% if user.is_authenticated %}md:mr-[280px] pb-20 md:pb-0{% endif %} p-md md:p-margin flex flex-col gap-margin bg-background min-h-screen">
+    {% if user.is_authenticated %}
+    <header class="hidden md:flex justify-between items-center w-full h-16 px-lg bg-white border-b-2 border-black/80 sticky top-0 z-20 rounded-xl mb-md shadow-sm">
+        <div class="flex items-center gap-md flex-1">
+            <button type="button" id="sidebarToggleHeader" title="طي / فتح القائمة"
+                    class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full transition-colors shrink-0">
+                <span class="material-symbols-outlined">menu</span>
+            </button>
+            <div class="flex items-center gap-md relative w-full max-w-md">
+            {% block header_search %}
+            <span class="material-symbols-outlined absolute right-3 text-on-surface-variant">search</span>
+            <input class="w-full bg-surface-container-low border border-outline-variant rounded-full py-2 pr-10 pl-4 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors" placeholder="بحث..." type="text" disabled>
+            {% endblock %}
+            </div>
+        </div>
+        <div class="flex items-center gap-lg">
+            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full transition-colors">
+                <span class="material-symbols-outlined">notifications</span>
+            </button>
+            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full transition-colors">
+                <span class="material-symbols-outlined">help</span>
+            </button>
+            <div class="h-8 w-px bg-outline-variant"></div>
+            <div class="flex items-center gap-sm">
+                <div class="hidden lg:block text-left">
+                    <p class="font-label-md text-label-md font-bold text-on-surface">{{ user.display_name }}</p>
+                    <p class="font-body-md text-[11px] text-on-surface-variant leading-none mt-1">{{ user.get_role_display }}</p>
+                </div>
+                <form method="post" action="{% url 'accounts:logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" title="تسجيل الخروج"
+                            class="w-10 h-10 rounded-full bg-error-container text-error flex items-center justify-center border border-error/30 hover:bg-error hover:text-on-error transition-colors">
+                        <span class="material-symbols-outlined text-[22px] text-inherit">logout</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </header>
+    {% endif %}
+
+    {% if messages %}
+    <div class="flex flex-col gap-sm">
+        {% for message in messages %}
+        <div class="rounded-lg px-md py-3 border {% if 'error' in message.tags %}bg-error-container text-on-error-container border-error{% elif 'warning' in message.tags %}bg-amber-50 text-amber-800 border-amber-200{% else %}bg-secondary-fixed text-on-secondary-fixed border-outline-variant{% endif %} font-body-md text-body-md">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+</main>
+{% endblock %}
+
+{% block modals %}{% endblock %}
+{% block extra_js %}{% endblock %}
+{% if user.is_authenticated %}
+<script>
+(function () {
+    const KEY = 'farsh-sidebar-collapsed';
+    const body = document.body;
+    const icon = document.getElementById('sidebarToggleIcon');
+    const toggleBtns = [
+        document.getElementById('sidebarToggle'),
+        document.getElementById('sidebarToggleHeader'),
+    ].filter(Boolean);
+
+    function apply(collapsed) {
+        body.classList.toggle('sidebar-collapsed', collapsed);
+        if (icon) icon.classList.toggle('collapsed', collapsed);
+        try { localStorage.setItem(KEY, collapsed ? '1' : '0'); } catch (e) {}
+    }
+
+    function toggle() {
+        apply(!body.classList.contains('sidebar-collapsed'));
+    }
+
+    try {
+        if (localStorage.getItem(KEY) === '1') apply(true);
+    } catch (e) {}
+
+    toggleBtns.forEach((btn) => btn.addEventListener('click', toggle));
+})();
+</script>
+{% endif %}
+<script>
+(function () {
+    var root = document.documentElement;
+    function ready() { root.classList.add('fonts-icons-ready'); }
+
+    if (!document.fonts || !document.fonts.load) {
+        // متصفحات قديمة: انتظر قليلاً ثم أظهر
+        setTimeout(ready, 400);
+        return;
+    }
+
+    // تحميل خط الأيقونات صراحةً قبل إظهار الأسماء
+    document.fonts.load('24px "Material Symbols Outlined"')
+        .then(function () {
+            if (document.fonts.check('24px "Material Symbols Outlined"')) {
+                ready();
+            } else {
+                setTimeout(ready, 300);
+            }
+        })
+        .catch(function () {
+            setTimeout(ready, 600);
+        });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}تسجيل الدخول - عمليات الفرش{% endblock %}
+
+{% block body %}
+<main class="min-h-screen w-full flex items-center justify-center p-md bg-background">
+    <div class="w-full max-w-md bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+        <div class="px-lg py-xl flex flex-col items-center gap-md border-b border-outline-variant bg-surface-bright">
+            <div class="brand-produce brand-produce-lg" title="الفرش — خضار">
+                <span aria-hidden="true">🍅</span>
+                <span aria-hidden="true">🥕</span>
+                <span aria-hidden="true">🥬</span>
+                <span aria-hidden="true">🥒</span>
+            </div>
+            <div class="text-center">
+                <h1 class="font-headline-lg text-headline-lg font-bold text-primary">عمليات الفرش</h1>
+                <p class="font-body-md text-body-md text-on-surface-variant mt-xs">بوابة العمليات — تسجيل الدخول</p>
+            </div>
+        </div>
+        <form method="post" class="p-lg flex flex-col gap-md">
+            {% csrf_token %}
+            {% if error %}
+            <div class="rounded-lg px-md py-3 bg-error-container text-on-error-container font-body-md text-body-md">
+                {{ error }}
+            </div>
+            {% endif %}
+            <div class="flex flex-col gap-sm">
+                <label class="font-label-md text-label-md text-on-surface" for="username">اسم المستخدم</label>
+                <input id="username" name="username" required
+                       class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface"
+                       placeholder="أدخل اسم المستخدم" autocomplete="username">
+            </div>
+            <div class="flex flex-col gap-sm">
+                <label class="font-label-md text-label-md text-on-surface" for="password">كلمة المرور</label>
+                <input id="password" name="password" type="password" required
+                       class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface"
+                       placeholder="••••••••" autocomplete="current-password">
+            </div>
+            <button type="submit" class="mt-sm w-full bg-primary text-on-primary py-3 rounded-lg font-label-md text-label-md hover:bg-primary/90 transition-colors">
+                دخول
+            </button>
+            <p class="text-center font-body-md text-body-md text-on-surface-variant text-xs mt-sm">
+                تجريبي: أحمد / demo123 — أو خالد / demo123
+            </p>
+        </form>
+    </div>
+</main>
+{% endblock %}

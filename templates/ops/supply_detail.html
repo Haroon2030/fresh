@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}تفاصيل الطلب - عمليات الفرش{% endblock %}
+
+{% block content %}
+<div class="flex items-center gap-md mb-md">
+    <a href="{% url 'ops:supply' %}" class="text-on-surface-variant hover:text-primary p-sm rounded-full hover:bg-surface-container-high">
+        <span class="material-symbols-outlined">arrow_forward</span>
+    </a>
+    <div>
+        <h2 class="font-headline-lg text-headline-lg font-bold text-primary">{{ order.order_number }}</h2>
+        <p class="font-body-md text-body-md text-on-surface-variant">تفاصيل طلب التوريد</p>
+    </div>
+</div>
+
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg flex flex-col gap-md max-w-2xl">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
+        <div>
+            <span class="font-label-md text-label-md text-on-surface-variant">المندوب</span>
+            <p class="font-body-lg text-body-lg text-on-surface mt-1">{{ order.representative.display_name }}</p>
+        </div>
+        <div>
+            <span class="font-label-md text-label-md text-on-surface-variant">الحالة</span>
+            <p class="font-body-lg text-body-lg text-on-surface mt-1">{{ order.get_status_display }}</p>
+        </div>
+        <div>
+            <span class="font-label-md text-label-md text-on-surface-variant">الاسم</span>
+            <p class="font-body-lg text-body-lg text-on-surface mt-1">{{ order.item_name }}</p>
+        </div>
+        <div>
+            <span class="font-label-md text-label-md text-on-surface-variant">رقم الصنف</span>
+            <p class="font-body-lg text-body-lg text-on-surface mt-1">{% if order.item_number %}{{ order.item_number }}{% else %}—{% endif %}</p>
+        </div>
+        <div>
+            <span class="font-label-md text-label-md text-on-surface-variant">الوحدة</span>
+            <p class="font-body-lg text-body-lg text-on-surface mt-1">{% if order.unit %}{{ order.unit }}{% else %}—{% endif %}</p>
+        </div>
+        <div>
+            <span class="font-label-md text-label-md text-on-surface-variant">العبوة</span>
+            <p class="font-body-lg text-body-lg text-on-surface mt-1">{% if order.package %}{{ order.package }}{% else %}—{% endif %}</p>
+        </div>
+        <div>
+            <span class="font-label-md text-label-md text-on-surface-variant">الكمية</span>
+            <p class="font-body-lg text-body-lg text-on-surface mt-1">{{ order.quantity }}</p>
+        </div>
+        <div>
+            <span class="font-label-md text-label-md text-on-surface-variant">السعر</span>
+            <p class="font-body-lg text-body-lg text-on-surface mt-1">{{ order.unit_price }} ر.س</p>
+        </div>
+        <div>
+            <span class="font-label-md text-label-md text-on-surface-variant">التاريخ المتوقع</span>
+            <p class="font-body-lg text-body-lg text-on-surface mt-1">{% if order.expected_date %}{{ order.expected_date|date:"Y-m-d" }}{% else %}—{% endif %}</p>
+        </div>
+        <div class="sm:col-span-2">
+            <span class="font-label-md text-label-md text-on-surface-variant">ملاحظات</span>
+            <p class="font-body-md text-body-md text-on-surface mt-1">{% if order.notes %}{{ order.notes }}{% else %}لا توجد{% endif %}</p>
+        </div>
+        <div>
+            <span class="font-label-md text-label-md text-on-surface-variant">تاريخ الإنشاء</span>
+            <p class="font-body-md text-body-md text-on-surface mt-1">{{ order.created_at|date:"Y-m-d H:i" }}</p>
+        </div>
+        {% if order.reviewed_by %}
+        <div>
+            <span class="font-label-md text-label-md text-on-surface-variant">راجعه</span>
+            <p class="font-body-md text-body-md text-on-surface mt-1">{{ order.reviewed_by.display_name }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if user.is_manager and order.status == 'pending' %}
+    <div class="flex gap-sm pt-md border-t border-outline-variant">
+        <form method="post" action="{% url 'ops:supply_reject' order.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="px-md py-2 border border-error text-error hover:bg-error-container rounded-lg font-label-md text-label-md flex items-center gap-xs">
+                <span class="material-symbols-outlined">close</span>
+                رفض
+            </button>
+        </form>
+        <form method="post" action="{% url 'ops:supply_complete' order.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="px-md py-2 bg-primary text-on-primary hover:bg-primary/90 rounded-lg font-label-md text-label-md flex items-center gap-xs">
+                <span class="material-symbols-outlined">check</span>
+                إكمال
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

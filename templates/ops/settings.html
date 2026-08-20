@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}الإعدادات - عمليات الفرش{% endblock %}
+
+{% block content %}
+<div>
+    <h2 class="font-headline-lg text-headline-lg font-bold text-primary">الإعدادات</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-xs">معلومات الحساب الأساسية.</p>
+</div>
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg max-w-lg flex flex-col gap-md">
+    <div>
+        <span class="font-label-md text-label-md text-on-surface-variant">الاسم</span>
+        <p class="font-body-lg text-body-lg text-on-surface mt-1">{{ user.display_name }}</p>
+    </div>
+    <div>
+        <span class="font-label-md text-label-md text-on-surface-variant">اسم المستخدم</span>
+        <p class="font-body-lg text-body-lg text-on-surface mt-1">{{ user.username }}</p>
+    </div>
+    <div>
+        <span class="font-label-md text-label-md text-on-surface-variant">الدور</span>
+        <p class="font-body-lg text-body-lg text-on-surface mt-1">{{ user.get_role_display }}</p>
+    </div>
+    <p class="font-body-md text-body-md text-on-surface-variant text-sm border-t border-outline-variant pt-md">
+        لتغيير كلمة المرور، تواصل مع مدير النظام أو استخدم لوحة الإدارة.
+    </p>
+</div>
+{% endblock %}
