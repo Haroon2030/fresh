@@ -25,9 +25,9 @@
 </div>
 
 <div class="flex gap-lg overflow-x-auto pb-4 items-start min-h-[60vh]">
-    {% include "ops/_task_column.html" with status_key="todo" title="قيد الانتظار" tasks=columns.todo accent="" %}
-    {% include "ops/_task_column.html" with status_key="in_progress" title="قيد التنفيذ" tasks=columns.in_progress accent="border-b-[3px] border-b-secondary-container" %}
-    {% include "ops/_task_column.html" with status_key="done" title="مكتمل" tasks=columns.done accent="" faded=True %}
+    {% include "ops/_task_column.html" with status_key="todo" title="قيد الانتظار" tasks=columns.todo col_icon="schedule" col_bg="bg-amber-50" col_border="border-amber-200" header_bg="bg-amber-100/80" header_text="text-amber-900" header_icon="text-amber-600" badge="bg-amber-200 text-amber-900" card_bg="bg-white border-l-4 border-l-amber-400" card_border="border-amber-100" avatar="bg-amber-500" %}
+    {% include "ops/_task_column.html" with status_key="in_progress" title="قيد التنفيذ" tasks=columns.in_progress col_icon="autorenew" col_bg="bg-sky-50" col_border="border-sky-200" header_bg="bg-sky-100/80" header_text="text-sky-900" header_icon="text-sky-600" badge="bg-sky-200 text-sky-900" card_bg="bg-white border-l-4 border-l-sky-500" card_border="border-sky-100" avatar="bg-sky-600" %}
+    {% include "ops/_task_column.html" with status_key="done" title="مكتمل" tasks=columns.done col_icon="check_circle" col_bg="bg-emerald-50" col_border="border-emerald-200" header_bg="bg-emerald-100/80" header_text="text-emerald-900" header_icon="text-emerald-600" badge="bg-emerald-200 text-emerald-900" card_bg="bg-white border-l-4 border-l-emerald-500" card_border="border-emerald-100" avatar="bg-emerald-600" faded=True %}
 </div>
 {% endblock %}
 
