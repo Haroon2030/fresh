@@ -153,17 +153,23 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", False)
 
 # Evolution API (WhatsApp notifications)
-EVOLUTION_SERVER_URL = os.environ.get(
-    "EVOLUTION_SERVER_URL",
-    "https://evolutionapi-a23759-72-61-107-230.sslip.io",
+# يتوافق مع أسماء النظام الآخر: EVOLUTION_API_URL / EVOLUTION_INSTANCE
+EVOLUTION_SERVER_URL = (
+    os.environ.get("EVOLUTION_SERVER_URL")
+    or os.environ.get("EVOLUTION_API_URL")
+    or "http://72.61.107.230:8081"
 ).rstrip("/")
 EVOLUTION_API_KEY = os.environ.get("EVOLUTION_API_KEY", "")
-EVOLUTION_INSTANCE_NAME = os.environ.get("EVOLUTION_INSTANCE_NAME", "")
+EVOLUTION_INSTANCE_NAME = (
+    os.environ.get("EVOLUTION_INSTANCE_NAME")
+    or os.environ.get("EVOLUTION_INSTANCE")
+    or ""
+)
 EVOLUTION_NOTIFY_ENABLED = env_bool(
     "EVOLUTION_NOTIFY_ENABLED",
-    bool(EVOLUTION_API_KEY and EVOLUTION_INSTANCE_NAME),
+    env_bool("WHATSAPP_ENABLED", bool(EVOLUTION_API_KEY and EVOLUTION_INSTANCE_NAME)),
 )
-# شهادات sslip.io / self-signed غالباً لا تطابق الاسم — عطّل التحقق عند الحاجة
+# شهادات sslip.io / self-signed — للمنفذ HTTP المحلي اترك False
 EVOLUTION_VERIFY_SSL = env_bool("EVOLUTION_VERIFY_SSL", False)
 
 # رابط عام للمهام (واتساب) — مثال: http://72.61.107.230:7080

@@ -2,10 +2,11 @@
 # في Dokploy: Compose → هذا الملف، ثم افتح المنفذ المنشور (افتراضي 7080)
 #
 # واتساب (Evolution API) — أضف في Environment:
-#   EVOLUTION_SERVER_URL=https://evolutionapi-a23759-72-61-107-230.sslip.io
+#   EVOLUTION_SERVER_URL=http://72.61.107.230:8081
 #   EVOLUTION_API_KEY=...
-#   EVOLUTION_INSTANCE_NAME=اسم_الانستانس_من_لوحة_Evolution
+#   EVOLUTION_INSTANCE_NAME=hr
 #   EVOLUTION_NOTIFY_ENABLED=True
+#   EVOLUTION_VERIFY_SSL=False
 # ثم عبّئ حقل واتساب لمستخدمي: المحاسب / مدير العمليات / مدير النظام
 
 services:
@@ -28,9 +29,9 @@ services:
       SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-False}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-False}
       CSRF_COOKIE_SECURE: ${CSRF_COOKIE_SECURE:-False}
-      EVOLUTION_SERVER_URL: ${EVOLUTION_SERVER_URL:-}
+      EVOLUTION_SERVER_URL: ${EVOLUTION_SERVER_URL:-${EVOLUTION_API_URL:-}}
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
-      EVOLUTION_INSTANCE_NAME: ${EVOLUTION_INSTANCE_NAME:-}
+      EVOLUTION_INSTANCE_NAME: ${EVOLUTION_INSTANCE_NAME:-${EVOLUTION_INSTANCE:-}}
       EVOLUTION_NOTIFY_ENABLED: ${EVOLUTION_NOTIFY_ENABLED:-True}
       EVOLUTION_VERIFY_SSL: ${EVOLUTION_VERIFY_SSL:-False}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
