@@ -52,15 +52,31 @@ def _api(path: str, method: str = "GET", json_body=None, timeout: int = 20):
             timeout=timeout,
             verify=verify,
         )
+        raw = response.text or ""
+        content_type = (response.headers.get("Content-Type") or "").lower()
         data = {}
-        try:
-            data = response.json()
-        except ValueError:
-            data = {"raw": response.text[:500]}
+        if "application/json" in content_type or raw.lstrip().startswith(("{", "[")):
+            try:
+                data = response.json()
+            except ValueError:
+                data = {"raw": raw[:500]}
+        else:
+            # nginx/Django HTML error pages (wrong host / bad domain)
+            snippet = " ".join(raw.split())[:180]
+            data = {
+                "error": (
+                    f"الرابط لا يفتح Evolution API (HTTP {response.status_code}). "
+                    "انسخ رابط الدومين الصحيح من Dokploy → خدمة Evolution → Domains، "
+                    "أو استخدم الرابط الداخلي مثل http://اسم-الخدمة:8080"
+                ),
+                "raw": snippet,
+            }
         return response.status_code, data
     except requests.RequestException as exc:
         logger.exception("Evolution API error: %s %s", method, path)
-        return 0, {"error": str(exc)}
+        return 0, {
+            "error": f"تعذّر الاتصال بـ Evolution: {exc}",
+        }
 
 
 def connection_state() -> dict:
@@ -125,11 +141,15 @@ def fetch_qr() -> dict:
         }
 
     if status == 0 or status >= 400:
+        err = data.get("error") or data.get("message") or "فشل جلب رمز QR"
+        if isinstance(err, list):
+            err = " | ".join(str(x) for x in err)
         return {
             "ok": False,
-            "error": (data.get("error") or data.get("message") or "فشل جلب رمز QR"),
+            "error": str(err),
             "detail": data,
             "status_code": status,
+            "server_url": settings.EVOLUTION_SERVER_URL,
         }
 
     state_info = connection_state()
@@ -141,6 +161,17 @@ def fetch_qr() -> dict:
             "pairingCode": "",
             "state": "open",
             "message": "الواتساب متصل بالفعل.",
+        }
+
+    if not base64 and not pairing:
+        return {
+            "ok": False,
+            "error": (
+                "Evolution لم يُرجع صورة QR. تأكد أن الانستانس موجود ومتوقف عن الاتصال، "
+                f"ثم اضغط تحديث. الرابط الحالي: {settings.EVOLUTION_SERVER_URL}"
+            ),
+            "detail": data,
+            "state": state_info.get("state"),
         }
 
     return {
