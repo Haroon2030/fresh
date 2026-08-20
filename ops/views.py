@@ -21,6 +21,7 @@ from .whatsapp import (
     connection_state,
     fetch_qr,
     logout_instance,
+    recreate_instance,
     normalize_whatsapp,
     notify_roles,
     notify_user,
@@ -787,6 +788,12 @@ def whatsapp_status_api(request):
 @require_POST
 def whatsapp_logout_api(request):
     return JsonResponse(logout_instance())
+
+
+@manager_required
+@require_POST
+def whatsapp_recreate_api(request):
+    return JsonResponse(recreate_instance())
 
 
 @manager_required

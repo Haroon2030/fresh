@@ -29,10 +29,14 @@
                 <span class="material-symbols-outlined text-[#1d4ed8]">qr_code_2</span>
                 <span class="font-bold text-[16px] text-black" style="font-family:'Cairo',sans-serif">ربط الجهاز (QR)</span>
             </div>
-            <div class="flex gap-sm">
+            <div class="flex gap-sm flex-wrap">
                 <button type="button" id="btnRefreshQr" class="act-btn act-ok">
                     <span class="material-symbols-outlined text-[16px] text-inherit">refresh</span>
                     تحديث QR
+                </button>
+                <button type="button" id="btnRecreateWa" class="act-btn act-ok">
+                    <span class="material-symbols-outlined text-[16px] text-inherit">restart_alt</span>
+                    إعادة إنشاء
                 </button>
                 <button type="button" id="btnLogoutWa" class="act-btn act-bad">
                     <span class="material-symbols-outlined text-[16px] text-inherit">logout</span>
@@ -72,7 +76,9 @@
                 </div>
                 <p id="waPairing" class="hidden text-[14px] font-bold text-sky-800" style="font-family:'Cairo',sans-serif"></p>
                 <p id="waQrMsg" class="text-[13px] text-slate-600 text-center max-w-sm" style="font-family:'Cairo',sans-serif">
-                    افتح واتساب ← الأجهزة المرتبطة ← ربط جهاز، ثم امسح الرمز.
+                    1) من الجوال: واتساب ← الأجهزة المرتبطة ← تسجيل الخروج من أي جهاز Evolution قديم<br>
+                    2) اضغط «تحديث QR» وامسح خلال أقل من دقيقة<br>
+                    3) إن رفض المسح: «إعادة إنشاء» ثم امسح فوراً
                 </p>
                 <p id="waQrError" class="hidden text-[13px] text-red-600 font-bold text-center" style="font-family:'Cairo',sans-serif"></p>
             </div>
@@ -162,6 +168,7 @@
     const statusUrl = "{% url 'ops:whatsapp_status' %}";
     const testUrl = "{% url 'ops:whatsapp_test' %}";
     const logoutUrl = "{% url 'ops:whatsapp_logout' %}";
+    const recreateUrl = "{% url 'ops:whatsapp_recreate' %}";
     const csrf = "{{ csrf_token }}";
 
     const img = document.getElementById('waQrImg');
@@ -190,6 +197,38 @@
         qrBox.classList.remove('hidden');
     }
 
+    async function applyQrPayload(data) {
+        if (data.connected) {
+            showConnected();
+            return;
+        }
+        showQrMode();
+        if (!data.ok) {
+            placeholder.textContent = 'تعذّر جلب الرمز';
+            errEl.textContent = data.error || 'خطأ غير معروف';
+            errEl.classList.remove('hidden');
+            return;
+        }
+        if (data.recreate_warning) {
+            errEl.textContent = data.recreate_warning;
+            errEl.classList.remove('hidden');
+        }
+        if (data.base64) {
+            img.src = data.base64;
+            img.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+        } else {
+            placeholder.textContent = 'في انتظار رمز QR…';
+        }
+        if (data.pairingCode) {
+            pairEl.textContent = 'رمز الربط: ' + data.pairingCode;
+            pairEl.classList.remove('hidden');
+        } else {
+            pairEl.classList.add('hidden');
+        }
+        setChip(false, data.state || 'connecting');
+    }
+
     async function loadQr() {
         if (!img) return;
         errEl.classList.add('hidden');
@@ -199,31 +238,7 @@
         try {
             const res = await fetch(qrUrl, { headers: { 'Accept': 'application/json' } });
             const data = await res.json();
-            if (data.connected) {
-                showConnected();
-                return;
-            }
-            showQrMode();
-            if (!data.ok) {
-                placeholder.textContent = 'تعذّر جلب الرمز';
-                errEl.textContent = data.error || 'خطأ غير معروف';
-                errEl.classList.remove('hidden');
-                return;
-            }
-            if (data.base64) {
-                img.src = data.base64;
-                img.classList.remove('hidden');
-                placeholder.classList.add('hidden');
-            } else {
-                placeholder.textContent = 'في انتظار رمز QR…';
-            }
-            if (data.pairingCode) {
-                pairEl.textContent = 'رمز الربط: ' + data.pairingCode;
-                pairEl.classList.remove('hidden');
-            } else {
-                pairEl.classList.add('hidden');
-            }
-            setChip(false, data.state || 'connecting');
+            await applyQrPayload(data);
         } catch (e) {
             placeholder.textContent = 'فشل الاتصال';
             errEl.textContent = String(e);
@@ -239,11 +254,34 @@
                 showConnected();
             } else {
                 setChip(false, data.state);
+                // keep QR visible while connecting/close
+                if (connectedBox && !connectedBox.classList.contains('hidden') && data.state !== 'open') {
+                    showQrMode();
+                }
             }
         } catch (_) {}
     }
 
     document.getElementById('btnRefreshQr')?.addEventListener('click', loadQr);
+    document.getElementById('btnRecreateWa')?.addEventListener('click', async () => {
+        if (!confirm('إعادة إنشاء انستانس واتساب وجلب QR جديد؟')) return;
+        showQrMode();
+        placeholder.classList.remove('hidden');
+        placeholder.textContent = 'جاري إعادة الإنشاء…';
+        img.classList.add('hidden');
+        try {
+            const res = await fetch(recreateUrl, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrf, 'Accept': 'application/json' },
+            });
+            const data = await res.json();
+            await applyQrPayload(data);
+        } catch (e) {
+            placeholder.textContent = 'فشل إعادة الإنشاء';
+            errEl.textContent = String(e);
+            errEl.classList.remove('hidden');
+        }
+    });
     document.getElementById('btnLogoutWa')?.addEventListener('click', async () => {
         if (!confirm('قطع اتصال واتساب لهذا الانستانس؟')) return;
         await fetch(logoutUrl, {

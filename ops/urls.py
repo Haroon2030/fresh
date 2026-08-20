@@ -32,5 +32,6 @@ urlpatterns = [
     path('whatsapp/api/qr/', views.whatsapp_qr_api, name='whatsapp_qr'),
     path('whatsapp/api/status/', views.whatsapp_status_api, name='whatsapp_status'),
     path('whatsapp/api/logout/', views.whatsapp_logout_api, name='whatsapp_logout'),
+    path('whatsapp/api/recreate/', views.whatsapp_recreate_api, name='whatsapp_recreate'),
     path('whatsapp/api/test/', views.whatsapp_test_api, name='whatsapp_test'),
 ]
