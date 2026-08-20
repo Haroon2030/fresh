@@ -1,40 +1,25 @@
-services:
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-farsh}
-      POSTGRES_USER: ${POSTGRES_USER:-farsh}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
-    volumes:
-      - farsh_pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-farsh} -d ${POSTGRES_DB:-farsh}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+# نشر على Dokploy مع قاعدة MySQL الخارجية (خدمة قاعدة البيانات في Dokploy)
+# في Dokploy: Compose → هذا الملف، ثم افتح المنفذ المنشور (افتراضي 8080)
 
+services:
   web:
     build: .
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
       DEBUG: ${DEBUG:-False}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
-      POSTGRES_DB: ${POSTGRES_DB:-farsh}
-      POSTGRES_USER: ${POSTGRES_USER:-farsh}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
-      POSTGRES_HOST: db
-      POSTGRES_PORT: "5432"
+      DB_ENGINE: mysql
+      MYSQL_HOST: ${MYSQL_HOST:?Set MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT:-3306}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-3}
       PORT: "8000"
       SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-False}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-False}
+      CSRF_COOKIE_SECURE: ${CSRF_COOKIE_SECURE:-False}
     ports:
-      - "${APP_PORT:-8000}:8000"
-
-volumes:
-  farsh_pgdata:
+      - "${APP_PORT:-8080}:8000"
