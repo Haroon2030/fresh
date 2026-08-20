@@ -71,14 +71,35 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-if os.environ.get("POSTGRES_HOST") or os.environ.get("POSTGRES_DB"):
+_db_engine = os.environ.get("DB_ENGINE", "").lower()
+_mysql_host = os.environ.get("MYSQL_HOST") or os.environ.get("DB_HOST")
+_postgres_host = os.environ.get("POSTGRES_HOST")
+
+if _db_engine in ("mysql", "mariadb") or (_mysql_host and _db_engine != "postgres"):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.mysql",
+            "NAME": os.environ.get("MYSQL_DATABASE", os.environ.get("DB_NAME", "f_dba")),
+            "USER": os.environ.get("MYSQL_USER", os.environ.get("DB_USER", "fuser")),
+            "PASSWORD": os.environ.get(
+                "MYSQL_PASSWORD", os.environ.get("DB_PASSWORD", "")
+            ),
+            "HOST": _mysql_host or "localhost",
+            "PORT": os.environ.get("MYSQL_PORT", os.environ.get("DB_PORT", "3306")),
+            "OPTIONS": {
+                "charset": "utf8mb4",
+                "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+            },
+        }
+    }
+elif _postgres_host or os.environ.get("POSTGRES_DB"):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
             "NAME": os.environ.get("POSTGRES_DB", "farsh"),
             "USER": os.environ.get("POSTGRES_USER", "farsh"),
             "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
-            "HOST": os.environ.get("POSTGRES_HOST", "db"),
+            "HOST": _postgres_host or "db",
             "PORT": os.environ.get("POSTGRES_PORT", "5432"),
         }
     }
