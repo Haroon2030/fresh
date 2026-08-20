@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import CatalogItem, ReturnRequest, SupplyOrder, Task
+from .models import CatalogItem, ReturnRequest, SupplyOrder, Task, WhatsAppRoleContact
 
 
 @admin.register(CatalogItem)
@@ -31,6 +31,13 @@ class ReturnRequestAdmin(admin.ModelAdmin):
 
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
-    list_display = ('title', 'priority', 'status', 'assigned_to', 'due_at')
+    list_display = ('title', 'branch', 'priority', 'status', 'assigned_to', 'due_at')
     list_filter = ('status', 'priority')
-    search_fields = ('title',)
+    search_fields = ('title', 'branch', 'visit_details', 'public_token')
+    readonly_fields = ('public_token', 'completed_at')
+
+
+@admin.register(WhatsAppRoleContact)
+class WhatsAppRoleContactAdmin(admin.ModelAdmin):
+    list_display = ('role', 'phone', 'updated_at')
+    list_editable = ('phone',)

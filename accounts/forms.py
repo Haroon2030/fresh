@@ -4,10 +4,12 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 
 FIELD_CLASS = (
-    'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 '
-    'focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md '
-    'text-on-surface transition-colors'
+    'w-full bg-white border border-[#bfdbfe] rounded-lg py-2.5 px-3 '
+    'focus:border-[#1d4ed8] focus:ring-1 focus:ring-[#1d4ed8] '
+    'text-[15px] font-semibold text-black transition-colors'
 )
+
+SELECT_CLASS = FIELD_CLASS + ' app-select'
 
 
 class UserCreateForm(forms.ModelForm):
@@ -23,19 +25,38 @@ class UserCreateForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ['username', 'first_name', 'last_name', 'role', 'password']
+        fields = ['username', 'first_name', 'last_name', 'role', 'whatsapp', 'password']
         widgets = {
             'username': forms.TextInput(attrs={'class': FIELD_CLASS, 'placeholder': 'اسم المستخدم للدخول'}),
             'first_name': forms.TextInput(attrs={'class': FIELD_CLASS, 'placeholder': 'الاسم الأول'}),
             'last_name': forms.TextInput(attrs={'class': FIELD_CLASS, 'placeholder': 'اسم العائلة'}),
-            'role': forms.Select(attrs={'class': FIELD_CLASS}),
+            'role': forms.Select(attrs={'class': SELECT_CLASS}),
+            'whatsapp': forms.TextInput(attrs={
+                'class': FIELD_CLASS,
+                'placeholder': '9665xxxxxxxx',
+                'dir': 'ltr',
+            }),
         }
         labels = {
             'username': 'اسم المستخدم',
             'first_name': 'الاسم الأول',
             'last_name': 'اسم العائلة',
             'role': 'الدور',
+            'whatsapp': 'واتساب',
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['role'].choices = User.Role.choices
+
+    def clean_whatsapp(self):
+        value = (self.cleaned_data.get('whatsapp') or '').strip()
+        digits = ''.join(ch for ch in value if ch.isdigit())
+        if value.startswith('+'):
+            digits = ''.join(ch for ch in value[1:] if ch.isdigit())
+        if digits.startswith('00'):
+            digits = digits[2:]
+        return digits
 
     def clean(self):
         cleaned = super().clean()
@@ -48,7 +69,7 @@ class UserCreateForm(forms.ModelForm):
     def save(self, commit=True):
         user = super().save(commit=False)
         user.set_password(self.cleaned_data['password'])
-        if user.role == User.Role.MANAGER:
+        if user.role in User.MANAGEMENT_ROLES:
             user.is_staff = True
         else:
             user.is_staff = False
@@ -67,12 +88,17 @@ class UserUpdateForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ['username', 'first_name', 'last_name', 'role', 'is_active']
+        fields = ['username', 'first_name', 'last_name', 'role', 'whatsapp', 'is_active']
         widgets = {
             'username': forms.TextInput(attrs={'class': FIELD_CLASS}),
             'first_name': forms.TextInput(attrs={'class': FIELD_CLASS}),
             'last_name': forms.TextInput(attrs={'class': FIELD_CLASS}),
-            'role': forms.Select(attrs={'class': FIELD_CLASS}),
+            'role': forms.Select(attrs={'class': SELECT_CLASS}),
+            'whatsapp': forms.TextInput(attrs={
+                'class': FIELD_CLASS,
+                'placeholder': '9665xxxxxxxx',
+                'dir': 'ltr',
+            }),
             'is_active': forms.CheckboxInput(attrs={
                 'class': 'rounded border-outline-variant text-primary focus:ring-primary',
             }),
@@ -82,15 +108,29 @@ class UserUpdateForm(forms.ModelForm):
             'first_name': 'الاسم الأول',
             'last_name': 'اسم العائلة',
             'role': 'الدور',
+            'whatsapp': 'واتساب',
             'is_active': 'الحساب نشط',
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['role'].choices = User.Role.choices
+
+    def clean_whatsapp(self):
+        value = (self.cleaned_data.get('whatsapp') or '').strip()
+        digits = ''.join(ch for ch in value if ch.isdigit())
+        if value.startswith('+'):
+            digits = ''.join(ch for ch in value[1:] if ch.isdigit())
+        if digits.startswith('00'):
+            digits = digits[2:]
+        return digits
 
     def save(self, commit=True):
         user = super().save(commit=False)
         new_password = self.cleaned_data.get('new_password')
         if new_password:
             user.set_password(new_password)
-        user.is_staff = user.role == User.Role.MANAGER
+        user.is_staff = user.role in User.MANAGEMENT_ROLES
         if commit:
             user.save()
         return user

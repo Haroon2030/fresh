@@ -270,6 +270,16 @@ class Task(models.Model):
         related_name='assigned_tasks',
         verbose_name='معيّن إلى',
     )
+    branch = models.CharField(max_length=150, blank=True, verbose_name='موقع الفرع')
+    visit_details = models.TextField(blank=True, verbose_name='تفاصيل الزيارة')
+    public_token = models.CharField(
+        max_length=64,
+        unique=True,
+        editable=False,
+        blank=True,
+        verbose_name='رمز الرابط',
+    )
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name='تاريخ الإنجاز')
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -288,6 +298,22 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
+    def ensure_public_token(self):
+        if not self.public_token:
+            import secrets
+            self.public_token = secrets.token_urlsafe(24)
+
+    def save(self, *args, **kwargs):
+        self.ensure_public_token()
+        super().save(*args, **kwargs)
+
+    def mark_done(self):
+        from django.utils import timezone
+        self.status = self.Status.DONE
+        self.progress = 100
+        self.completed_at = timezone.now()
+        self.save(update_fields=['status', 'progress', 'completed_at', 'updated_at'])
 
     @property
     def is_overdue(self):
@@ -312,3 +338,39 @@ class CatalogItem(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.item_number})'
+
+
+class WhatsAppRoleContact(models.Model):
+    """رقم واتساب مرتبط بدور معيّن لاستلام الإشعارات."""
+
+    ROLE_CHOICES = [
+        ('system_admin', 'مدير النظام'),
+        ('dept_manager', 'مدير القسم'),
+        ('manager', 'مدير العمليات'),
+        ('representative', 'المندوب'),
+        ('receiver', 'المستلم'),
+        ('accountant', 'المحاسب'),
+        ('data', 'البيانات'),
+    ]
+
+    role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        unique=True,
+        verbose_name='الدور',
+    )
+    phone = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name='رقم واتساب',
+        help_text='صيغة دولية بدون + مثل 9665xxxxxxxx',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'رقم واتساب للدور'
+        verbose_name_plural = 'أرقام واتساب للأدوار'
+        ordering = ['role']
+
+    def __str__(self):
+        return f'{self.get_role_display()}: {self.phone or "—"}'

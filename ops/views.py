@@ -1,17 +1,31 @@
 from datetime import timedelta
 from decimal import Decimal
+import json
 
+from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 
 from .forms import TaskForm
-from .models import CatalogItem, ReturnBatch, ReturnRequest, SupplyOrder, Task
+from .models import CatalogItem, ReturnBatch, ReturnRequest, SupplyOrder, Task, WhatsAppRoleContact
+from .whatsapp import (
+    connection_state,
+    fetch_qr,
+    logout_instance,
+    normalize_whatsapp,
+    notify_roles,
+    notify_user,
+)
+
+User = get_user_model()
 
 
 def manager_required(view_func):
@@ -50,6 +64,98 @@ def _redirect_returns(batch_id=None):
     if batch_id:
         return redirect(f'{url}?open={batch_id}')
     return redirect(url)
+
+
+def _greeting_for(now):
+    hour = now.hour
+    if 5 <= hour < 12:
+        return 'صباح الخير'
+    if 12 <= hour < 17:
+        return 'مساء الخير'
+    if 17 <= hour < 22:
+        return 'مساء النور'
+    return 'أهلاً بك'
+
+
+@login_required
+def dashboard(request):
+    user = request.user
+    now = timezone.localtime()
+
+    supply_qs = _supply_queryset(user)
+    returns_qs = _return_batch_queryset(user)
+    tasks_qs = _task_queryset(user)
+
+    supply_total = supply_qs.count()
+    supply_pending = supply_qs.filter(status=SupplyOrder.Status.PENDING).count()
+    supply_completed = supply_qs.filter(status=SupplyOrder.Status.COMPLETED).count()
+    supply_rejected = supply_qs.filter(status=SupplyOrder.Status.REJECTED).count()
+
+    returns_total = returns_qs.count()
+    return_items = ReturnRequest.objects.filter(batch__in=returns_qs)
+    returns_pending = return_items.filter(status=ReturnRequest.Status.PENDING).count()
+    returns_accepted = return_items.filter(status=ReturnRequest.Status.ACCEPTED).count()
+    returns_rejected = return_items.filter(status=ReturnRequest.Status.REJECTED).count()
+
+    tasks_todo = tasks_qs.filter(status=Task.Status.TODO).count()
+    tasks_progress = tasks_qs.filter(status=Task.Status.IN_PROGRESS).count()
+    tasks_done = tasks_qs.filter(status=Task.Status.DONE).count()
+    tasks_total = tasks_todo + tasks_progress + tasks_done
+
+    items_total = CatalogItem.objects.count()
+    users_total = User.objects.filter(is_active=True).count() if user.is_manager else None
+
+    day_labels = []
+    supply_series = []
+    returns_series = []
+    for i in range(6, -1, -1):
+        day = (now - timedelta(days=i)).date()
+        day_labels.append(day.strftime('%d/%m'))
+        supply_series.append(supply_qs.filter(created_at__date=day).count())
+        returns_series.append(returns_qs.filter(created_at__date=day).count())
+
+    charts = {
+        'week': {
+            'labels': day_labels,
+            'supply': supply_series,
+            'returns': returns_series,
+        },
+        'supply_status': {
+            'labels': ['قيد الانتظار', 'مكتمل', 'مرفوض'],
+            'values': [supply_pending, supply_completed, supply_rejected],
+        },
+        'tasks_status': {
+            'labels': ['انتظار', 'تنفيذ', 'مكتمل'],
+            'values': [tasks_todo, tasks_progress, tasks_done],
+        },
+    }
+
+    recent_supply = supply_qs.order_by('-created_at')[:5]
+    recent_tasks = tasks_qs.select_related('assigned_to').order_by('-created_at')[:5]
+
+    return render(request, 'ops/dashboard.html', {
+        'active_nav': 'dashboard',
+        'greeting': _greeting_for(now),
+        'today_label': now.strftime('%Y/%m/%d'),
+        'weekday_ar': [
+            'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد',
+        ][now.weekday()],
+        'stats': {
+            'supply_total': supply_total,
+            'supply_pending': supply_pending,
+            'returns_total': returns_total,
+            'returns_pending': returns_pending,
+            'tasks_total': tasks_total,
+            'tasks_open': tasks_todo + tasks_progress,
+            'items_total': items_total,
+            'users_total': users_total,
+            'returns_accepted': returns_accepted,
+            'returns_rejected': returns_rejected,
+        },
+        'charts_json': json.dumps(charts, ensure_ascii=False),
+        'recent_supply': recent_supply,
+        'recent_tasks': recent_tasks,
+    })
 
 
 def _task_queryset(user):
@@ -165,6 +271,13 @@ def supply_create(request):
             messages.success(request, f'تم إنشاء الطلب {created[0]} بنجاح.')
         else:
             messages.success(request, f'تم إنشاء {len(created)} طلبات شراء بنجاح.')
+        notify_roles(
+            'توريد جديد',
+            f'عدد الطلبات: {len(created)}\n'
+            f'الأرقام: {", ".join(created)}\n'
+            f'المندوب: {representative.display_name}\n'
+            f'بواسطة: {request.user.display_name}',
+        )
     else:
         messages.error(request, 'أضف صفاً واحداً على الأقل مع الاسم.')
     return redirect('ops:supply')
@@ -187,6 +300,11 @@ def supply_complete(request, pk):
     order.reviewed_by = request.user
     order.save(update_fields=['status', 'reviewed_by', 'updated_at'])
     messages.success(request, f'تم إكمال الطلب {order.order_number}.')
+    notify_roles(
+        'اكتمال توريد',
+        f'{order.order_number} — {order.item_name}\n'
+        f'بواسطة: {request.user.display_name}',
+    )
     return redirect('ops:supply')
 
 
@@ -198,6 +316,11 @@ def supply_reject(request, pk):
     order.reviewed_by = request.user
     order.save(update_fields=['status', 'reviewed_by', 'updated_at'])
     messages.success(request, f'تم رفض الطلب {order.order_number}.')
+    notify_roles(
+        'رفض توريد',
+        f'{order.order_number} — {order.item_name}\n'
+        f'بواسطة: {request.user.display_name}',
+    )
     return redirect('ops:supply')
 
 
@@ -312,6 +435,14 @@ def return_create(request):
         request,
         f'تم حفظ ملف المرتجع {batch.return_number} بـ {len(rows)} صنف.',
     )
+    notify_roles(
+        'مرتجع جديد',
+        f'{batch.return_number}\n'
+        f'الفرع: {batch.branch}\n'
+        f'الأصناف: {len(rows)}\n'
+        f'المندوب: {representative.display_name}\n'
+        f'بواسطة: {request.user.display_name}',
+    )
     return _redirect_returns(batch.pk)
 
 
@@ -376,6 +507,11 @@ def return_rep_authorize(request, pk):
     ret.rep_decided_at = timezone.now()
     ret.save(update_fields=['rep_decision', 'rep_decided_by', 'rep_decided_at', 'updated_at'])
     messages.success(request, f'تم تعميد الصنف «{ret.item_name}».')
+    notify_roles(
+        'تعميد مرتجع',
+        f'{ret.return_number or (ret.batch.return_number if ret.batch_id else "")} — {ret.item_name}\n'
+        f'بواسطة: {request.user.display_name}',
+    )
     return _redirect_returns(ret.batch_id)
 
 
@@ -404,6 +540,11 @@ def return_rep_reject(request, pk):
         'status', 'reviewed_by', 'updated_at',
     ])
     messages.success(request, f'تم رفض الصنف «{ret.item_name}» من المندوب.')
+    notify_roles(
+        'رفض مرتجع (مندوب)',
+        f'{ret.return_number or (ret.batch.return_number if ret.batch_id else "")} — {ret.item_name}\n'
+        f'بواسطة: {request.user.display_name}',
+    )
     return _redirect_returns(ret.batch_id)
 
 
@@ -418,6 +559,11 @@ def return_accept(request, pk):
     ret.reviewed_by = request.user
     ret.save(update_fields=['status', 'reviewed_by', 'updated_at'])
     messages.success(request, f'تم قبول الصنف «{ret.item_name}».')
+    notify_roles(
+        'قبول مرتجع',
+        f'{ret.return_number or (ret.batch.return_number if ret.batch_id else "")} — {ret.item_name}\n'
+        f'بواسطة: {request.user.display_name}',
+    )
     return _redirect_returns(ret.batch_id)
 
 
@@ -429,6 +575,11 @@ def return_reject(request, pk):
     ret.reviewed_by = request.user
     ret.save(update_fields=['status', 'reviewed_by', 'updated_at'])
     messages.success(request, f'تم رفض الصنف «{ret.item_name}».')
+    notify_roles(
+        'رفض مرتجع',
+        f'{ret.return_number or (ret.batch.return_number if ret.batch_id else "")} — {ret.item_name}\n'
+        f'بواسطة: {request.user.display_name}',
+    )
     return _redirect_returns(ret.batch_id)
 
 
@@ -453,6 +604,35 @@ def tasks_board(request):
     })
 
 
+def _public_task_url(task, request=None) -> str:
+    path = reverse('ops:task_public', kwargs={'token': task.public_token})
+    base = getattr(settings, 'PUBLIC_BASE_URL', '') or ''
+    if base:
+        return f'{base.rstrip("/")}{path}'
+    if request is not None:
+        return request.build_absolute_uri(path)
+    return path
+
+
+def _notify_assignee_task(task, request=None, created=False):
+    if not task.assigned_to_id:
+        return
+    link = _public_task_url(task, request)
+    lines = [
+        f'المهمة: {task.title}',
+        f'الفرع: {task.branch or "—"}',
+        f'تفاصيل الزيارة:\n{task.visit_details or task.description or "—"}',
+        f'الأولوية: {task.get_priority_display()}',
+    ]
+    if task.due_at:
+        lines.append(f'الموعد: {timezone.localtime(task.due_at).strftime("%Y-%m-%d %H:%M")}')
+    lines.append('')
+    lines.append('افتح الرابط لعرض التفاصيل وإغلاق المهمة عند الإنجاز:')
+    lines.append(link)
+    title = 'مهمة جديدة مُسندة إليك' if created else 'تحديث مهمة'
+    notify_user(task.assigned_to, title, '\n'.join(lines))
+
+
 @manager_required
 @require_POST
 def task_create(request):
@@ -460,11 +640,52 @@ def task_create(request):
     if form.is_valid():
         task = form.save(commit=False)
         task.created_by = request.user
+        task.status = Task.Status.TODO
         task.save()
-        messages.success(request, 'تم إنشاء المهمة بنجاح.')
+        messages.success(request, 'تم إنشاء المهمة وإرسالها للموظف عبر واتساب إن وُجد الرقم.')
+        _notify_assignee_task(task, request, created=True)
+        notify_roles(
+            'مهمة جديدة',
+            f'{task.title}\n'
+            f'الفرع: {task.branch or "—"}\n'
+            f'الموظف: {task.assigned_to.display_name if task.assigned_to_id else "—"}\n'
+            f'بواسطة: {request.user.display_name}',
+        )
     else:
-        messages.error(request, 'تعذر حفظ المهمة. تحقق من البيانات.')
+        messages.error(request, 'تعذر حفظ المهمة. تحقق من البيانات (الموظف والفرع وتفاصيل الزيارة مطلوبة).')
     return redirect('ops:tasks')
+
+
+@require_http_methods(['GET', 'POST'])
+def task_public(request, token):
+    task = get_object_or_404(
+        Task.objects.select_related('assigned_to', 'created_by'),
+        public_token=token,
+    )
+    done = False
+    error = None
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'complete':
+            if task.status == Task.Status.DONE:
+                done = True
+            else:
+                task.mark_done()
+                done = True
+                notify_roles(
+                    'إنجاز مهمة',
+                    f'{task.title}\n'
+                    f'الفرع: {task.branch or "—"}\n'
+                    f'الموظف: {task.assigned_to.display_name if task.assigned_to_id else "—"}\n'
+                    f'أُغلقت عبر رابط المهمة',
+                )
+        else:
+            error = 'إجراء غير معروف.'
+    return render(request, 'ops/task_public.html', {
+        'task': task,
+        'just_completed': done,
+        'error': error,
+    })
 
 
 @login_required
@@ -477,19 +698,85 @@ def task_move(request, pk):
 
     new_status = request.POST.get('status')
     if new_status in dict(Task.Status.choices):
-        task.status = new_status
         if new_status == Task.Status.DONE:
-            task.progress = 100
-        elif new_status == Task.Status.IN_PROGRESS and task.progress == 0:
-            task.progress = 45
-        task.save(update_fields=['status', 'progress', 'updated_at'])
+            task.mark_done()
+        else:
+            task.status = new_status
+            if new_status == Task.Status.IN_PROGRESS and task.progress == 0:
+                task.progress = 45
+            task.completed_at = None
+            task.save(update_fields=['status', 'progress', 'completed_at', 'updated_at'])
         messages.success(request, 'تم تحديث حالة المهمة.')
+        notify_roles(
+            'تحديث مهمة',
+            f'{task.title}\n'
+            f'الحالة: {task.get_status_display()}\n'
+            f'بواسطة: {request.user.display_name}',
+        )
     return redirect('ops:tasks')
 
 
 @login_required
 def settings_view(request):
     return render(request, 'ops/settings.html', {'active_nav': 'settings'})
+
+
+@manager_required
+def whatsapp_hub(request):
+    """شاشة ربط واتساب (QR) + أرقام الأدوار."""
+    from ops.models import WhatsAppRoleContact as RoleContact
+
+    if request.method == 'POST' and request.POST.get('action') == 'save_roles':
+        for role_value, _label in RoleContact.ROLE_CHOICES:
+            raw = (request.POST.get(f'phone_{role_value}') or '').strip()
+            phone = normalize_whatsapp(raw)
+            contact, _ = RoleContact.objects.get_or_create(role=role_value)
+            contact.phone = phone
+            contact.save(update_fields=['phone', 'updated_at'])
+        messages.success(request, 'تم حفظ أرقام واتساب للأدوار.')
+        return redirect('ops:whatsapp')
+
+    contacts = {
+        c.role: c.phone
+        for c in WhatsAppRoleContact.objects.all()
+    }
+    role_rows = []
+    for value, label in WhatsAppRoleContact.ROLE_CHOICES:
+        users = User.objects.filter(role=value, is_active=True).order_by('first_name', 'username')
+        role_rows.append({
+            'value': value,
+            'label': label,
+            'phone': contacts.get(value, ''),
+            'notify': value in User.NOTIFY_ROLES,
+            'users': users,
+        })
+
+    state = connection_state()
+    return render(request, 'ops/whatsapp.html', {
+        'active_nav': 'whatsapp',
+        'role_rows': role_rows,
+        'wa_state': state,
+        'instance_name': getattr(settings, 'EVOLUTION_INSTANCE_NAME', ''),
+        'server_url': getattr(settings, 'EVOLUTION_SERVER_URL', ''),
+        'notify_enabled': getattr(settings, 'EVOLUTION_NOTIFY_ENABLED', False),
+    })
+
+
+@manager_required
+def whatsapp_qr_api(request):
+    data = fetch_qr()
+    return JsonResponse(data)
+
+
+@manager_required
+def whatsapp_status_api(request):
+    return JsonResponse(connection_state())
+
+
+@manager_required
+@require_POST
+def whatsapp_logout_api(request):
+    return JsonResponse(logout_instance())
 
 
 @login_required

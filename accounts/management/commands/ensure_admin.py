@@ -18,7 +18,7 @@ class Command(BaseCommand):
             password="526400",
             first_name="مدير",
             last_name="العمليات",
-            role=User.Role.MANAGER,
+            role=User.Role.SYSTEM_ADMIN,
             is_staff=True,
             is_superuser=True,
         )

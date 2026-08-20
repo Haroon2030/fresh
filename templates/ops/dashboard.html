@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+
+{% block title %}لوحة التحكم - عمليات الفرش{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+    .dash-welcome {
+        position: relative;
+        overflow: hidden;
+        border-radius: 18px;
+        border: 1px solid #bfdbfe;
+        background:
+            radial-gradient(1200px 280px at 100% 0%, rgba(59,130,246,0.18), transparent 55%),
+            linear-gradient(135deg, #eff6ff 0%, #ffffff 48%, #f0fdf4 100%);
+        padding: 28px 28px 24px;
+    }
+    .dash-welcome h1 {
+        font-family: 'Cairo', sans-serif;
+        font-size: clamp(26px, 3vw, 34px);
+        font-weight: 800;
+        color: #0f172a;
+        line-height: 1.25;
+    }
+    .dash-welcome p {
+        font-family: 'Cairo', sans-serif;
+        font-size: 15px;
+        color: #475569;
+        margin-top: 8px;
+        max-width: 42rem;
+    }
+    .dash-welcome .meta {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.85);
+        border: 1px solid #dbeafe;
+        color: #1e3a8a;
+        font-family: 'Cairo', sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+    }
+    .kpi-card {
+        border-radius: 16px;
+        border: 1px solid transparent;
+        padding: 18px 18px 16px;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        transition: transform .2s ease, box-shadow .2s ease;
+        min-height: 118px;
+    }
+    .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+    }
+    .kpi-card .kpi-label {
+        font-family: 'Cairo', sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        color: #334155;
+    }
+    .kpi-card .kpi-value {
+        font-family: 'Cairo', sans-serif;
+        font-size: 34px;
+        font-weight: 800;
+        line-height: 1.1;
+        margin-top: 8px;
+        color: #0f172a;
+    }
+    .kpi-card .kpi-sub {
+        font-family: 'Cairo', sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        margin-top: 8px;
+        color: #64748b;
+    }
+    .kpi-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+    }
+    .kpi-amber { background: linear-gradient(160deg,#fffbeb,#fff); border-color:#fcd34d; }
+    .kpi-amber .kpi-icon { background:#fef3c7; color:#b45309; }
+    .kpi-sky { background: linear-gradient(160deg,#eff6ff,#fff); border-color:#93c5fd; }
+    .kpi-sky .kpi-icon { background:#dbeafe; color:#1d4ed8; }
+    .kpi-emerald { background: linear-gradient(160deg,#ecfdf5,#fff); border-color:#6ee7b7; }
+    .kpi-emerald .kpi-icon { background:#d1fae5; color:#047857; }
+    .kpi-slate { background: linear-gradient(160deg,#f8fafc,#fff); border-color:#cbd5e1; }
+    .kpi-slate .kpi-icon { background:#e2e8f0; color:#334155; }
+    .chart-panel {
+        border: 1px solid #bfdbfe;
+        border-radius: 16px;
+        background: #fff;
+        overflow: hidden;
+    }
+    .chart-panel .panel-head {
+        padding: 14px 18px;
+        border-bottom: 1px solid #dbeafe;
+        background: #f8fbff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+    .chart-panel .panel-head h3 {
+        font-family: 'Cairo', sans-serif;
+        font-size: 16px;
+        font-weight: 800;
+        color: #0f172a;
+    }
+    .chart-panel .panel-body {
+        padding: 16px 18px 20px;
+        height: 280px;
+        position: relative;
+    }
+    .dash-list {
+        border: 1px solid #bfdbfe;
+        border-radius: 16px;
+        background: #fff;
+        overflow: hidden;
+    }
+    .dash-list .row-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 16px;
+        border-bottom: 1px solid #eff6ff;
+        font-family: 'Cairo', sans-serif;
+    }
+    .dash-list .row-item:last-child { border-bottom: 0; }
+    .dash-list .row-item:hover { background: #f8fbff; }
+    .dash-empty {
+        padding: 28px 16px;
+        text-align: center;
+        color: #94a3b8;
+        font-family: 'Cairo', sans-serif;
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="dash-welcome mb-lg">
+    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-md">
+        <div>
+            <h1>{{ greeting }}، {{ user.display_name }}</h1>
+            <p>
+                مرحباً بك في بوابة عمليات الفرش. إليك ملخصاً سريعاً للتوريد والمرتجعات والمهام —
+                تابع المستجدات من لوحة واحدة.
+            </p>
+            <div class="meta">
+                <span class="material-symbols-outlined text-[18px]">calendar_today</span>
+                <span>{{ weekday_ar }} — {{ today_label }}</span>
+                <span class="opacity-40">|</span>
+                <span>{{ user.get_role_display }}</span>
+            </div>
+        </div>
+        <div class="flex flex-wrap gap-sm">
+            <a href="{% url 'ops:supply' %}" class="btn-primary-app">
+                <span class="material-symbols-outlined text-[18px]">shopping_cart</span>
+                التوريد
+            </a>
+            <a href="{% url 'ops:returns' %}" class="px-5 py-2.5 rounded-lg border border-[#93c5fd] bg-white text-[#1d4ed8] font-bold text-[14px] hover:bg-[#eff6ff]" style="font-family:'Cairo',sans-serif">
+                المرتجعات
+            </a>
+        </div>
+    </div>
+</section>
+
+<section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-md mb-lg">
+    <article class="kpi-card kpi-sky">
+        <div class="flex items-start justify-between">
+            <div>
+                <div class="kpi-label">طلبات التوريد</div>
+                <div class="kpi-value">{{ stats.supply_total }}</div>
+                <div class="kpi-sub">{{ stats.supply_pending }} بانتظار المراجعة</div>
+            </div>
+            <div class="kpi-icon"><span class="material-symbols-outlined">shopping_cart</span></div>
+        </div>
+    </article>
+    <article class="kpi-card kpi-amber">
+        <div class="flex items-start justify-between">
+            <div>
+                <div class="kpi-label">ملفات المرتجعات</div>
+                <div class="kpi-value">{{ stats.returns_total }}</div>
+                <div class="kpi-sub">{{ stats.returns_pending }} صنفاً معلّقاً</div>
+            </div>
+            <div class="kpi-icon"><span class="material-symbols-outlined">assignment_return</span></div>
+        </div>
+    </article>
+    <article class="kpi-card kpi-emerald">
+        <div class="flex items-start justify-between">
+            <div>
+                <div class="kpi-label">المهام</div>
+                <div class="kpi-value">{{ stats.tasks_total }}</div>
+                <div class="kpi-sub">{{ stats.tasks_open }} قيد المتابعة</div>
+            </div>
+            <div class="kpi-icon"><span class="material-symbols-outlined">checklist</span></div>
+        </div>
+    </article>
+    <article class="kpi-card kpi-slate">
+        <div class="flex items-start justify-between">
+            <div>
+                <div class="kpi-label">{% if stats.users_total != None %}المستخدمون النشطون{% else %}أصناف الكتالوج{% endif %}</div>
+                <div class="kpi-value">{% if stats.users_total != None %}{{ stats.users_total }}{% else %}{{ stats.items_total }}{% endif %}</div>
+                <div class="kpi-sub">{% if stats.users_total != None %}{{ stats.items_total }} صنفاً في الكتالوج{% else %}متاح للاستخدام{% endif %}</div>
+            </div>
+            <div class="kpi-icon"><span class="material-symbols-outlined">{% if stats.users_total != None %}group{% else %}inventory_2{% endif %}</span></div>
+        </div>
+    </article>
+</section>
+
+<section class="grid grid-cols-1 xl:grid-cols-3 gap-md mb-lg">
+    <div class="chart-panel xl:col-span-2">
+        <div class="panel-head">
+            <h3>نشاط آخر 7 أيام</h3>
+            <span class="text-[12px] font-bold text-slate-500" style="font-family:'Cairo',sans-serif">توريد × مرتجعات</span>
+        </div>
+        <div class="panel-body">
+            <canvas id="weekChart"></canvas>
+        </div>
+    </div>
+    <div class="chart-panel">
+        <div class="panel-head">
+            <h3>حالة التوريد</h3>
+        </div>
+        <div class="panel-body">
+            <canvas id="supplyChart"></canvas>
+        </div>
+    </div>
+</section>
+
+<section class="grid grid-cols-1 xl:grid-cols-3 gap-md">
+    <div class="chart-panel">
+        <div class="panel-head">
+            <h3>توزيع المهام</h3>
+        </div>
+        <div class="panel-body">
+            <canvas id="tasksChart"></canvas>
+        </div>
+    </div>
+    <div class="dash-list xl:col-span-1">
+        <div class="panel-head chart-panel" style="border:0;border-radius:0;border-bottom:1px solid #dbeafe">
+            <h3>أحدث التوريدات</h3>
+            <a href="{% url 'ops:supply' %}" class="text-[12px] font-bold text-[#1d4ed8]" style="font-family:'Cairo',sans-serif">عرض الكل</a>
+        </div>
+        {% for order in recent_supply %}
+        <a href="{% url 'ops:supply_detail' order.pk %}" class="row-item">
+            <div class="min-w-0">
+                <div class="font-bold text-[14px] text-slate-900 truncate">{{ order.item_name }}</div>
+                <div class="text-[12px] text-slate-500 mt-0.5">{{ order.order_number }} · {{ order.created_at|date:"j M" }}</div>
+            </div>
+            {% if order.status == 'pending' %}
+            <span class="status-chip status-wait">انتظار</span>
+            {% elif order.status == 'completed' %}
+            <span class="status-chip status-ok">مكتمل</span>
+            {% else %}
+            <span class="status-chip status-bad">مرفوض</span>
+            {% endif %}
+        </a>
+        {% empty %}
+        <div class="dash-empty">لا توريدات حديثة</div>
+        {% endfor %}
+    </div>
+    <div class="dash-list xl:col-span-1">
+        <div class="panel-head chart-panel" style="border:0;border-radius:0;border-bottom:1px solid #dbeafe">
+            <h3>أحدث المهام</h3>
+            <a href="{% url 'ops:tasks' %}" class="text-[12px] font-bold text-[#1d4ed8]" style="font-family:'Cairo',sans-serif">لوحة المهام</a>
+        </div>
+        {% for task in recent_tasks %}
+        <div class="row-item">
+            <div class="min-w-0">
+                <div class="font-bold text-[14px] text-slate-900 truncate">{{ task.title }}</div>
+                <div class="text-[12px] text-slate-500 mt-0.5">
+                    {% if task.assigned_to %}{{ task.assigned_to.display_name }}{% else %}غير معيّن{% endif %}
+                </div>
+            </div>
+            {% if task.status == 'todo' %}
+            <span class="status-chip status-wait">انتظار</span>
+            {% elif task.status == 'in_progress' %}
+            <span class="status-chip" style="background:#e0f2fe;color:#075985;border-color:#7dd3fc">تنفيذ</span>
+            {% else %}
+            <span class="status-chip status-ok">مكتمل</span>
+            {% endif %}
+        </div>
+        {% empty %}
+        <div class="dash-empty">لا مهام حديثة</div>
+        {% endfor %}
+    </div>
+</section>
+
+{{ charts_json|json_script:"dashboard-charts" }}
+<script>
+(function () {
+    const data = JSON.parse(document.getElementById('dashboard-charts').textContent);
+    const font = { family: 'Cairo, sans-serif' };
+    Chart.defaults.font.family = 'Cairo, sans-serif';
+    Chart.defaults.color = '#64748b';
+
+    new Chart(document.getElementById('weekChart'), {
+        type: 'line',
+        data: {
+            labels: data.week.labels,
+            datasets: [
+                {
+                    label: 'التوريد',
+                    data: data.week.supply,
+                    borderColor: '#1d4ed8',
+                    backgroundColor: 'rgba(29,78,216,0.12)',
+                    fill: true,
+                    tension: 0.35,
+                    borderWidth: 2.5,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#1d4ed8',
+                },
+                {
+                    label: 'المرتجعات',
+                    data: data.week.returns,
+                    borderColor: '#d97706',
+                    backgroundColor: 'rgba(217,119,6,0.10)',
+                    fill: true,
+                    tension: 0.35,
+                    borderWidth: 2.5,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#d97706',
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', align: 'end', rtl: true, labels: { boxWidth: 12, font } },
+            },
+            scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#eff6ff' } },
+            },
+        },
+    });
+
+    new Chart(document.getElementById('supplyChart'), {
+        type: 'doughnut',
+        data: {
+            labels: data.supply_status.labels,
+            datasets: [{
+                data: data.supply_status.values,
+                backgroundColor: ['#fbbf24', '#22c55e', '#f87171'],
+                borderWidth: 0,
+                hoverOffset: 6,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '62%',
+            plugins: {
+                legend: { position: 'bottom', rtl: true, labels: { boxWidth: 10, font, padding: 14 } },
+            },
+        },
+    });
+
+    new Chart(document.getElementById('tasksChart'), {
+        type: 'bar',
+        data: {
+            labels: data.tasks_status.labels,
+            datasets: [{
+                data: data.tasks_status.values,
+                backgroundColor: ['#f59e0b', '#0ea5e9', '#10b981'],
+                borderRadius: 8,
+                maxBarThickness: 42,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#eff6ff' } },
+            },
+        },
+    });
+})();
+</script>
+{% endblock %}

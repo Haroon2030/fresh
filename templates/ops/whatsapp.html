@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}ربط واتساب - عمليات الفرش{% endblock %}
+
+{% block content %}
+<div class="mb-lg flex flex-col sm:flex-row sm:items-end sm:justify-between gap-md">
+    <div>
+        <h2 class="font-bold text-[26px] text-black" style="font-family:'Cairo',sans-serif">ربط واتساب</h2>
+        <p class="text-[14px] text-slate-600 mt-1" style="font-family:'Cairo',sans-serif">
+            امسح رمز QR لربط الجهاز، ثم عيّن رقم واتساب لكل دور لاستلام الإشعارات.
+        </p>
+    </div>
+    <div class="flex flex-wrap gap-sm text-[12px] font-bold" style="font-family:'Cairo',sans-serif">
+        <span class="px-3 py-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-800">
+            Instance: {{ instance_name|default:"—" }}
+        </span>
+        <span id="waStateChip" class="px-3 py-1.5 rounded-full border
+            {% if wa_state.ok %}border-emerald-200 bg-emerald-50 text-emerald-800{% else %}border-amber-200 bg-amber-50 text-amber-800{% endif %}">
+            {% if wa_state.ok %}متصل{% elif not wa_state.configured %}غير مُعدّ{% else %}{{ wa_state.state }}{% endif %}
+        </span>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-lg">
+    {# —— QR Connection —— #}
+    <section class="app-table-frame overflow-hidden">
+        <div class="app-toolbar !mb-0 rounded-none border-0 border-b border-[#dbeafe]">
+            <div class="flex items-center gap-sm">
+                <span class="material-symbols-outlined text-[#1d4ed8]">qr_code_2</span>
+                <span class="font-bold text-[16px] text-black" style="font-family:'Cairo',sans-serif">ربط الجهاز (QR)</span>
+            </div>
+            <div class="flex gap-sm">
+                <button type="button" id="btnRefreshQr" class="act-btn act-ok">
+                    <span class="material-symbols-outlined text-[16px] text-inherit">refresh</span>
+                    تحديث QR
+                </button>
+                <button type="button" id="btnLogoutWa" class="act-btn act-bad">
+                    <span class="material-symbols-outlined text-[16px] text-inherit">logout</span>
+                    قطع الاتصال
+                </button>
+            </div>
+        </div>
+        <div class="p-lg flex flex-col items-center gap-md bg-white min-h-[360px] justify-center">
+            {% if not wa_state.configured %}
+            <div class="text-center max-w-md">
+                <span class="material-symbols-outlined text-[48px] text-amber-500">warning</span>
+                <p class="font-bold text-[15px] mt-2" style="font-family:'Cairo',sans-serif">إعدادات Evolution غير مكتملة</p>
+                <p class="text-[13px] text-slate-500 mt-1" style="font-family:'Cairo',sans-serif">
+                    أضف في Dokploy: <code class="text-sky-700">EVOLUTION_SERVER_URL</code> و
+                    <code class="text-sky-700">EVOLUTION_API_KEY</code> و
+                    <code class="text-sky-700">EVOLUTION_INSTANCE_NAME</code>
+                </p>
+            </div>
+            {% else %}
+            <div id="waConnectedBox" class="{% if not wa_state.ok %}hidden{% endif %} text-center">
+                <span class="material-symbols-outlined text-[56px] text-emerald-600">check_circle</span>
+                <p class="font-extrabold text-[18px] mt-2 text-emerald-800" style="font-family:'Cairo',sans-serif">الواتساب متصل</p>
+                <p class="text-[13px] text-slate-500 mt-1" style="font-family:'Cairo',sans-serif">جاهز لإرسال إشعارات العمليات والمهام.</p>
+            </div>
+            <div id="waQrBox" class="{% if wa_state.ok %}hidden{% endif %} flex flex-col items-center gap-3 w-full">
+                <div class="w-[260px] h-[260px] rounded-xl border-2 border-dashed border-sky-200 bg-sky-50/50 flex items-center justify-center overflow-hidden">
+                    <img id="waQrImg" alt="QR واتساب" class="hidden max-w-full max-h-full">
+                    <span id="waQrPlaceholder" class="text-slate-400 text-sm font-bold" style="font-family:'Cairo',sans-serif">جاري التحميل…</span>
+                </div>
+                <p id="waPairing" class="hidden text-[14px] font-bold text-sky-800" style="font-family:'Cairo',sans-serif"></p>
+                <p id="waQrMsg" class="text-[13px] text-slate-600 text-center max-w-sm" style="font-family:'Cairo',sans-serif">
+                    افتح واتساب ← الأجهزة المرتبطة ← ربط جهاز، ثم امسح الرمز.
+                </p>
+                <p id="waQrError" class="hidden text-[13px] text-red-600 font-bold text-center" style="font-family:'Cairo',sans-serif"></p>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    {# —— Role phones —— #}
+    <section class="app-table-frame overflow-hidden">
+        <div class="app-toolbar !mb-0 rounded-none border-0 border-b border-[#dbeafe]">
+            <div class="flex items-center gap-sm">
+                <span class="material-symbols-outlined text-[#1d4ed8]">contact_phone</span>
+                <span class="font-bold text-[16px] text-black" style="font-family:'Cairo',sans-serif">أرقام الأدوار</span>
+            </div>
+            <span class="text-[11px] font-bold text-slate-500" style="font-family:'Cairo',sans-serif">إشعار للدور عند حفظ العمليات</span>
+        </div>
+        <form method="post" class="bg-white">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_roles">
+            <div class="overflow-x-auto">
+                <table class="user-form-grid w-full">
+                    <thead>
+                    <tr>
+                        <th style="width:28%">الدور</th>
+                        <th>رقم واتساب</th>
+                        <th style="width:22%">المستخدمون</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in role_rows %}
+                    <tr>
+                        <th>
+                            <div class="flex flex-col gap-1">
+                                <span>{{ row.label }}</span>
+                                {% if row.notify %}
+                                <span class="status-chip status-ok w-fit">يستلم إشعارات</span>
+                                {% endif %}
+                            </div>
+                        </th>
+                        <td>
+                            <input type="text" name="phone_{{ row.value }}" value="{{ row.phone }}"
+                                   dir="ltr" placeholder="9665xxxxxxxx"
+                                   class="w-full bg-white border border-[#bfdbfe] rounded-lg py-2.5 px-3 text-[15px] font-semibold focus:border-[#1d4ed8] focus:ring-1 focus:ring-[#1d4ed8]">
+                        </td>
+                        <td>
+                            {% if row.users %}
+                            <div class="flex flex-col gap-1">
+                                {% for u in row.users %}
+                                <span class="text-[12px] font-semibold text-slate-700" style="font-family:'Cairo',sans-serif">
+                                    {{ u.display_name }}
+                                    {% if u.whatsapp %}<span class="text-slate-400" dir="ltr">({{ u.whatsapp }})</span>{% endif %}
+                                </span>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <span class="text-[12px] text-slate-400">لا مستخدمين</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="px-lg py-md border-t border-[#bfdbfe] bg-[#f8fbff] flex justify-end">
+                <button type="submit" class="btn-primary-app" style="font-family:'Cairo',sans-serif">
+                    <span class="material-symbols-outlined text-[18px]">save</span>
+                    حفظ الأرقام
+                </button>
+            </div>
+        </form>
+    </section>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% if wa_state.configured %}
+<script>
+(function () {
+    const qrUrl = "{% url 'ops:whatsapp_qr' %}";
+    const statusUrl = "{% url 'ops:whatsapp_status' %}";
+    const logoutUrl = "{% url 'ops:whatsapp_logout' %}";
+    const csrf = "{{ csrf_token }}";
+
+    const img = document.getElementById('waQrImg');
+    const placeholder = document.getElementById('waQrPlaceholder');
+    const errEl = document.getElementById('waQrError');
+    const pairEl = document.getElementById('waPairing');
+    const connectedBox = document.getElementById('waConnectedBox');
+    const qrBox = document.getElementById('waQrBox');
+    const chip = document.getElementById('waStateChip');
+
+    function setChip(ok, state) {
+        if (!chip) return;
+        chip.className = 'px-3 py-1.5 rounded-full border ' +
+            (ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800');
+        chip.textContent = ok ? 'متصل' : (state || 'غير متصل');
+    }
+
+    function showConnected() {
+        connectedBox.classList.remove('hidden');
+        qrBox.classList.add('hidden');
+        setChip(true, 'open');
+    }
+
+    function showQrMode() {
+        connectedBox.classList.add('hidden');
+        qrBox.classList.remove('hidden');
+    }
+
+    async function loadQr() {
+        if (!img) return;
+        errEl.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+        placeholder.textContent = 'جاري التحميل…';
+        img.classList.add('hidden');
+        try {
+            const res = await fetch(qrUrl, { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+            if (data.connected) {
+                showConnected();
+                return;
+            }
+            showQrMode();
+            if (!data.ok) {
+                placeholder.textContent = 'تعذّر جلب الرمز';
+                errEl.textContent = data.error || 'خطأ غير معروف';
+                errEl.classList.remove('hidden');
+                return;
+            }
+            if (data.base64) {
+                img.src = data.base64;
+                img.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            } else {
+                placeholder.textContent = 'في انتظار رمز QR…';
+            }
+            if (data.pairingCode) {
+                pairEl.textContent = 'رمز الربط: ' + data.pairingCode;
+                pairEl.classList.remove('hidden');
+            } else {
+                pairEl.classList.add('hidden');
+            }
+            setChip(false, data.state || 'connecting');
+        } catch (e) {
+            placeholder.textContent = 'فشل الاتصال';
+            errEl.textContent = String(e);
+            errEl.classList.remove('hidden');
+        }
+    }
+
+    async function pollStatus() {
+        try {
+            const res = await fetch(statusUrl, { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+            if (data.ok) {
+                showConnected();
+            } else {
+                setChip(false, data.state);
+            }
+        } catch (_) {}
+    }
+
+    document.getElementById('btnRefreshQr')?.addEventListener('click', loadQr);
+    document.getElementById('btnLogoutWa')?.addEventListener('click', async () => {
+        if (!confirm('قطع اتصال واتساب لهذا الانستانس؟')) return;
+        await fetch(logoutUrl, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrf, 'Accept': 'application/json' },
+        });
+        showQrMode();
+        loadQr();
+    });
+
+    {% if not wa_state.ok %}
+    loadQr();
+    setInterval(() => { pollStatus(); }, 8000);
+    setInterval(() => {
+        if (!connectedBox.classList.contains('hidden')) return;
+        loadQr();
+    }, 25000);
+    {% else %}
+    setInterval(pollStatus, 15000);
+    {% endif %}
+})();
+</script>
+{% endif %}
+{% endblock %}

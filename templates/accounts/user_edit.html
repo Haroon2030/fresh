@@ -3,36 +3,98 @@
 {% block title %}تعديل مستخدم - عمليات الفرش{% endblock %}
 
 {% block content %}
-<div class="flex items-center gap-md mb-md">
-    <a href="{% url 'accounts:users' %}" class="text-on-surface-variant hover:text-primary p-sm rounded-full hover:bg-surface-container-high">
+<div class="flex items-center gap-md mb-lg">
+    <a href="{% url 'accounts:users' %}" class="text-on-surface-variant hover:text-[#1d4ed8] p-sm rounded-full hover:bg-[#eff6ff]">
         <span class="material-symbols-outlined">arrow_forward</span>
     </a>
     <div>
-        <h2 class="font-headline-lg text-headline-lg font-bold text-primary">تعديل المستخدم</h2>
-        <p class="font-body-md text-body-md text-on-surface-variant">{{ edited_user.display_name }}</p>
+        <h2 class="font-bold text-[26px] text-black" style="font-family:'Cairo',sans-serif">تعديل المستخدم</h2>
+        <p class="text-[14px] text-slate-600 mt-0.5" style="font-family:'Cairo',sans-serif">{{ edited_user.display_name }} — {{ edited_user.username }}</p>
     </div>
 </div>
 
-<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg max-w-lg">
-    <form method="post" class="flex flex-col gap-md">
-        {% csrf_token %}
-        {% for field in form %}
-        <div class="flex flex-col gap-sm">
-            {% if field.field.widget.input_type == 'checkbox' %}
-            <label class="flex items-center gap-sm font-label-md text-label-md text-on-surface cursor-pointer">
-                {{ field }}
-                <span>{{ field.label }}</span>
-            </label>
-            {% else %}
-            <label class="font-label-md text-label-md text-on-surface">{{ field.label }}</label>
-            {{ field }}
-            {% endif %}
-            {% if field.errors %}<p class="text-error text-xs">{{ field.errors|striptags }}</p>{% endif %}
+<div class="app-table-frame w-full max-w-2xl overflow-hidden">
+    <div class="app-toolbar">
+        <div class="flex items-center gap-sm">
+            <span class="material-symbols-outlined text-[#1d4ed8]">manage_accounts</span>
+            <span class="font-bold text-[16px] text-black" style="font-family:'Cairo',sans-serif">بيانات الحساب</span>
         </div>
-        {% endfor %}
-        <div class="flex justify-end gap-sm pt-md border-t border-outline-variant">
-            <a href="{% url 'accounts:users' %}" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface-variant">إلغاء</a>
-            <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md">حفظ التعديلات</button>
+        {% if edited_user.is_active %}
+        <span class="status-chip status-ok">نشط</span>
+        {% else %}
+        <span class="status-chip status-wait">متوقف</span>
+        {% endif %}
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="overflow-x-auto">
+            <table class="user-form-grid w-full">
+                <tbody>
+                <tr>
+                    <th>اسم المستخدم</th>
+                    <td>
+                        {{ form.username }}
+                        {% if form.username.errors %}<p class="field-err">{{ form.username.errors|striptags }}</p>{% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th>الاسم الأول</th>
+                    <td>
+                        {{ form.first_name }}
+                        {% if form.first_name.errors %}<p class="field-err">{{ form.first_name.errors|striptags }}</p>{% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th>اسم العائلة</th>
+                    <td>
+                        {{ form.last_name }}
+                        {% if form.last_name.errors %}<p class="field-err">{{ form.last_name.errors|striptags }}</p>{% endif %}
+                    </td>
+                </tr>
+                    <tr>
+                        <th>الدور</th>
+                        <td>
+                            {{ form.role }}
+                            {% if form.role.errors %}<p class="field-err">{{ form.role.errors|striptags }}</p>{% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>واتساب</th>
+                        <td>
+                            {{ form.whatsapp }}
+                            <p class="hint-text">رقم دولي بدون + — للإشعارات (محاسب / مدير عمليات / مدير نظام)</p>
+                            {% if form.whatsapp.errors %}<p class="field-err">{{ form.whatsapp.errors|striptags }}</p>{% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>حالة الحساب</th>
+                    <td>
+                        <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                            {{ form.is_active }}
+                            <span class="font-semibold text-[15px] text-black" style="font-family:'Cairo',sans-serif">الحساب نشط</span>
+                        </label>
+                        {% if form.is_active.errors %}<p class="field-err">{{ form.is_active.errors|striptags }}</p>{% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th>كلمة مرور جديدة</th>
+                    <td>
+                        {{ form.new_password }}
+                        <p class="hint-text">اتركها فارغة إذا لم ترد التغيير</p>
+                        {% if form.new_password.errors %}<p class="field-err">{{ form.new_password.errors|striptags }}</p>{% endif %}
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="px-lg py-md border-t border-[#bfdbfe] bg-[#f8fbff] flex justify-end gap-sm">
+            <a href="{% url 'accounts:users' %}" class="px-5 py-2.5 border border-slate-300 rounded-lg font-bold text-[14px] text-slate-700 hover:bg-white" style="font-family:'Cairo',sans-serif">إلغاء</a>
+            <button type="submit" class="btn-primary-app" style="font-family:'Cairo',sans-serif">
+                <span class="material-symbols-outlined text-[18px]">save</span>
+                حفظ التعديلات
+            </button>
         </div>
     </form>
 </div>

@@ -15,8 +15,8 @@ def manager_required(view_func):
     @login_required
     def wrapper(request, *args, **kwargs):
         if not request.user.is_manager:
-            messages.error(request, 'هذه العملية متاحة لمدير العمليات فقط.')
-            return redirect('ops:supply')
+            messages.error(request, 'هذه العملية متاحة للمديرين فقط.')
+            return redirect('ops:dashboard')
         return view_func(request, *args, **kwargs)
     return wrapper
 
@@ -24,7 +24,7 @@ def manager_required(view_func):
 @require_http_methods(['GET', 'POST'])
 def login_view(request):
     if request.user.is_authenticated:
-        return redirect('ops:supply')
+        return redirect('ops:dashboard')
 
     error = None
     if request.method == 'POST':
@@ -36,7 +36,7 @@ def login_view(request):
                 error = 'هذا الحساب غير نشط. تواصل مع المدير.'
             else:
                 login(request, user)
-                next_url = request.GET.get('next') or 'ops:supply'
+                next_url = request.GET.get('next') or 'ops:dashboard'
                 return redirect(next_url)
         else:
             error = 'اسم المستخدم أو كلمة المرور غير صحيحة.'
@@ -66,7 +66,7 @@ def users_list(request):
         qs = qs.filter(role=role)
 
     total = User.objects.count()
-    managers = User.objects.filter(role=User.Role.MANAGER).count()
+    managers = User.objects.filter(role__in=User.MANAGEMENT_ROLES).count()
     reps = User.objects.filter(role=User.Role.REPRESENTATIVE).count()
     inactive = User.objects.filter(is_active=False).count()
 
@@ -84,6 +84,7 @@ def users_list(request):
         'reps_count': reps,
         'inactive_count': inactive,
         'active_nav': 'users',
+        'role_choices': User.Role.choices,
     })
 
 

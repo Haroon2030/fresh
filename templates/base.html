@@ -561,6 +561,80 @@
             color: #fff !important;
             font-size: 20px;
         }
+        .user-form-grid {
+            border-collapse: collapse;
+            font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+        }
+        .user-form-grid th,
+        .user-form-grid td {
+            border-bottom: 1px solid #dbeafe;
+            padding: 14px 16px;
+            vertical-align: middle;
+        }
+        .user-form-grid tr:last-child th,
+        .user-form-grid tr:last-child td {
+            border-bottom: 0;
+        }
+        .user-form-grid th {
+            width: 180px;
+            background: #eff6ff;
+            color: #1e3a8a;
+            font-size: 15px;
+            font-weight: 700;
+            text-align: right;
+            white-space: nowrap;
+        }
+        .user-form-grid td {
+            background: #ffffff;
+        }
+        .user-form-grid tr:hover td {
+            background: #f8fbff;
+        }
+        .user-form-grid .field-err {
+            color: #b91c1c;
+            font-size: 12px;
+            margin-top: 6px;
+            font-weight: 600;
+        }
+        .user-form-grid .hint-text {
+            color: #64748b;
+            font-size: 12px;
+            margin-top: 6px;
+            font-weight: 500;
+        }
+        .app-select,
+        .user-form-grid select {
+            -webkit-appearance: none;
+            appearance: none;
+            padding-inline-start: 14px;
+            padding-inline-end: 44px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%231d4ed8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: left 14px center;
+            background-size: 16px;
+        }
+        [dir="rtl"] .app-select,
+        [dir="rtl"] .user-form-grid select {
+            background-position: left 14px center;
+        }
+        @media (max-width: 640px) {
+            .user-form-grid,
+            .user-form-grid tbody,
+            .user-form-grid tr,
+            .user-form-grid th,
+            .user-form-grid td {
+                display: block;
+                width: 100%;
+            }
+            .user-form-grid th {
+                border-bottom: 0;
+                padding-bottom: 6px;
+            }
+            .user-form-grid td {
+                padding-top: 0;
+                padding-bottom: 14px;
+            }
+        }
         .app-toolbar {
             display: flex;
             flex-wrap: wrap;
@@ -612,6 +686,10 @@
         </div>
     </div>
     <div class="flex flex-col gap-sm flex-grow">
+        <a class="nav-link flex items-center gap-md px-md py-sm rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out {% if active_nav == 'dashboard' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}" href="{% url 'ops:dashboard' %}" title="لوحة التحكم">
+            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'dashboard' %}filled-icon{% endif %}">dashboard</span>
+            <span class="nav-label">لوحة التحكم</span>
+        </a>
         <a class="nav-link flex items-center gap-md px-md py-sm rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out {% if active_nav == 'supply' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}" href="{% url 'ops:supply' %}" title="التوريد">
             <span class="material-symbols-outlined shrink-0 {% if active_nav == 'supply' %}filled-icon{% endif %}">shopping_cart</span>
             <span class="nav-label">التوريد</span>
@@ -633,6 +711,10 @@
             <span class="material-symbols-outlined shrink-0 {% if active_nav == 'users' %}filled-icon{% endif %}">group</span>
             <span class="nav-label">المستخدمون</span>
         </a>
+        <a class="nav-link flex items-center gap-md px-md py-sm rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out {% if active_nav == 'whatsapp' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}" href="{% url 'ops:whatsapp' %}" title="واتساب">
+            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'whatsapp' %}filled-icon{% endif %}">sms</span>
+            <span class="nav-label">واتساب</span>
+        </a>
         {% endif %}
     </div>
     <div class="sidebar-footer flex flex-col gap-sm mt-auto">
@@ -653,7 +735,11 @@
 
 <!-- Mobile Bottom Nav -->
 <nav class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-surface-container-lowest border-t border-outline-variant flex justify-around py-2">
-    <a href="{% url 'ops:supply' %}" class="flex flex-col items-center gap-1 px-3 py-1 {% if active_nav == 'supply' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+    <a href="{% url 'ops:dashboard' %}" class="flex flex-col items-center gap-1 px-2 py-1 {% if active_nav == 'dashboard' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span class="text-[10px] font-bold">الرئيسية</span>
+    </a>
+    <a href="{% url 'ops:supply' %}" class="flex flex-col items-center gap-1 px-2 py-1 {% if active_nav == 'supply' %}text-primary{% else %}text-on-surface-variant{% endif %}">
         <span class="material-symbols-outlined">shopping_cart</span>
         <span class="text-[10px] font-bold">التوريد</span>
     </a>

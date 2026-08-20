@@ -140,7 +140,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.User"
 
 LOGIN_URL = "accounts:login"
-LOGIN_REDIRECT_URL = "ops:supply"
+LOGIN_REDIRECT_URL = "ops:dashboard"
 LOGOUT_REDIRECT_URL = "accounts:login"
 
 # Behind Dokploy / Traefik reverse proxy
@@ -151,3 +151,18 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", False)
     CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", False)
     SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", False)
+
+# Evolution API (WhatsApp notifications)
+EVOLUTION_SERVER_URL = os.environ.get(
+    "EVOLUTION_SERVER_URL",
+    "https://evolutionapi-a23759-72-61-107-230.sslip.io",
+).rstrip("/")
+EVOLUTION_API_KEY = os.environ.get("EVOLUTION_API_KEY", "")
+EVOLUTION_INSTANCE_NAME = os.environ.get("EVOLUTION_INSTANCE_NAME", "")
+EVOLUTION_NOTIFY_ENABLED = env_bool(
+    "EVOLUTION_NOTIFY_ENABLED",
+    bool(EVOLUTION_API_KEY and EVOLUTION_INSTANCE_NAME),
+)
+
+# رابط عام للمهام (واتساب) — مثال: http://72.61.107.230:7080
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")

@@ -26,8 +26,22 @@
                 {% endif %}
             </div>
             <h4 class="font-headline-md text-[16px] font-semibold {% if status_key == 'done' %}text-slate-500 line-through{% else %}text-slate-900{% endif %} mb-1">{{ task.title }}</h4>
-            {% if task.description %}
-            <p class="font-body-md text-[13px] text-slate-600 mb-4 line-clamp-2">{{ task.description }}</p>
+            {% if task.branch %}
+            <p class="text-[12px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                <span class="material-symbols-outlined text-[14px]">store</span>
+                {{ task.branch }}
+            </p>
+            {% endif %}
+            {% if task.visit_details %}
+            <p class="font-body-md text-[13px] text-slate-600 mb-2 line-clamp-2">{{ task.visit_details }}</p>
+            {% elif task.description %}
+            <p class="font-body-md text-[13px] text-slate-600 mb-2 line-clamp-2">{{ task.description }}</p>
+            {% endif %}
+            {% if task.public_token %}
+            <a href="{% url 'ops:task_public' task.public_token %}" class="text-[11px] font-bold text-sky-700 hover:underline inline-flex items-center gap-1 mb-2" target="_blank" rel="noopener">
+                <span class="material-symbols-outlined text-[14px]">link</span>
+                رابط الموظف
+            </a>
             {% endif %}
             {% if status_key == 'in_progress' and task.progress %}
             <div class="w-full bg-sky-100 rounded-full h-1.5 mb-3 overflow-hidden">

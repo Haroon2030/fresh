@@ -136,7 +136,10 @@ class ReturnRequestForm(forms.ModelForm):
 class TaskForm(forms.ModelForm):
     class Meta:
         model = Task
-        fields = ['title', 'description', 'priority', 'assigned_to', 'due_at']
+        fields = [
+            'title', 'description', 'priority', 'assigned_to',
+            'branch', 'visit_details', 'due_at',
+        ]
         widgets = {
             'title': forms.TextInput(attrs={
                 'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
@@ -145,12 +148,22 @@ class TaskForm(forms.ModelForm):
             'description': forms.Textarea(attrs={
                 'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors resize-none',
                 'rows': 3,
+                'placeholder': 'وصف عام للمهمة',
             }),
             'priority': forms.Select(attrs={
-                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors app-select',
             }),
             'assigned_to': forms.Select(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors app-select',
+            }),
+            'branch': forms.TextInput(attrs={
                 'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
+                'placeholder': 'مثال: فرع العليا',
+            }),
+            'visit_details': forms.Textarea(attrs={
+                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors resize-none',
+                'rows': 3,
+                'placeholder': 'تفاصيل الزيارة: العنوان، المطلوب، ملاحظات…',
             }),
             'due_at': forms.DateTimeInput(attrs={
                 'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
@@ -160,13 +173,19 @@ class TaskForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['assigned_to'].queryset = User.objects.filter(is_active=True)
-        self.fields['assigned_to'].required = False
-        self.fields['assigned_to'].empty_label = 'اختر المستخدم...'
+        self.fields['assigned_to'].queryset = User.objects.filter(is_active=True).order_by(
+            'first_name', 'username'
+        )
+        self.fields['assigned_to'].required = True
+        self.fields['assigned_to'].empty_label = 'اختر الموظف...'
         self.fields['description'].required = False
+        self.fields['branch'].required = True
+        self.fields['visit_details'].required = True
         self.fields['due_at'].required = False
         self.fields['title'].label = 'العنوان'
         self.fields['description'].label = 'الوصف'
         self.fields['priority'].label = 'الأولوية'
-        self.fields['assigned_to'].label = 'تعيين إلى'
+        self.fields['assigned_to'].label = 'تعيين للموظف'
+        self.fields['branch'].label = 'موقع الفرع'
+        self.fields['visit_details'].label = 'تفاصيل الزيارة'
         self.fields['due_at'].label = 'الموعد'

@@ -35,7 +35,7 @@
         <p class="text-[32px] font-bold text-black mt-1">{{ managers_count }}</p>
     </div>
     <div class="rounded-xl p-md border border-[#93c5fd] bg-gradient-to-br from-[#eff6ff] to-white">
-        <span class="font-label-md text-label-md font-bold text-black">المناديب</span>
+        <span class="font-label-md text-label-md font-bold text-black">المندوبون</span>
         <p class="text-[32px] font-bold text-black mt-1">{{ reps_count }}</p>
     </div>
     <div class="rounded-xl p-md border border-[#fcd34d] bg-gradient-to-br from-[#fffbeb] to-white">
@@ -53,10 +53,11 @@
         <form method="get" class="flex flex-wrap gap-sm w-full sm:w-auto">
             {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
             <select name="role" onchange="this.form.submit()"
-                    class="bg-white border border-[#bfdbfe] rounded-lg py-2 px-3 font-body-md text-body-md text-on-surface focus:ring-1 focus:ring-[#1d4ed8] focus:border-[#1d4ed8] w-full sm:w-auto">
+                    class="app-select bg-white border border-[#bfdbfe] rounded-lg py-2 px-3 font-body-md text-body-md text-on-surface focus:ring-1 focus:ring-[#1d4ed8] focus:border-[#1d4ed8] w-full sm:w-auto min-w-[200px]">
                 <option value="" {% if not role_filter %}selected{% endif %}>جميع الأدوار</option>
-                <option value="manager" {% if role_filter == 'manager' %}selected{% endif %}>مدير العمليات</option>
-                <option value="representative" {% if role_filter == 'representative' %}selected{% endif %}>مندوب</option>
+                {% for value, label in role_choices %}
+                <option value="{{ value }}" {% if role_filter == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
             </select>
         </form>
     </div>
@@ -86,9 +87,11 @@
                 <td>{{ u.username }}</td>
                 <td class="cell-center">
                     {% if u.is_manager %}
-                    <span class="status-chip status-ok">مدير</span>
+                    <span class="status-chip status-ok">{{ u.get_role_display }}</span>
+                    {% elif u.role == 'representative' %}
+                    <span class="status-chip status-wait">{{ u.get_role_display }}</span>
                     {% else %}
-                    <span class="status-chip status-wait">مندوب</span>
+                    <span class="status-chip" style="background:#f1f5f9;color:#334155;border-color:#cbd5e1">{{ u.get_role_display }}</span>
                     {% endif %}
                 </td>
                 <td class="cell-center">
@@ -152,28 +155,83 @@
 
 {% block modals %}
 <div class="hidden fixed inset-0 z-50 flex items-center justify-center p-md bg-[#1b1b1d]/50 backdrop-blur-sm" id="newUserModal">
-    <div class="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-        <div class="px-lg py-md border-b border-outline-variant flex justify-between items-center bg-surface-bright">
-            <h3 class="font-headline-md text-headline-md font-bold text-on-surface">إضافة مستخدم جديد</h3>
-            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full"
+    <div class="bg-white rounded-xl shadow-lg border border-[#bfdbfe] w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="px-lg py-md border-b border-[#bfdbfe] flex justify-between items-center bg-[#eff6ff]">
+            <div class="flex items-center gap-sm">
+                <span class="material-symbols-outlined text-[#1d4ed8]">person_add</span>
+                <h3 class="font-bold text-[18px] text-black" style="font-family:'Cairo',sans-serif">تسجيل مستخدم جديد</h3>
+            </div>
+            <button type="button" class="text-slate-500 hover:bg-white p-sm rounded-full"
                     onclick="document.getElementById('newUserModal').classList.add('hidden')">
                 <span class="material-symbols-outlined">close</span>
             </button>
         </div>
         <form method="post" action="{% url 'accounts:user_create' %}" class="flex flex-col overflow-hidden">
             {% csrf_token %}
-            <div class="p-lg overflow-y-auto flex flex-col gap-md">
-                {% for field in create_form %}
-                <div class="flex flex-col gap-sm">
-                    <label class="font-label-md text-label-md text-on-surface">{{ field.label }}</label>
-                    {{ field }}
-                </div>
-                {% endfor %}
+            <div class="overflow-y-auto">
+                <table class="user-form-grid w-full">
+                    <tbody>
+                    <tr>
+                        <th>اسم المستخدم</th>
+                        <td>
+                            {{ create_form.username }}
+                            {% if create_form.username.errors %}<p class="field-err">{{ create_form.username.errors|striptags }}</p>{% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>الاسم الأول</th>
+                        <td>
+                            {{ create_form.first_name }}
+                            {% if create_form.first_name.errors %}<p class="field-err">{{ create_form.first_name.errors|striptags }}</p>{% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>اسم العائلة</th>
+                        <td>
+                            {{ create_form.last_name }}
+                            {% if create_form.last_name.errors %}<p class="field-err">{{ create_form.last_name.errors|striptags }}</p>{% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>الدور</th>
+                        <td>
+                            {{ create_form.role }}
+                            {% if create_form.role.errors %}<p class="field-err">{{ create_form.role.errors|striptags }}</p>{% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>واتساب</th>
+                        <td>
+                            {{ create_form.whatsapp }}
+                            <p class="hint-text">رقم دولي بدون + مثل 9665xxxxxxxx</p>
+                            {% if create_form.whatsapp.errors %}<p class="field-err">{{ create_form.whatsapp.errors|striptags }}</p>{% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>كلمة المرور</th>
+                        <td>
+                            {{ create_form.password }}
+                            {% if create_form.password.errors %}<p class="field-err">{{ create_form.password.errors|striptags }}</p>{% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>تأكيد كلمة المرور</th>
+                        <td>
+                            {{ create_form.password_confirm }}
+                            {% if create_form.password_confirm.errors %}<p class="field-err">{{ create_form.password_confirm.errors|striptags }}</p>{% endif %}
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
             </div>
-            <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
-                <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface-variant"
+            <div class="px-lg py-md border-t border-[#bfdbfe] bg-[#f8fbff] flex justify-end gap-sm">
+                <button type="button" class="px-5 py-2.5 border border-slate-300 rounded-lg font-bold text-[14px] text-slate-700 hover:bg-white"
+                        style="font-family:'Cairo',sans-serif"
                         onclick="document.getElementById('newUserModal').classList.add('hidden')">إلغاء</button>
-                <button type="submit" class="px-6 py-2 bg-black text-white rounded-lg font-label-md text-label-md">حفظ</button>
+                <button type="submit" class="btn-primary-app" style="font-family:'Cairo',sans-serif">
+                    <span class="material-symbols-outlined text-[18px]">save</span>
+                    حفظ المستخدم
+                </button>
             </div>
         </form>
     </div>
