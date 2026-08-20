@@ -163,6 +163,8 @@ EVOLUTION_NOTIFY_ENABLED = env_bool(
     "EVOLUTION_NOTIFY_ENABLED",
     bool(EVOLUTION_API_KEY and EVOLUTION_INSTANCE_NAME),
 )
+# شهادات sslip.io / self-signed غالباً لا تطابق الاسم — عطّل التحقق عند الحاجة
+EVOLUTION_VERIFY_SSL = env_bool("EVOLUTION_VERIFY_SSL", False)
 
 # رابط عام للمهام (واتساب) — مثال: http://72.61.107.230:7080
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")

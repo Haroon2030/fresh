@@ -39,13 +39,18 @@ def _headers() -> dict:
 
 def _api(path: str, method: str = "GET", json_body=None, timeout: int = 20):
     url = f"{settings.EVOLUTION_SERVER_URL.rstrip('/')}{path}"
+    verify = getattr(settings, "EVOLUTION_VERIFY_SSL", True)
     try:
+        if not verify:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         response = requests.request(
             method,
             url,
             headers=_headers(),
             json=json_body,
             timeout=timeout,
+            verify=verify,
         )
         data = {}
         try:
