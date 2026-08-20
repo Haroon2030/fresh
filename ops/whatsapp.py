@@ -98,24 +98,29 @@ def list_instances() -> list:
 
 
 def resolve_instance_name() -> str:
-    """Prefer configured name; otherwise first open instance."""
+    """Prefer configured name; otherwise first truly usable open instance."""
     configured = (getattr(settings, "EVOLUTION_INSTANCE_NAME", "") or "").strip()
     instances = list_instances()
-    names = {
-        (i.get("name") or i.get("instanceName") or ""): (
+    names = {}
+    for i in instances:
+        name = i.get("name") or i.get("instanceName") or ""
+        if not name:
+            continue
+        names[name] = str(
             i.get("connectionStatus") or i.get("status") or ""
-        )
-        for i in instances
-        if (i.get("name") or i.get("instanceName"))
-    }
-    if configured and configured in names:
-        return configured
-    for name, st in names.items():
-        if str(st).lower() in ("open", "connected"):
-            logger.info("Using open Evolution instance %s (configured was %s)", name, configured)
-            return name
+        ).lower()
+
     if configured:
         return configured
+
+    # Prefer connecting/open instances named farsh first
+    for prefer in ("farsh", "fresh", "hr"):
+        if prefer in names:
+            return prefer
+
+    for name, st in names.items():
+        if st in ("open", "connected", "connecting"):
+            return name
     if names:
         return next(iter(names.keys()))
     return configured
@@ -295,7 +300,14 @@ def send_text(number: str, text: str) -> bool:
         json_body={"number": phone, "text": text},
     )
     if status >= 400 or status == 0:
-        logger.warning("Evolution send failed (%s): %s", status, str(data)[:500])
+        msg = str(data)
+        logger.warning("Evolution send failed (%s): %s", status, msg[:500])
+        if "connection closed" in msg.lower():
+            # surface for callers that check return False + logs
+            logger.error(
+                "Evolution instance socket dead (Connection Closed). "
+                "Set EVOLUTION_INSTANCE_NAME=farsh and re-scan QR."
+            )
         return False
     return True
 
@@ -365,7 +377,10 @@ def notify_roles(title: str, body: str = "") -> dict:
             sent += 1
     err = None
     if sent == 0:
-        err = "فشل الإرسال (الانستانس قد يكون مغلقاً — أعد ربط واتساب)."
+        err = (
+            "فشل الإرسال: جلسة واتساب ميتة (Connection Closed). "
+            "ضع EVOLUTION_INSTANCE_NAME=farsh ثم اقطع الاتصال/حدّث QR وامسح الرمز من جديد."
+        )
     return {"sent": sent, "total": len(phones), "phones": phones, "error": err}
 
 
