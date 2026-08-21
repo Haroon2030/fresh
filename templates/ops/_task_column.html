@@ -31,6 +31,13 @@
                 <span class="material-symbols-outlined text-[14px]">store</span>
                 {{ task.branch }}
             </p>
+            {% if task.maps_url %}
+            <a href="{{ task.maps_url }}" target="_blank" rel="noopener"
+               class="text-[11px] font-bold text-sky-700 mb-1 inline-flex items-center gap-0.5 hover:underline"
+               onclick="event.stopPropagation()">
+                خريطة
+            </a>
+            {% endif %}
             {% endif %}
             {% if task.visit_details %}
             <p class="font-body-md text-[13px] text-slate-600 mb-2 line-clamp-2">{{ task.visit_details }}</p>
