@@ -406,39 +406,51 @@
 
             <div class="wa-body">
                 {% if not wa_state.configured %}
-                <div class="rounded-xl border border-rose-200 bg-rose-50 p-4">
-                    <div class="flex items-start gap-3">
-                        <span class="material-symbols-outlined text-rose-600 text-[28px]">settings_alert</span>
-                        <div class="min-w-0 flex-1">
-                            <p class="font-extrabold text-[15px] text-rose-900 m-0">زر الربط مخفي لأن مفتاح API ناقص</p>
-                            <p class="text-[13px] text-rose-800 mt-1 mb-2 font-semibold">
-                                في Dokploy احذف علامات التنصيص <b>"</b> من المفتاح، احفظ، ثم <b>Redeploy</b>:
-                            </p>
-                            <pre class="wa-code m-0">EVOLUTION_SERVER_URL=http://72.61.107.230:8081
-EVOLUTION_API_KEY=HARO@2030
-EVOLUTION_INSTANCE_NAME=farshops
-EVOLUTION_NOTIFY_ENABLED=True
-EVOLUTION_VERIFY_SSL=False</pre>
-                            <p class="text-[12px] text-rose-700 mt-2 mb-0 font-bold">
-                                خطأ شائع: كتابة EVOLUTION_API_KEY="HARO@2030" بعلامات اقتباس — اكتبها بدون " ".
-                                تشخيص: المتغير في البيئة={% if api_key_env_set %}موجود{% else %}غير موجود{% endif %} · طول القيمة={{ api_key_len }}
-                            </p>
-                            <div class="mt-3">
-                                <div class="wa-check">
-                                    <span class="material-symbols-outlined {% if server_url %}ok{% else %}bad{% endif %} text-[18px]">{% if server_url %}check_circle{% else %}cancel{% endif %}</span>
-                                    <span>EVOLUTION_SERVER_URL</span>
-                                </div>
-                                <div class="wa-check">
-                                    <span class="material-symbols-outlined {% if has_api_key %}ok{% else %}bad{% endif %} text-[18px]">{% if has_api_key %}check_circle{% else %}cancel{% endif %}</span>
-                                    <span>EVOLUTION_API_KEY {% if not has_api_key %}— هذا سبب اختفاء الزر{% endif %}</span>
-                                </div>
-                                <div class="wa-check">
-                                    <span class="material-symbols-outlined {% if instance_name %}ok{% else %}bad{% endif %} text-[18px]">{% if instance_name %}check_circle{% else %}cancel{% endif %}</span>
-                                    <span>EVOLUTION_INSTANCE_NAME</span>
-                                </div>
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <p class="font-extrabold text-[15px] text-amber-950 m-0 mb-2">احفظ إعدادات Evolution هنا لظهور زر الربط</p>
+                    <p class="text-[12px] text-amber-900 font-semibold mb-3">
+                        Dokploy لا يمرّر المفتاح للحاوية (التشخيص: غير موجود). احفظ المفتاح مباشرة أدناه:
+                    </p>
+                    <form method="post" class="flex flex-col gap-3">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="save_evolution">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="flex flex-col gap-1 sm:col-span-2">
+                                <label class="text-[12px] font-bold">رابط الخادم</label>
+                                <input name="server_url" required dir="ltr"
+                                       value="{{ evo_form.server_url }}"
+                                       class="w-full border border-amber-300 rounded-lg py-2 px-3 text-[14px] font-semibold bg-white"
+                                       placeholder="http://72.61.107.230:8081">
+                            </div>
+                            <div class="flex flex-col gap-1 sm:col-span-2">
+                                <label class="text-[12px] font-bold">مفتاح API</label>
+                                <input name="api_key" required dir="ltr" type="text"
+                                       value="{{ evo_form.api_key }}"
+                                       class="w-full border border-amber-300 rounded-lg py-2 px-3 text-[14px] font-semibold bg-white"
+                                       placeholder="HARO@2030">
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label class="text-[12px] font-bold">اسم الانستانس</label>
+                                <input name="instance_name" required dir="ltr"
+                                       value="{{ evo_form.instance_name|default:'farshops' }}"
+                                       class="w-full border border-amber-300 rounded-lg py-2 px-3 text-[14px] font-semibold bg-white">
+                            </div>
+                            <div class="flex flex-col gap-2 justify-end pb-1">
+                                <label class="flex items-center gap-2 text-[13px] font-bold">
+                                    <input type="checkbox" name="notify_enabled" {% if evo_form.notify_enabled %}checked{% endif %}>
+                                    تفعيل الإشعارات
+                                </label>
+                                <label class="flex items-center gap-2 text-[13px] font-bold">
+                                    <input type="checkbox" name="verify_ssl" {% if evo_form.verify_ssl %}checked{% endif %}>
+                                    تحقق SSL
+                                </label>
                             </div>
                         </div>
-                    </div>
+                        <button type="submit" class="btn-primary-app self-start">
+                            <span class="material-symbols-outlined text-[18px]">save</span>
+                            حفظ وإظهار زر الربط
+                        </button>
+                    </form>
                 </div>
                 {% else %}
 

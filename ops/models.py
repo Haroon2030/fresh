@@ -570,6 +570,31 @@ class DailyOrder(models.Model):
         super().save(*args, **kwargs)
 
 
+class EvolutionConfig(models.Model):
+    """إعدادات Evolution المحفوظة في قاعدة البيانات (بديل عند فشل متغيرات Dokploy)."""
+
+    server_url = models.CharField(max_length=255, blank=True, verbose_name='رابط الخادم')
+    api_key = models.CharField(max_length=255, blank=True, verbose_name='مفتاح API')
+    instance_name = models.CharField(max_length=100, blank=True, verbose_name='اسم الانستانس')
+    notify_enabled = models.BooleanField(default=True, verbose_name='تفعيل الإشعارات')
+    verify_ssl = models.BooleanField(default=False, verbose_name='تحقق SSL')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'إعدادات Evolution'
+        verbose_name_plural = 'إعدادات Evolution'
+
+    def __str__(self):
+        return self.instance_name or 'Evolution'
+
+    @classmethod
+    def get_solo(cls):
+        obj = cls.objects.order_by('pk').first()
+        if obj is None:
+            obj = cls.objects.create()
+        return obj
+
+
 class WhatsAppRoleContact(models.Model):
     """رقم واتساب مرتبط بدور معيّن لاستلام الإشعارات."""
 

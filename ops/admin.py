@@ -4,6 +4,7 @@ from .models import (
     Branch,
     CatalogItem,
     DailyOrder,
+    EvolutionConfig,
     ReturnRequest,
     SupplyOrder,
     Supplier,
@@ -80,6 +81,11 @@ class TaskAdmin(admin.ModelAdmin):
 class TaskResponsePhotoAdmin(admin.ModelAdmin):
     list_display = ('id', 'task', 'uploaded_at')
     raw_id_fields = ('task',)
+
+
+@admin.register(EvolutionConfig)
+class EvolutionConfigAdmin(admin.ModelAdmin):
+    list_display = ('instance_name', 'server_url', 'notify_enabled', 'updated_at')
 
 
 @admin.register(WhatsAppRoleContact)

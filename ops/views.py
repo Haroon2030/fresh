@@ -1278,7 +1278,29 @@ def suppliers_setup(request):
 @manager_required
 def whatsapp_hub(request):
     """شاشة ربط واتساب (QR) + أرقام الأدوار."""
-    from ops.models import WhatsAppRoleContact as RoleContact
+    from ops.models import EvolutionConfig, WhatsAppRoleContact as RoleContact
+    from ops.whatsapp import get_evolution_settings
+
+    if request.method == 'POST' and request.POST.get('action') == 'save_evolution':
+        cfg = EvolutionConfig.get_solo()
+        cfg.server_url = (request.POST.get('server_url') or '').strip().rstrip('/')
+        api_key = (request.POST.get('api_key') or '').strip()
+        # Keep existing key if form sent masked/empty intentionally with keep flag
+        if api_key:
+            if len(api_key) >= 2 and api_key[0] == api_key[-1] and api_key[0] in ('"', "'"):
+                api_key = api_key[1:-1].strip()
+            cfg.api_key = api_key
+        cfg.instance_name = (request.POST.get('instance_name') or 'farshops').strip() or 'farshops'
+        cfg.notify_enabled = request.POST.get('notify_enabled') == 'on'
+        cfg.verify_ssl = request.POST.get('verify_ssl') == 'on'
+        if not cfg.api_key:
+            messages.error(request, 'أدخل مفتاح API.')
+        elif not cfg.server_url:
+            messages.error(request, 'أدخل رابط خادم Evolution.')
+        else:
+            cfg.save()
+            messages.success(request, 'تم حفظ إعدادات واتساب — يظهر زر الربط الآن.')
+        return redirect('ops:whatsapp')
 
     if request.method == 'POST' and request.POST.get('action') == 'save_roles':
         for role_value, _label in RoleContact.ROLE_CHOICES:
@@ -1312,22 +1334,30 @@ def whatsapp_hub(request):
         else:
             other_rows.append(row)
 
+    evo = get_evolution_settings()
+    db_cfg = EvolutionConfig.get_solo()
     state = connection_state()
     notify_phones = collect_notify_phones()
     notify_roles_filled = sum(1 for r in notify_rows if r['filled'])
-    api_key = getattr(settings, 'EVOLUTION_API_KEY', '') or ''
-    api_key_env_set = any(k.upper() == 'EVOLUTION_API_KEY' for k in os.environ)
     return render(request, 'ops/whatsapp.html', {
         'active_nav': 'whatsapp',
         'notify_rows': notify_rows,
         'other_rows': other_rows,
         'wa_state': state,
-        'instance_name': state.get('instance') or resolve_instance_name() or getattr(settings, 'EVOLUTION_INSTANCE_NAME', ''),
-        'server_url': getattr(settings, 'EVOLUTION_SERVER_URL', ''),
-        'has_api_key': bool(api_key),
-        'api_key_env_set': api_key_env_set,
-        'api_key_len': len(api_key),
-        'notify_enabled': getattr(settings, 'EVOLUTION_NOTIFY_ENABLED', False),
+        'instance_name': evo['instance_name'],
+        'server_url': evo['server_url'],
+        'has_api_key': bool(evo['api_key']),
+        'api_key_source': evo['source'],
+        'api_key_env_set': any(k.upper() == 'EVOLUTION_API_KEY' for k in os.environ),
+        'api_key_len': len(evo['api_key'] or ''),
+        'evo_form': {
+            'server_url': db_cfg.server_url or evo['server_url'],
+            'api_key': db_cfg.api_key or '',
+            'instance_name': db_cfg.instance_name or evo['instance_name'],
+            'notify_enabled': db_cfg.notify_enabled if db_cfg.api_key else True,
+            'verify_ssl': db_cfg.verify_ssl,
+        },
+        'notify_enabled': evo['notify_enabled'],
         'notify_phones_count': len(notify_phones),
         'notify_phones': notify_phones,
         'notify_roles_filled': notify_roles_filled,

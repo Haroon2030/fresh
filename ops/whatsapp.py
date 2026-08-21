@@ -9,6 +9,61 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
+def _strip_env_val(raw) -> str:
+    if raw is None:
+        return ""
+    val = str(raw).replace("\ufeff", "").strip()
+    if len(val) >= 2 and val[0] in ('"', "'", "“", "”", "‘", "’") and val[-1] in ('"', "'", "“", "”", "‘", "’"):
+        val = val[1:-1].strip()
+    if val.replace("•", "").strip() == "":
+        return ""
+    return val
+
+
+def get_evolution_settings() -> dict:
+    """
+    Resolve Evolution config: environment first, then DB (Dokploy often drops API key).
+    """
+    db = None
+    try:
+        from ops.models import EvolutionConfig
+        db = EvolutionConfig.objects.order_by("pk").first()
+    except Exception:
+        db = None
+
+    server_url = (
+        _strip_env_val(getattr(settings, "EVOLUTION_SERVER_URL", ""))
+        or _strip_env_val(getattr(db, "server_url", "") if db else "")
+        or "http://72.61.107.230:8081"
+    ).rstrip("/")
+    api_key = (
+        _strip_env_val(getattr(settings, "EVOLUTION_API_KEY", ""))
+        or _strip_env_val(getattr(db, "api_key", "") if db else "")
+    )
+    instance_name = (
+        _strip_env_val(getattr(settings, "EVOLUTION_INSTANCE_NAME", ""))
+        or _strip_env_val(getattr(db, "instance_name", "") if db else "")
+        or "farshops"
+    )
+    if db is not None and (db.api_key or db.server_url):
+        notify = bool(db.notify_enabled)
+        verify_ssl = bool(db.verify_ssl)
+    else:
+        notify = bool(getattr(settings, "EVOLUTION_NOTIFY_ENABLED", False))
+        verify_ssl = bool(getattr(settings, "EVOLUTION_VERIFY_SSL", False))
+
+    return {
+        "server_url": server_url,
+        "api_key": api_key,
+        "instance_name": instance_name,
+        "notify_enabled": bool(notify and api_key and server_url),
+        "verify_ssl": verify_ssl,
+        "source": "env" if _strip_env_val(getattr(settings, "EVOLUTION_API_KEY", "")) else (
+            "db" if (db and db.api_key) else "none"
+        ),
+    }
+
+
 def normalize_whatsapp(number: str) -> str:
     """Normalize to international digits (default Saudi 966)."""
     raw = (number or "").strip()
@@ -25,30 +80,25 @@ def normalize_whatsapp(number: str) -> str:
 
 
 def is_configured() -> bool:
-    return bool(
-        getattr(settings, "EVOLUTION_SERVER_URL", "")
-        and getattr(settings, "EVOLUTION_API_KEY", "")
-    )
+    cfg = get_evolution_settings()
+    return bool(cfg["server_url"] and cfg["api_key"])
 
 
 def notify_enabled() -> bool:
-    return bool(
-        getattr(settings, "EVOLUTION_NOTIFY_ENABLED", False)
-        and getattr(settings, "EVOLUTION_SERVER_URL", "")
-        and getattr(settings, "EVOLUTION_API_KEY", "")
-    )
+    return bool(get_evolution_settings()["notify_enabled"])
 
 
 def _headers() -> dict:
     return {
         "Content-Type": "application/json",
-        "apikey": settings.EVOLUTION_API_KEY,
+        "apikey": get_evolution_settings()["api_key"],
     }
 
 
 def _api(path: str, method: str = "GET", json_body=None, timeout: int | tuple = 20):
-    url = f"{settings.EVOLUTION_SERVER_URL.rstrip('/')}{path}"
-    verify = getattr(settings, "EVOLUTION_VERIFY_SSL", True)
+    cfg = get_evolution_settings()
+    url = f"{cfg['server_url'].rstrip('/')}{path}"
+    verify = cfg["verify_ssl"]
     try:
         if not verify:
             import urllib3
@@ -104,8 +154,7 @@ def list_instances() -> list:
 
 def resolve_instance_name() -> str:
     """Always use configured name only — never auto-pick a zombie 'open' instance."""
-    configured = (getattr(settings, "EVOLUTION_INSTANCE_NAME", "") or "").strip()
-    return configured or "farshops"
+    return get_evolution_settings()["instance_name"] or "farshops"
 
 
 def _normalize_qr_base64(base64: str) -> str:
@@ -128,15 +177,13 @@ def _extract_qr(data: dict) -> tuple[str, str, str]:
 
 
 def connection_state() -> dict:
-    if not getattr(settings, "EVOLUTION_SERVER_URL", "") or not getattr(
-        settings, "EVOLUTION_API_KEY", ""
-    ):
+    if not is_configured():
         return {
             "ok": False,
             "configured": False,
             "state": "unconfigured",
             "instance": "",
-            "detail": "أضف EVOLUTION_SERVER_URL و EVOLUTION_API_KEY.",
+            "detail": "احفظ مفتاح API من شاشة واتساب أو أضفه في Dokploy.",
         }
 
     instance = resolve_instance_name()
@@ -229,7 +276,7 @@ def _evolution_error_text(data) -> str:
 
 
 def fetch_qr(*, force: bool = False) -> dict:
-    if not getattr(settings, "EVOLUTION_SERVER_URL", "") or not settings.EVOLUTION_API_KEY:
+    if not is_configured():
         return {"ok": False, "error": "إعدادات Evolution غير مكتملة."}
 
     instance = resolve_instance_name()
@@ -310,7 +357,7 @@ def fetch_qr(*, force: bool = False) -> dict:
             "error": _evolution_error_text(data if isinstance(data, dict) else {"error": data}),
             "detail": data,
             "status_code": status,
-            "server_url": settings.EVOLUTION_SERVER_URL,
+            "server_url": get_evolution_settings()["server_url"],
             "instance": instance,
         }
 
@@ -350,7 +397,7 @@ def fetch_qr(*, force: bool = False) -> dict:
 
 
 def create_instance() -> dict:
-    if not settings.EVOLUTION_API_KEY or not settings.EVOLUTION_SERVER_URL:
+    if not is_configured():
         return {"ok": False, "error": "إعدادات Evolution غير مكتملة."}
     instance = resolve_instance_name()
     status, data = _api(
