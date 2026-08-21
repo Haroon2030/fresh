@@ -467,7 +467,7 @@ def return_create(request):
         batch.save(update_fields=['public_token'])
     # Never block the HTTP worker on Evolution — hanging sendMedia kills Gunicorn (500)
     schedule_return_notify(batch.pk, request.user.pk)
-    messages.info(request, 'جاري إرسال إشعار واتساب (مع رابط PDF) في الخلفية.')
+    messages.info(request, 'جاري إرسال PDF للمندوب (للتعميد) وللعمليات والمحاسب (للمتابعة).')
     return _redirect_returns(batch.pk)
 
 

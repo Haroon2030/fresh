@@ -117,10 +117,11 @@ def _actor_line(user) -> str:
 
 def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
     """
-    On saving a return file:
-    - PDF document via WhatsApp + download link
-    - Dedicated action message+PDF to the representative
+    On saving a return file (قبل التعميد):
+    - PDF للمندوب للتعميد
+    - PDF للعمليات والمحاسب للمتابعة
     """
+    User = get_user_model()
     try:
         pdf_bytes, filename = build_return_batch_pdf(batch)
     except Exception:
@@ -137,12 +138,12 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
     if len(items) > 12:
         item_lines.append(f"  … و{len(items) - 12} أصناف أخرى")
 
-    staff_msg = "\n".join(
+    follow_msg = "\n".join(
         [
             "════════════════════",
-            "عمليات الفرش | إشعار تشغيلي",
-            "النوع: ملف مرتجع جديد",
+            "عمليات الفرش | مرتجع جديد — للمتابعة",
             "════════════════════",
+            "تم حفظ مرتجع بانتظار تعميد المندوب.",
             f"رقم الملف: {batch.return_number}",
             f"الفرع: {batch.branch}",
             f"الأصناف: {len(items)}",
@@ -153,6 +154,7 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
             "ملخص الأصناف:",
             *(item_lines or ["  —"]),
             "────────────────────",
+            "المطلوب من العمليات والمحاسب: المتابعة حتى اكتمال التعميد والقبول.",
             "📄 ملف PDF للتحميل:",
             pdf_url,
             "════════════════════",
@@ -162,9 +164,9 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
     rep_msg = "\n".join(
         [
             "════════════════════",
-            "عمليات الفرش | تنبيه للمندوب",
+            "عمليات الفرش | تنبيه للمندوب — مطلوب التعميد",
             "════════════════════",
-            "يوجد مردود جديد يجب متابعته واعتماده، ويجب الرد.",
+            "يوجد مرتجع جديد يحتاج تعميدك قبل متابعة العمليات.",
             f"رقم الملف: {batch.return_number}",
             f"الفرع: {batch.branch}",
             f"عدد الأصناف: {len(items)}",
@@ -174,7 +176,7 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
             "المطلوب منك:",
             "1) تحميل ملف PDF ومراجعته",
             "2) تعميد أو رفض كل صنف",
-            "3) الرد والمتابعة حتى الإغلاق",
+            "3) بعد التعميد يصل إشعار للمحاسب والمستلم والعمليات",
             "────────────────────",
             "📄 تحميل ملف المرتجع PDF:",
             pdf_url,
@@ -182,11 +184,12 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
         ]
     )
 
-    recipients = collect_recipient_entries(include_roles=True)
+    # العمليات + المحاسب للمتابعة (قبل التعميد)
+    follow_roles = {User.Role.MANAGER, User.Role.ACCOUNTANT}
+    recipients = collect_recipient_entries(include_roles=True, roles=follow_roles)
     rep = batch.representative
     rep_phone = _user_phone(rep) or _role_contact_phone("representative")
 
-    # One bubble per unique phone: PDF + caption (no separate text message)
     enriched = []
     seen = set()
     for entry in recipients:
@@ -194,9 +197,7 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
         if not phone or phone in seen:
             continue
         seen.add(phone)
-        # Representative gets the action-focused caption on the same PDF
-        msg = rep_msg if phone == rep_phone else staff_msg
-        enriched.append({**entry, "message": msg})
+        enriched.append({**entry, "message": follow_msg})
 
     if rep_phone and rep_phone not in seen:
         enriched.append(
@@ -209,9 +210,16 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
             }
         )
         seen.add(rep_phone)
+    elif rep_phone and rep_phone in seen:
+        # نفس الرقم في قائمة المتابعة — فضّل رسالة التعميد للمندوب
+        for entry in enriched:
+            if entry.get("phone") == rep_phone:
+                entry["message"] = rep_msg
+                entry["role"] = "representative"
+                break
 
     result = notify_with_pdf(
-        message=staff_msg,
+        message=follow_msg,
         pdf_bytes=pdf_bytes,
         filename=filename,
         recipients=enriched,
