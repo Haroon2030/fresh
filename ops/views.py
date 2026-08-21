@@ -460,10 +460,19 @@ def return_create(request):
 
 def _pdf_http_response(pdf_bytes: bytes, filename: str) -> HttpResponse:
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
-    # ASCII-safe filename for Content-Disposition
-    safe = (filename or 'return.pdf').replace('"', '')
-    response['Content-Disposition'] = f'attachment; filename="{safe}"'
+    # ASCII-safe filename for Content-Disposition (WhatsApp / mobile browsers)
+    import re
+
+    safe = (filename or 'return.pdf').replace('"', '').replace('#', '')
+    safe = re.sub(r'[^\w.\-]+', '_', safe).strip('._') or 'return'
+    if not safe.lower().endswith('.pdf'):
+        safe = f'{safe}.pdf'
+    # inline helps in-app browsers open/download instead of opaque attachment fail
+    response['Content-Disposition'] = f'inline; filename="{safe}"'
     response['Content-Length'] = str(len(pdf_bytes))
+    response['Content-Type'] = 'application/pdf'
+    response['X-Content-Type-Options'] = 'nosniff'
+    response['Cache-Control'] = 'private, max-age=300'
     return response
 
 

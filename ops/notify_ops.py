@@ -46,7 +46,11 @@ def _return_pdf_url(batch, request=None) -> str:
     batch.ensure_public_token()
     if not batch.public_token:
         batch.save(update_fields=["public_token"])
-    path = reverse("ops:return_batch_pdf_public", kwargs={"token": batch.public_token})
+    # Path ends with .pdf so WhatsApp / Evolution treat it as a real document
+    path = reverse(
+        "ops:return_batch_pdf_public_file",
+        kwargs={"token": batch.public_token},
+    )
     base = (getattr(settings, "PUBLIC_BASE_URL", "") or "").rstrip("/")
     if base:
         return f"{base}{path}"

@@ -16,6 +16,7 @@ urlpatterns = [
     path('returns/batch/<int:pk>/pdf/', views.return_batch_pdf, name='return_batch_pdf'),
     path('returns/batch/<int:pk>/delete/', views.return_batch_delete, name='return_batch_delete'),
     path('returns/p/<str:token>/pdf/', views.return_batch_pdf_public, name='return_batch_pdf_public'),
+    path('returns/p/<str:token>/document.pdf', views.return_batch_pdf_public, name='return_batch_pdf_public_file'),
     path('returns/items/<int:pk>/update/', views.return_item_update, name='return_item_update'),
     path('returns/<int:pk>/authorize/', views.return_rep_authorize, name='return_authorize'),
     path('returns/<int:pk>/rep-reject/', views.return_rep_reject, name='return_rep_reject'),
