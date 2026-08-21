@@ -921,7 +921,8 @@
             <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full transition-colors">
                 <span class="material-symbols-outlined">notifications</span>
             </button>
-            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full transition-colors">
+            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full transition-colors"
+                    id="btnSupportHelp" title="معلومات الصيانة والدعم" aria-label="معلومات الصيانة والدعم">
                 <span class="material-symbols-outlined">help</span>
             </button>
             <div class="h-8 w-px bg-outline-variant"></div>
@@ -955,6 +956,64 @@
     {% block content %}{% endblock %}
 </main>
 {% endblock %}
+
+{% if user.is_authenticated %}
+<div class="app-modal hidden" id="supportInfoModal" role="dialog" aria-modal="true" aria-labelledby="supportInfoTitle">
+    <div class="app-modal-panel app-modal-panel--md">
+        <div class="app-modal-head">
+            <h3 id="supportInfoTitle">معلومات الصيانة والدعم</h3>
+            <button type="button" class="app-modal-close" id="btnCloseSupportHelp" aria-label="إغلاق">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="app-modal-body" style="font-family:'Cairo',sans-serif">
+            <p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:#334155;font-weight:600">
+                جميع الحقوق محفوظة لـ <strong style="color:#1d4ed8">شركة الحلول التقنية</strong>
+            </p>
+            <div style="display:flex;flex-direction:column;gap:12px">
+                <div style="padding:12px 14px;border:1px solid #bfdbfe;border-radius:12px;background:linear-gradient(135deg,#eff6ff,#ecfdf5)">
+                    <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px">تطوير</div>
+                    <div style="font-size:15px;font-weight:800;color:#0f172a">المهندس هارون عبدالجليل الاهدل</div>
+                </div>
+                <a href="tel:0531847156" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid #bfdbfe;border-radius:12px;background:#fff;text-decoration:none;color:inherit">
+                    <span class="material-symbols-outlined" style="color:#059669">call</span>
+                    <div>
+                        <div style="font-size:12px;font-weight:700;color:#64748b">رقم الدعم والتطوير</div>
+                        <div style="font-size:16px;font-weight:800;color:#1d4ed8;letter-spacing:0.02em;direction:ltr;text-align:right">0531847156</div>
+                    </div>
+                </a>
+                <a href="mailto:abotalya65@gmail.com" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid #bfdbfe;border-radius:12px;background:#fff;text-decoration:none;color:inherit">
+                    <span class="material-symbols-outlined" style="color:#ea580c">mail</span>
+                    <div>
+                        <div style="font-size:12px;font-weight:700;color:#64748b">البريد الإلكتروني</div>
+                        <div style="font-size:14px;font-weight:800;color:#0f172a;direction:ltr;text-align:right">abotalya65@gmail.com</div>
+                    </div>
+                </a>
+            </div>
+            <p style="margin:16px 0 0;font-size:12px;color:#64748b;text-align:center;font-weight:600">
+                © شركة الحلول التقنية — نظام عمليات الفرش
+            </p>
+        </div>
+        <div class="app-modal-foot">
+            <button type="button" class="btn-primary-app" id="btnCloseSupportHelpFoot">حسناً</button>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    const modal = document.getElementById('supportInfoModal');
+    const openBtn = document.getElementById('btnSupportHelp');
+    if (!modal || !openBtn) return;
+    const close = () => modal.classList.add('hidden');
+    const open = () => modal.classList.remove('hidden');
+    openBtn.addEventListener('click', open);
+    document.getElementById('btnCloseSupportHelp')?.addEventListener('click', close);
+    document.getElementById('btnCloseSupportHelpFoot')?.addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.classList.contains('hidden')) close(); });
+})();
+</script>
+{% endif %}
 
 {% block modals %}{% endblock %}
 {% block extra_js %}{% endblock %}
