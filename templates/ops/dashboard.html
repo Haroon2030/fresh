@@ -174,7 +174,7 @@
 </section>
 
 <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-md mb-lg">
-    <article class="kpi-card kpi-sky">
+    <a href="{% url 'ops:supply' %}" class="kpi-card kpi-sky block no-underline hover:no-underline">
         <div class="flex items-start justify-between">
             <div>
                 <div class="kpi-label">طلبات التوريد</div>
@@ -183,8 +183,8 @@
             </div>
             <div class="kpi-icon"><span class="material-symbols-outlined">shopping_cart</span></div>
         </div>
-    </article>
-    <article class="kpi-card kpi-amber">
+    </a>
+    <a href="{% url 'ops:returns' %}" class="kpi-card kpi-amber block no-underline hover:no-underline">
         <div class="flex items-start justify-between">
             <div>
                 <div class="kpi-label">ملفات المرتجعات</div>
@@ -193,8 +193,8 @@
             </div>
             <div class="kpi-icon"><span class="material-symbols-outlined">assignment_return</span></div>
         </div>
-    </article>
-    <article class="kpi-card kpi-emerald">
+    </a>
+    <a href="{% url 'ops:tasks' %}" class="kpi-card kpi-emerald block no-underline hover:no-underline">
         <div class="flex items-start justify-between">
             <div>
                 <div class="kpi-label">المهام</div>
@@ -203,8 +203,8 @@
             </div>
             <div class="kpi-icon"><span class="material-symbols-outlined">checklist</span></div>
         </div>
-    </article>
-    <article class="kpi-card kpi-slate">
+    </a>
+    <a href="{% if stats.users_total != None %}{% url 'ops:settings' %}{% else %}{% url 'ops:items' %}{% endif %}" class="kpi-card kpi-slate block no-underline hover:no-underline">
         <div class="flex items-start justify-between">
             <div>
                 <div class="kpi-label">{% if stats.users_total != None %}المستخدمون النشطون{% else %}أصناف الكتالوج{% endif %}</div>
@@ -213,36 +213,41 @@
             </div>
             <div class="kpi-icon"><span class="material-symbols-outlined">{% if stats.users_total != None %}group{% else %}inventory_2{% endif %}</span></div>
         </div>
-    </article>
+    </a>
 </section>
 
 <section class="grid grid-cols-1 xl:grid-cols-3 gap-md mb-lg">
     <div class="chart-panel xl:col-span-2">
         <div class="panel-head">
             <h3>نشاط آخر 7 أيام</h3>
-            <span class="text-[12px] font-bold text-slate-500" style="font-family:'Cairo',sans-serif">توريد × مرتجعات</span>
+            <div class="flex gap-3">
+                <a href="{% url 'ops:supply' %}" class="text-[12px] font-bold text-[#1d4ed8]" style="font-family:'Cairo',sans-serif">التوريد</a>
+                <a href="{% url 'ops:returns' %}" class="text-[12px] font-bold text-[#b45309]" style="font-family:'Cairo',sans-serif">المرتجعات</a>
+            </div>
         </div>
         <div class="panel-body">
-            <canvas id="weekChart"></canvas>
+            <canvas id="weekChart" aria-label="رسم نشاط التوريد والمرتجعات"></canvas>
         </div>
     </div>
     <div class="chart-panel">
         <div class="panel-head">
             <h3>حالة التوريد</h3>
+            <a href="{% url 'ops:supply' %}" class="text-[12px] font-bold text-[#1d4ed8]" style="font-family:'Cairo',sans-serif">طلبات التوريد</a>
         </div>
         <div class="panel-body">
-            <canvas id="supplyChart"></canvas>
+            <canvas id="supplyChart" aria-label="توزيع حالات التوريد"></canvas>
         </div>
     </div>
 </section>
 
-<section class="grid grid-cols-1 xl:grid-cols-3 gap-md">
+<section class="grid grid-cols-1 xl:grid-cols-3 gap-md mb-lg">
     <div class="chart-panel">
         <div class="panel-head">
             <h3>توزيع المهام</h3>
+            <a href="{% url 'ops:tasks' %}" class="text-[12px] font-bold text-[#1d4ed8]" style="font-family:'Cairo',sans-serif">لوحة المهام</a>
         </div>
         <div class="panel-body">
-            <canvas id="tasksChart"></canvas>
+            <canvas id="tasksChart" aria-label="توزيع حالات المهام"></canvas>
         </div>
     </div>
     <div class="dash-list xl:col-span-1">
@@ -251,10 +256,10 @@
             <a href="{% url 'ops:supply' %}" class="text-[12px] font-bold text-[#1d4ed8]" style="font-family:'Cairo',sans-serif">عرض الكل</a>
         </div>
         {% for order in recent_supply %}
-        <a href="{% url 'ops:supply_detail' order.pk %}" class="row-item">
+        <a href="{% url 'ops:supply_detail' order.pk %}" class="row-item no-underline hover:no-underline">
             <div class="min-w-0">
                 <div class="font-bold text-[14px] text-slate-900 truncate">{{ order.item_name }}</div>
-                <div class="text-[12px] text-slate-500 mt-0.5">{{ order.order_number }} · {{ order.created_at|date:"j M" }}</div>
+                <div class="text-[12px] text-slate-500 mt-0.5">{{ order.order_number }} · {{ order.created_at|date:"Y/m/d" }}</div>
             </div>
             {% if order.status == 'pending' %}
             <span class="status-chip status-wait">انتظار</span>
@@ -265,20 +270,53 @@
             {% endif %}
         </a>
         {% empty %}
-        <div class="dash-empty">لا توريدات حديثة</div>
+        <div class="dash-empty">لا توريدات حديثة — <a href="{% url 'ops:supply' %}" class="text-[#1d4ed8] font-bold">أضف طلباً</a></div>
         {% endfor %}
     </div>
     <div class="dash-list xl:col-span-1">
+        <div class="panel-head chart-panel" style="border:0;border-radius:0;border-bottom:1px solid #dbeafe">
+            <h3>أحدث المرتجعات</h3>
+            <a href="{% url 'ops:returns' %}" class="text-[12px] font-bold text-[#1d4ed8]" style="font-family:'Cairo',sans-serif">عرض الكل</a>
+        </div>
+        {% for batch in recent_returns %}
+        <a href="{% url 'ops:returns' %}?open={{ batch.pk }}" class="row-item no-underline hover:no-underline">
+            <div class="min-w-0">
+                <div class="font-bold text-[14px] text-slate-900 truncate">{{ batch.return_number }} · {{ batch.branch }}</div>
+                <div class="text-[12px] text-slate-500 mt-0.5">
+                    {{ batch.representative.display_name }} · {{ batch.items.all|length }} صنف · {{ batch.created_at|date:"Y/m/d" }}
+                </div>
+            </div>
+            {% with st=batch.display_status %}
+            {% if st == 'pending' %}
+            <span class="status-chip status-wait">انتظار</span>
+            {% elif st == 'accepted' %}
+            <span class="status-chip status-ok">مقبول</span>
+            {% elif st == 'rejected' %}
+            <span class="status-chip status-bad">مرفوض</span>
+            {% else %}
+            <span class="status-chip status-wait">متعدد</span>
+            {% endif %}
+            {% endwith %}
+        </a>
+        {% empty %}
+        <div class="dash-empty">لا مرتجعات حديثة — <a href="{% url 'ops:returns' %}" class="text-[#1d4ed8] font-bold">أضف مرتجعاً</a></div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="grid grid-cols-1 gap-md">
+    <div class="dash-list">
         <div class="panel-head chart-panel" style="border:0;border-radius:0;border-bottom:1px solid #dbeafe">
             <h3>أحدث المهام</h3>
             <a href="{% url 'ops:tasks' %}" class="text-[12px] font-bold text-[#1d4ed8]" style="font-family:'Cairo',sans-serif">لوحة المهام</a>
         </div>
         {% for task in recent_tasks %}
-        <div class="row-item">
+        <a href="{% url 'ops:tasks' %}" class="row-item no-underline hover:no-underline">
             <div class="min-w-0">
                 <div class="font-bold text-[14px] text-slate-900 truncate">{{ task.title }}</div>
                 <div class="text-[12px] text-slate-500 mt-0.5">
                     {% if task.assigned_to %}{{ task.assigned_to.display_name }}{% else %}غير معيّن{% endif %}
+                    · {{ task.created_at|date:"Y/m/d" }}
                 </div>
             </div>
             {% if task.status == 'todo' %}
@@ -288,22 +326,37 @@
             {% else %}
             <span class="status-chip status-ok">مكتمل</span>
             {% endif %}
-        </div>
+        </a>
         {% empty %}
-        <div class="dash-empty">لا مهام حديثة</div>
+        <div class="dash-empty">لا مهام حديثة — <a href="{% url 'ops:tasks' %}" class="text-[#1d4ed8] font-bold">أضف مهمة</a></div>
         {% endfor %}
     </div>
 </section>
 
-{{ charts_json|json_script:"dashboard-charts" }}
+{{ charts|json_script:"dashboard-charts" }}
 <script>
 (function () {
-    const data = JSON.parse(document.getElementById('dashboard-charts').textContent);
+    const el = document.getElementById('dashboard-charts');
+    if (!el || typeof Chart === 'undefined') return;
+    let data;
+    try {
+        data = JSON.parse(el.textContent);
+    } catch (e) {
+        console.error('dashboard charts JSON', e);
+        return;
+    }
+    if (!data || !data.week) return;
+
     const font = { family: 'Cairo, sans-serif' };
     Chart.defaults.font.family = 'Cairo, sans-serif';
     Chart.defaults.color = '#64748b';
 
-    new Chart(document.getElementById('weekChart'), {
+    const weekCanvas = document.getElementById('weekChart');
+    const supplyCanvas = document.getElementById('supplyChart');
+    const tasksCanvas = document.getElementById('tasksChart');
+    if (!weekCanvas || !supplyCanvas || !tasksCanvas) return;
+
+    new Chart(weekCanvas, {
         type: 'line',
         data: {
             labels: data.week.labels,
@@ -342,10 +395,15 @@
                 x: { grid: { display: false } },
                 y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#eff6ff' } },
             },
+            onClick: function (_evt, elements) {
+                if (!elements.length) return;
+                const ds = elements[0].datasetIndex;
+                window.location.href = ds === 0 ? '{% url "ops:supply" %}' : '{% url "ops:returns" %}';
+            },
         },
     });
 
-    new Chart(document.getElementById('supplyChart'), {
+    new Chart(supplyCanvas, {
         type: 'doughnut',
         data: {
             labels: data.supply_status.labels,
@@ -363,10 +421,13 @@
             plugins: {
                 legend: { position: 'bottom', rtl: true, labels: { boxWidth: 10, font, padding: 14 } },
             },
+            onClick: function () {
+                window.location.href = '{% url "ops:supply" %}';
+            },
         },
     });
 
-    new Chart(document.getElementById('tasksChart'), {
+    new Chart(tasksCanvas, {
         type: 'bar',
         data: {
             labels: data.tasks_status.labels,
@@ -384,6 +445,9 @@
             scales: {
                 x: { grid: { display: false } },
                 y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#eff6ff' } },
+            },
+            onClick: function () {
+                window.location.href = '{% url "ops:tasks" %}';
             },
         },
     });

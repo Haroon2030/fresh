@@ -158,8 +158,9 @@ def dashboard(request):
             'returns_accepted': returns_accepted,
             'returns_rejected': returns_rejected,
         },
-        'charts_json': json.dumps(charts, ensure_ascii=False),
+        'charts': charts,
         'recent_supply': recent_supply,
+        'recent_returns': returns_qs.prefetch_related('items').order_by('-created_at')[:5],
         'recent_tasks': recent_tasks,
     })
 
