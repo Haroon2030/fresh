@@ -100,7 +100,7 @@ def list_instances() -> list:
 def resolve_instance_name() -> str:
     """Always use configured name only — never auto-pick a zombie 'open' instance."""
     configured = (getattr(settings, "EVOLUTION_INSTANCE_NAME", "") or "").strip()
-    return configured or "farsh"
+    return configured or "farsh2"
 
 
 def _normalize_qr_base64(base64: str) -> str:
@@ -330,13 +330,42 @@ def recreate_instance() -> dict:
     deleted = delete_instance(instance)
     created = create_instance()
     if created.get("exists") and not deleted.get("ok"):
-        # stuck name: force QR via restart+connect
+        # stuck name: try connect on existing, else spin a fresh name suffix
+        qr = fetch_qr()
+        if qr.get("ok") and (qr.get("base64") or qr.get("pairingCode")):
+            qr["deleted"] = deleted
+            qr["recreate_warning"] = (
+                "تعذّر حذف الانستانس القديم. جُلب QR للجلسة الحالية — امسحه فوراً."
+            )
+            return qr
+        # last resort: farsh2 / farsh3 style
+        alt = "farsh2" if instance != "farsh2" else "farsh3"
+        status, data = _api(
+            "/instance/create",
+            method="POST",
+            json_body={
+                "instanceName": alt,
+                "qrcode": True,
+                "integration": "WHATSAPP-BAILEYS",
+            },
+        )
+        if status in (200, 201):
+            base64, pairing, code = _extract_qr(data if isinstance(data, dict) else {})
+            return {
+                "ok": True,
+                "connected": False,
+                "base64": base64,
+                "pairingCode": pairing,
+                "code": code,
+                "state": "connecting",
+                "instance": alt,
+                "recreated": True,
+                "recreate_warning": (
+                    f"تم إنشاء انستانس بديل «{alt}». ضع EVOLUTION_INSTANCE_NAME={alt} في Dokploy ثم Redeploy."
+                ),
+            }
         qr = fetch_qr()
         qr["deleted"] = deleted
-        qr["recreate_warning"] = (
-            "تعذّر حذف الانستانس من السيرفر. جُلب QR للجلسة الحالية. "
-            "من الجوال احذف الأجهزة المرتبطة القديمة ثم امسح الرمز فوراً."
-        )
         return qr
     if not created.get("ok"):
         return {
@@ -386,7 +415,7 @@ def send_text(number: str, text: str) -> bool:
             # surface for callers that check return False + logs
             logger.error(
                 "Evolution instance socket dead (Connection Closed). "
-                "Set EVOLUTION_INSTANCE_NAME=farsh and re-scan QR."
+                "Set EVOLUTION_INSTANCE_NAME=farsh2 and re-scan QR."
             )
         return False
     return True
@@ -533,7 +562,7 @@ def notify_roles(title: str, body: str = "") -> dict:
     if sent == 0:
         err = (
             "فشل الإرسال: جلسة واتساب غير جاهزة (Connection Closed). "
-            "من شاشة واتساب: تحديث QR وامسح الرمز من جديد للانستانس farsh."
+            "من شاشة واتساب: تحديث QR وامسح الرمز من جديد للانستانس farsh2."
         )
     return {"sent": sent, "total": len(phones), "phones": phones, "error": err}
 
