@@ -692,6 +692,7 @@ def daily_orders_list(request):
     if q:
         qs = qs.filter(
             Q(order_number__icontains=q)
+            | Q(batch_number__icontains=q)
             | Q(item_name__icontains=q)
             | Q(item_number__icontains=q)
             | Q(branch__icontains=q)
@@ -700,6 +701,43 @@ def daily_orders_list(request):
             | Q(representative__last_name__icontains=q)
             | Q(representative__username__icontains=q)
         )
+
+    # تجميع: صف واحد لكل ملف طلبية
+    batches_map = {}
+    for order in qs.select_related('representative').order_by('-created_at', 'pk'):
+        key = order.batch_number or f'single-{order.pk}'
+        if key not in batches_map:
+            batches_map[key] = {
+                'key': key,
+                'batch_number': order.batch_number or order.order_number,
+                'seed_pk': order.pk,
+                'order_date': order.order_date,
+                'branch': order.branch,
+                'supplier': order.supplier,
+                'representative': order.representative,
+                'created_at': order.created_at,
+                'items': [],
+                'statuses': set(),
+            }
+        batches_map[key]['items'].append(order)
+        batches_map[key]['statuses'].add(order.status)
+
+    batches = []
+    for b in batches_map.values():
+        statuses = b['statuses']
+        if statuses == {DailyOrder.Status.PENDING}:
+            b['display_status'] = 'pending'
+        elif statuses == {DailyOrder.Status.APPROVED}:
+            b['display_status'] = 'approved'
+        elif statuses == {DailyOrder.Status.REJECTED}:
+            b['display_status'] = 'rejected'
+        else:
+            b['display_status'] = 'mixed'
+        b['items_count'] = len(b['items'])
+        batches.append(b)
+    batches.sort(key=lambda x: x['created_at'], reverse=True)
+
+    open_batch = (request.GET.get('open') or '').strip()
 
     reps = User.objects.filter(role=User.Role.REPRESENTATIVE, is_active=True)
     if not reps.exists():
@@ -711,10 +749,11 @@ def daily_orders_list(request):
         CatalogItem.objects.order_by('name').values('item_number', 'name')[:500]
     )
     return render(request, 'ops/daily_orders.html', {
-        'orders': qs,
+        'batches': batches,
         'q': q,
         'order_date': order_date,
         'today': today,
+        'open_batch': open_batch,
         'representatives': representatives,
         'branches': Branch.active_names(),
         'suppliers': Supplier.active_names(),
@@ -818,17 +857,24 @@ def daily_order_create(request):
         return redirect('ops:daily_orders')
 
     messages.success(request, f'تم تسجيل ملف طلبية {batch_number} بـ {created} صنف.')
-    return redirect(f"{reverse('ops:daily_orders')}?date={order_date.isoformat()}")
+    first = DailyOrder.objects.filter(batch_number=batch_number).order_by('pk').first()
+    open_q = f'&open={first.pk}' if first else ''
+    return redirect(f"{reverse('ops:daily_orders')}?date={order_date.isoformat()}{open_q}")
 
 
 @manager_required
 @require_POST
 def daily_order_delete(request, pk):
-    order = get_object_or_404(DailyOrder, pk=pk)
-    label = order.order_number
-    order_date = order.order_date
-    order.delete()
-    messages.success(request, f'تم حذف الطلبية {label}.')
+    seed = get_object_or_404(DailyOrder, pk=pk)
+    order_date = seed.order_date
+    if seed.batch_number:
+        label = seed.batch_number
+        count, _ = DailyOrder.objects.filter(batch_number=seed.batch_number).delete()
+    else:
+        label = seed.order_number
+        seed.delete()
+        count = 1
+    messages.success(request, f'تم حذف ملف الطلبية {label} ({count} صنف).')
     return redirect(f"{reverse('ops:daily_orders')}?date={order_date.isoformat()}")
 
 

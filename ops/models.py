@@ -572,6 +572,10 @@ class DailyOrder(models.Model):
     def __str__(self):
         return f'{self.order_number} — {self.item_name}'
 
+    @property
+    def line_total(self):
+        return self.quantity * self.unit_price
+
     def save(self, *args, **kwargs):
         if not self.order_date:
             from django.utils import timezone
