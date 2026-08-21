@@ -17,6 +17,17 @@ def env_list(name: str, default: str = "") -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
+def env_str(name: str, default: str = "") -> str:
+    """Read env value; strip whitespace and surrounding quotes (Dokploy/@ safe)."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    val = str(raw).strip()
+    if len(val) >= 2 and val[0] == val[-1] and val[0] in ('"', "'"):
+        val = val[1:-1].strip()
+    return val
+
+
 SECRET_KEY = os.environ.get(
     "SECRET_KEY",
     "django-insecure-7!i_(tq2-o(w-fq77$f79%rn&1ro*67zun%=9rn7g6*3p95x9@",
@@ -155,16 +166,19 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", False)
 
 # Evolution API (WhatsApp notifications)
-# يتوافق مع أسماء النظام الآخر: EVOLUTION_API_URL / EVOLUTION_INSTANCE
+# يتوافق مع أسماء النظام الآخر: EVOLUTION_API_URL / EVOLUTION_INSTANCE / AUTHENTICATION_API_KEY
 EVOLUTION_SERVER_URL = (
-    os.environ.get("EVOLUTION_SERVER_URL")
-    or os.environ.get("EVOLUTION_API_URL")
+    env_str("EVOLUTION_SERVER_URL")
+    or env_str("EVOLUTION_API_URL")
     or "http://72.61.107.230:8081"
 ).rstrip("/")
-EVOLUTION_API_KEY = os.environ.get("EVOLUTION_API_KEY", "")
+EVOLUTION_API_KEY = (
+    env_str("EVOLUTION_API_KEY")
+    or env_str("AUTHENTICATION_API_KEY")
+)
 EVOLUTION_INSTANCE_NAME = (
-    os.environ.get("EVOLUTION_INSTANCE_NAME")
-    or os.environ.get("EVOLUTION_INSTANCE")
+    env_str("EVOLUTION_INSTANCE_NAME")
+    or env_str("EVOLUTION_INSTANCE")
     or ""
 )
 EVOLUTION_NOTIFY_ENABLED = env_bool(
@@ -175,4 +189,4 @@ EVOLUTION_NOTIFY_ENABLED = env_bool(
 EVOLUTION_VERIFY_SSL = env_bool("EVOLUTION_VERIFY_SSL", False)
 
 # رابط عام للمهام (واتساب) — مثال: http://72.61.107.230:7080
-PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+PUBLIC_BASE_URL = env_str("PUBLIC_BASE_URL", "").rstrip("/")
