@@ -650,6 +650,7 @@ def tasks_board(request):
         'form': form,
         'q': q,
         'active_nav': 'tasks',
+        'google_maps_api_key': getattr(settings, 'GOOGLE_MAPS_API_KEY', ''),
     })
 
 

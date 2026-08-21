@@ -174,3 +174,6 @@ EVOLUTION_VERIFY_SSL = env_bool("EVOLUTION_VERIFY_SSL", False)
 
 # رابط عام للمهام (واتساب) — مثال: http://72.61.107.230:7080
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+
+# خرائط Google (اختياري) — Places + Map JS لتحسين البحث
+GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "").strip()
