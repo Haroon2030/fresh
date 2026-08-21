@@ -88,6 +88,13 @@ class ReturnBatch(models.Model):
         verbose_name='المندوب',
     )
     branch = models.CharField(max_length=150, verbose_name='الفرع')
+    public_token = models.CharField(
+        max_length=64,
+        unique=True,
+        editable=False,
+        blank=True,
+        verbose_name='رمز تحميل PDF',
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -105,10 +112,16 @@ class ReturnBatch(models.Model):
     def __str__(self):
         return self.return_number
 
+    def ensure_public_token(self):
+        if not self.public_token:
+            import secrets
+            self.public_token = secrets.token_urlsafe(24)
+
     def save(self, *args, **kwargs):
         if not self.return_number:
             last = ReturnBatch.objects.aggregate(Max('id'))['id__max'] or 0
             self.return_number = f'#RET-{last + 1:04d}'
+        self.ensure_public_token()
         super().save(*args, **kwargs)
 
     @property

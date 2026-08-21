@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 
 from django.conf import settings
+from django.urls import reverse
 from django.utils import timezone
 
 from ops.pdf_docs import build_return_batch_pdf, build_supply_orders_pdf, role_label
@@ -41,14 +42,27 @@ def _portal_hint() -> str:
     return "ادخل النظام لمتابعة العملية."
 
 
+def _return_pdf_url(batch, request=None) -> str:
+    batch.ensure_public_token()
+    if not batch.public_token:
+        batch.save(update_fields=["public_token"])
+    path = reverse("ops:return_batch_pdf_public", kwargs={"token": batch.public_token})
+    base = (getattr(settings, "PUBLIC_BASE_URL", "") or "").rstrip("/")
+    if base:
+        return f"{base}{path}"
+    if request is not None:
+        return request.build_absolute_uri(path)
+    return path
+
+
 def _actor_line(user) -> str:
     return f"{user.display_name} | الدور: {role_label(user)}"
 
 
-def notify_return_batch_saved(batch, *, actor) -> dict:
+def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
     """
     On saving a return file:
-    - PDF to managers/accountant (+ role phones)
+    - PDF document via WhatsApp + download link
     - Dedicated action message+PDF to the representative
     """
     try:
@@ -57,6 +71,7 @@ def notify_return_batch_saved(batch, *, actor) -> dict:
         logger.exception("PDF build failed for return %s", getattr(batch, "pk", "?"))
         return {"sent": 0, "total": 0, "phones": [], "error": "تعذّر إنشاء PDF للمرتجع."}
 
+    pdf_url = _return_pdf_url(batch, request=request)
     items = list(batch.items.all())
     item_lines = []
     for i, it in enumerate(items[:12], 1):
@@ -82,8 +97,8 @@ def notify_return_batch_saved(batch, *, actor) -> dict:
             "ملخص الأصناف:",
             *(item_lines or ["  —"]),
             "────────────────────",
-            "المرفق: ملف PDF رسمي للعملية",
-            _portal_hint(),
+            "📄 ملف PDF للتحميل:",
+            pdf_url,
             "════════════════════",
         ]
     )
@@ -93,7 +108,7 @@ def notify_return_batch_saved(batch, *, actor) -> dict:
             "════════════════════",
             "عمليات الفرش | تنبيه للمندوب",
             "════════════════════",
-            f"يوجد مردود جديد يجب متابعته واعتماده، ويجب الرد.",
+            "يوجد مردود جديد يجب متابعته واعتماده، ويجب الرد.",
             f"رقم الملف: {batch.return_number}",
             f"الفرع: {batch.branch}",
             f"عدد الأصناف: {len(items)}",
@@ -101,12 +116,12 @@ def notify_return_batch_saved(batch, *, actor) -> dict:
             f"وقت الحفظ: {_now_str()}",
             "────────────────────",
             "المطلوب منك:",
-            "1) مراجعة أصناف الملف",
+            "1) تحميل ملف PDF ومراجعته",
             "2) تعميد أو رفض كل صنف",
             "3) الرد والمتابعة حتى الإغلاق",
             "────────────────────",
-            "المرفق: PDF بتفاصيل الملف",
-            _portal_hint(),
+            "📄 تحميل ملف المرتجع PDF:",
+            pdf_url,
             "════════════════════",
         ]
     )
@@ -118,13 +133,21 @@ def notify_return_batch_saved(batch, *, actor) -> dict:
         filename=filename,
         recipients=recipients,
     )
+    result["pdf_url"] = pdf_url
+    result["pdf_filename"] = filename
 
     # Representative — dedicated action notice (even if also in notify roles)
     rep = batch.representative
     rep_phone = _user_phone(rep) or _role_contact_phone("representative")
     if rep_phone:
+        # Prefer PDF attachment first, then text with download link
+        ok_pdf = send_document(
+            rep_phone,
+            pdf_bytes,
+            filename=filename,
+            caption=f"ملف مرتجع {batch.return_number} — للتحميل والمراجعة",
+        )
         ok_text = send_text(rep_phone, rep_msg)
-        ok_pdf = send_document(rep_phone, pdf_bytes, filename=filename, caption=f"المرفق: {filename}")
         ok = ok_text or ok_pdf
         if ok:
             result["sent"] = result.get("sent", 0) + 1

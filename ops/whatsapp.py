@@ -600,8 +600,9 @@ def notify_with_pdf(
         if dest:
             text = f"{message}\nإلى: {dest}"
         short_caption = f"المرفق الرسمي: {filename}"
-        ok_text = send_text(phone, text)
+        # Send PDF first so recipient can download the file, then the details text
         ok_pdf = send_document(phone, pdf_bytes, filename=filename, caption=short_caption)
+        ok_text = send_text(phone, text)
         if ok_text or ok_pdf:
             sent += 1
 

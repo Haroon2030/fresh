@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -16,6 +16,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from .forms import TaskForm
 from .models import CatalogItem, ReturnBatch, ReturnRequest, SupplyOrder, Task, WhatsAppRoleContact
+from .pdf_docs import build_return_batch_pdf
 from .whatsapp import (
     collect_notify_phones,
     connection_state,
@@ -442,15 +443,56 @@ def return_create(request):
         request,
         f'تم حفظ ملف المرتجع {batch.return_number} بـ {len(rows)} صنف.',
     )
-    wa = notify_return_batch_saved(batch, actor=request.user)
+    # Ensure PDF token exists before WhatsApp (for download link)
+    batch.ensure_public_token()
+    if not batch.public_token:
+        batch.save(update_fields=['public_token'])
+    wa = notify_return_batch_saved(batch, actor=request.user, request=request)
     if wa.get('sent'):
         extra = ''
         if wa.get('rep_notified'):
             extra = ' (شمل تنبيه المندوب للمتابعة والتعميد)'
-        messages.info(request, f'تم إرسال واتساب+PDF إلى {wa["sent"]} مستلم{extra}.')
+        messages.info(request, f'تم إرسال واتساب مع ملف PDF إلى {wa["sent"]} مستلم{extra}.')
     elif wa.get('error'):
         messages.warning(request, f'واتساب: {wa["error"]}')
     return _redirect_returns(batch.pk)
+
+
+def _pdf_http_response(pdf_bytes: bytes, filename: str) -> HttpResponse:
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    # ASCII-safe filename for Content-Disposition
+    safe = (filename or 'return.pdf').replace('"', '')
+    response['Content-Disposition'] = f'attachment; filename="{safe}"'
+    response['Content-Length'] = str(len(pdf_bytes))
+    return response
+
+
+@login_required
+def return_batch_pdf(request, pk):
+    """Download return batch as PDF (logged-in users with access)."""
+    batch = get_object_or_404(
+        _return_batch_queryset(request.user).prefetch_related('items'),
+        pk=pk,
+    )
+    try:
+        pdf_bytes, filename = build_return_batch_pdf(batch)
+    except Exception:
+        messages.error(request, 'تعذّر إنشاء ملف PDF.')
+        return redirect('ops:returns')
+    return _pdf_http_response(pdf_bytes, filename)
+
+
+@require_http_methods(['GET'])
+def return_batch_pdf_public(request, token):
+    """Public PDF download via token (shared on WhatsApp)."""
+    batch = get_object_or_404(
+        ReturnBatch.objects.select_related(
+            'representative', 'created_by'
+        ).prefetch_related('items'),
+        public_token=token,
+    )
+    pdf_bytes, filename = build_return_batch_pdf(batch)
+    return _pdf_http_response(pdf_bytes, filename)
 
 
 @login_required

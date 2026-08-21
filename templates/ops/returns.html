@@ -73,7 +73,13 @@
                 </td>
                 <td class="cell-center cell-strong">{{ batch.items.all|length }}</td>
                 <td class="cell-action" onclick="event.stopPropagation()">
-                    <button type="button" class="act-btn act-ok" data-open-batch="{{ batch.pk }}">عرض الأصناف</button>
+                    <div class="flex flex-wrap gap-1 justify-center">
+                        <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="act-btn act-ok" title="تحميل PDF">
+                            <span class="material-symbols-outlined text-[16px] text-inherit">picture_as_pdf</span>
+                            PDF
+                        </a>
+                        <button type="button" class="act-btn act-ok" data-open-batch="{{ batch.pk }}">عرض الأصناف</button>
+                    </div>
                 </td>
             </tr>
             {% empty %}
@@ -190,10 +196,16 @@
                     {{ batch.representative.display_name }} · {{ batch.branch }} · {{ batch.created_at|date:"Y/m/d H:i" }}
                 </p>
             </div>
-            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full close-batch-modal"
-                    data-close-batch="{{ batch.pk }}">
-                <span class="material-symbols-outlined">close</span>
-            </button>
+            <div class="flex items-center gap-sm shrink-0">
+                <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="act-btn act-ok">
+                    <span class="material-symbols-outlined text-[16px] text-inherit">download</span>
+                    تحميل PDF
+                </a>
+                <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full close-batch-modal"
+                        data-close-batch="{{ batch.pk }}">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
         </div>
         <div class="p-lg overflow-y-auto flex flex-col gap-md">
             {% for item in batch.items.all %}
