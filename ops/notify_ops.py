@@ -132,6 +132,7 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
         pdf_bytes=pdf_bytes,
         filename=filename,
         recipients=recipients,
+        media_url=pdf_url,
     )
     result["pdf_url"] = pdf_url
     result["pdf_filename"] = filename
@@ -146,6 +147,7 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
             pdf_bytes,
             filename=filename,
             caption=f"ملف مرتجع {batch.return_number} — للتحميل والمراجعة",
+            media_url=pdf_url,
         )
         ok_text = send_text(rep_phone, rep_msg)
         ok = ok_text or ok_pdf

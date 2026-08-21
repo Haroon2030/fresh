@@ -46,19 +46,24 @@ def _headers() -> dict:
     }
 
 
-def _api(path: str, method: str = "GET", json_body=None, timeout: int = 20):
+def _api(path: str, method: str = "GET", json_body=None, timeout: int | tuple = 20):
     url = f"{settings.EVOLUTION_SERVER_URL.rstrip('/')}{path}"
     verify = getattr(settings, "EVOLUTION_VERIFY_SSL", True)
     try:
         if not verify:
             import urllib3
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        # (connect timeout, read timeout) — sendMedia/PDF can be slow
+        if isinstance(timeout, (int, float)):
+            req_timeout = (min(15, float(timeout)), float(timeout))
+        else:
+            req_timeout = timeout
         response = requests.request(
             method,
             url,
             headers=_headers(),
             json=json_body,
-            timeout=timeout,
+            timeout=req_timeout,
             verify=verify,
         )
         raw = response.text or ""
@@ -425,15 +430,15 @@ def send_text(number: str, text: str) -> bool:
         f"/message/sendText/{instance}",
         method="POST",
         json_body={"number": phone, "text": text},
+        timeout=60,
     )
     if status >= 400 or status == 0:
         msg = str(data)
         logger.warning("Evolution send failed (%s): %s", status, msg[:500])
-        if "connection closed" in msg.lower():
-            # surface for callers that check return False + logs
+        if "connection closed" in msg.lower() or "timed out" in msg.lower():
             logger.error(
-                "Evolution instance socket dead (Connection Closed). "
-                "Set EVOLUTION_INSTANCE_NAME=farshops and re-scan QR."
+                "Evolution instance unreachable or dead. "
+                "Check EVOLUTION_INSTANCE_NAME=farshops and re-scan QR."
             )
         return False
     return True
@@ -445,38 +450,73 @@ def send_document(
     *,
     filename: str,
     caption: str = "",
+    media_url: str = "",
 ) -> bool:
-    """Send a PDF via Evolution /message/sendMedia (mediatype=document)."""
+    """
+    Send a PDF via Evolution /message/sendMedia.
+    Prefer a public URL (more reliable). Fallback: raw base64 (no data: prefix).
+    """
     import base64
 
     if not notify_enabled():
         return False
     phone = normalize_whatsapp(number)
-    if not phone or not pdf_bytes:
+    if not phone:
         return False
     instance = resolve_instance_name()
     if not instance:
         return False
 
-    b64 = base64.b64encode(pdf_bytes).decode("ascii")
-    media = f"data:application/pdf;base64,{b64}"
-    status, data = _api(
-        f"/message/sendMedia/{instance}",
-        method="POST",
-        json_body={
-            "number": phone,
-            "mediatype": "document",
-            "mimetype": "application/pdf",
-            "media": media,
-            "fileName": filename or "document.pdf",
-            "caption": (caption or "")[:1024],
-        },
-        timeout=60,
-    )
-    if status >= 400 or status == 0:
-        logger.warning("Evolution sendMedia failed (%s): %s", status, str(data)[:500])
+    filename = (filename or "document.pdf").replace('"', "")
+    caption = (caption or "")[:900]
+
+    payloads = []
+    # 1) Public URL — Evolution fetches the file itself
+    if media_url and str(media_url).startswith(("http://", "https://")):
+        payloads.append(
+            {
+                "number": phone,
+                "mediatype": "document",
+                "mimetype": "application/pdf",
+                "media": media_url,
+                "fileName": filename,
+                "caption": caption,
+            }
+        )
+
+    # 2) Raw base64 (this Evolution build rejects data:application/pdf;base64,...)
+    if pdf_bytes:
+        b64 = base64.b64encode(pdf_bytes).decode("ascii")
+        payloads.append(
+            {
+                "number": phone,
+                "mediatype": "document",
+                "mimetype": "application/pdf",
+                "media": b64,
+                "fileName": filename,
+                "caption": caption,
+            }
+        )
+
+    if not payloads:
         return False
-    return True
+
+    last_err = ""
+    for body in payloads:
+        status, data = _api(
+            f"/message/sendMedia/{instance}",
+            method="POST",
+            json_body=body,
+            timeout=90,
+        )
+        if status and status < 400:
+            return True
+        last_err = str(data)[:500]
+        logger.warning("Evolution sendMedia failed (%s): %s", status, last_err)
+        # If format rejected, try next payload; if connection dead, stop
+        if "connection closed" in last_err.lower():
+            break
+    return False
 
 
 def _user_phone(user) -> str:
@@ -591,6 +631,7 @@ def notify_with_pdf(
     pdf_bytes: bytes,
     filename: str,
     recipients: list[dict],
+    media_url: str = "",
 ) -> dict:
     """
     Send structured text then PDF to each recipient.
@@ -605,7 +646,7 @@ def notify_with_pdf(
             "phones": [],
             "error": "لا توجد أرقام واتساب للمستلمين.",
         }
-    if not pdf_bytes:
+    if not pdf_bytes and not media_url:
         return {"sent": 0, "total": len(recipients), "phones": [], "error": "تعذّر إنشاء ملف PDF."}
 
     sent = 0
@@ -618,21 +659,26 @@ def notify_with_pdf(
         if dest:
             text = f"{message}\nإلى: {dest}"
         short_caption = f"المرفق الرسمي: {filename}"
-        # Send PDF first so recipient can download the file, then the details text
-        ok_pdf = send_document(phone, pdf_bytes, filename=filename, caption=short_caption)
+        # Send PDF first (URL preferred), then the details text
+        ok_pdf = send_document(
+            phone,
+            pdf_bytes or b"",
+            filename=filename,
+            caption=short_caption,
+            media_url=media_url,
+        )
         ok_text = send_text(phone, text)
         if ok_text or ok_pdf:
             sent += 1
 
     err = None
     if sent == 0:
-        # Distinguish empty phones vs dead session
         if not any(phones):
             err = "لا توجد أرقام واتساب للمستلمين. احفظ أرقام الأدوار في شاشة واتساب."
         else:
             err = (
-                "فشل إرسال واتساب: الجلسة غير مربوطة (Connection Closed). "
-                "افتح /whatsapp/ → تحديث QR وامسح الرمز."
+                "فشل إرسال واتساب: الجلسة غير مربوطة أو Evolution بطيء. "
+                "افتح /whatsapp/ → تحديث QR وامسح الرمز (farshops)."
             )
     return {"sent": sent, "total": len(recipients), "phones": phones, "error": err}
 

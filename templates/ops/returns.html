@@ -38,7 +38,7 @@
                 <col style="width:130px">
                 <col style="width:110px">
                 <col style="width:80px">
-                <col style="width:120px">
+                <col style="width:220px">
             </colgroup>
             <thead>
             <tr>
@@ -79,6 +79,14 @@
                             PDF
                         </a>
                         <button type="button" class="act-btn act-ok" data-open-batch="{{ batch.pk }}">عرض الأصناف</button>
+                        <form method="post" action="{% url 'ops:return_batch_delete' batch.pk %}" class="inline"
+                              onsubmit="return confirm('حذف المرتجع {{ batch.return_number }} وجميع أصنافه؟ لا يمكن التراجع.');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-bad" title="حذف المرتجع">
+                                <span class="material-symbols-outlined text-[16px] text-inherit">delete</span>
+                                حذف
+                            </button>
+                        </form>
                     </div>
                 </td>
             </tr>

@@ -497,6 +497,23 @@ def return_batch_pdf_public(request, token):
 
 @login_required
 @require_POST
+def return_batch_delete(request, pk):
+    batch = get_object_or_404(_return_batch_queryset(request.user), pk=pk)
+    can_delete = request.user.is_manager or (
+        batch.representative_id == request.user.id
+        or batch.created_by_id == request.user.id
+    )
+    if not can_delete:
+        messages.error(request, 'لا يمكنك حذف هذا المرتجع.')
+        return redirect('ops:returns')
+    label = batch.return_number
+    batch.delete()
+    messages.success(request, f'تم حذف المرتجع {label} وجميع أصنافه.')
+    return redirect('ops:returns')
+
+
+@login_required
+@require_POST
 def return_item_update(request, pk):
     item = _return_item_or_404(pk)
     batch = item.batch
