@@ -28,6 +28,7 @@ from .whatsapp import (
     resolve_instance_name,
     send_test_to_roles,
 )
+from .notify_ops import notify_return_batch_saved, notify_supply_orders_saved
 
 User = get_user_model()
 
@@ -268,20 +269,22 @@ def supply_create(request):
             created_by=request.user,
         )
         order.save()
-        created.append(order.order_number)
+        created.append(order)
 
     if created:
         if len(created) == 1:
-            messages.success(request, f'تم إنشاء الطلب {created[0]} بنجاح.')
+            messages.success(request, f'تم إنشاء الطلب {created[0].order_number} بنجاح.')
         else:
             messages.success(request, f'تم إنشاء {len(created)} طلبات شراء بنجاح.')
-        notify_roles(
-            'توريد جديد',
-            f'عدد الطلبات: {len(created)}\n'
-            f'الأرقام: {", ".join(created)}\n'
-            f'المندوب: {representative.display_name}\n'
-            f'بواسطة: {request.user.display_name}',
+        wa = notify_supply_orders_saved(
+            created,
+            actor=request.user,
+            representative=representative,
         )
+        if wa.get('sent'):
+            messages.info(request, f'تم إرسال واتساب+PDF إلى {wa["sent"]} مستلم.')
+        elif wa.get('error'):
+            messages.warning(request, f'واتساب: {wa["error"]}')
     else:
         messages.error(request, 'أضف صفاً واحداً على الأقل مع الاسم.')
     return redirect('ops:supply')
@@ -439,16 +442,12 @@ def return_create(request):
         request,
         f'تم حفظ ملف المرتجع {batch.return_number} بـ {len(rows)} صنف.',
     )
-    wa = notify_roles(
-        'مرتجع جديد',
-        f'{batch.return_number}\n'
-        f'الفرع: {batch.branch}\n'
-        f'الأصناف: {len(rows)}\n'
-        f'المندوب: {representative.display_name}\n'
-        f'بواسطة: {request.user.display_name}',
-    )
+    wa = notify_return_batch_saved(batch, actor=request.user)
     if wa.get('sent'):
-        messages.info(request, f'تم إرسال إشعار واتساب إلى {wa["sent"]} رقم.')
+        extra = ''
+        if wa.get('rep_notified'):
+            extra = ' (شمل تنبيه المندوب للمتابعة والتعميد)'
+        messages.info(request, f'تم إرسال واتساب+PDF إلى {wa["sent"]} مستلم{extra}.')
     elif wa.get('error'):
         messages.warning(request, f'واتساب: {wa["error"]}')
     return _redirect_returns(batch.pk)

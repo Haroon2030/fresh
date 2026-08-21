@@ -369,10 +369,104 @@ def send_text(number: str, text: str) -> bool:
     return True
 
 
+def send_document(
+    number: str,
+    pdf_bytes: bytes,
+    *,
+    filename: str,
+    caption: str = "",
+) -> bool:
+    """Send a PDF via Evolution /message/sendMedia (mediatype=document)."""
+    import base64
+
+    if not notify_enabled():
+        return False
+    phone = normalize_whatsapp(number)
+    if not phone or not pdf_bytes:
+        return False
+    instance = resolve_instance_name()
+    if not instance:
+        return False
+
+    b64 = base64.b64encode(pdf_bytes).decode("ascii")
+    media = f"data:application/pdf;base64,{b64}"
+    status, data = _api(
+        f"/message/sendMedia/{instance}",
+        method="POST",
+        json_body={
+            "number": phone,
+            "mediatype": "document",
+            "mimetype": "application/pdf",
+            "media": media,
+            "fileName": filename or "document.pdf",
+            "caption": (caption or "")[:1024],
+        },
+        timeout=60,
+    )
+    if status >= 400 or status == 0:
+        logger.warning("Evolution sendMedia failed (%s): %s", status, str(data)[:500])
+        return False
+    return True
+
+
+def _user_phone(user) -> str:
+    if not user:
+        return ""
+    return normalize_whatsapp(getattr(user, "whatsapp", "") or "")
+
+
+def _role_contact_phone(role: str) -> str:
+    from ops.models import WhatsAppRoleContact
+
+    contact = WhatsAppRoleContact.objects.filter(role=role).exclude(phone="").first()
+    return normalize_whatsapp(contact.phone) if contact else ""
+
+
+def collect_recipient_entries(*, include_roles: bool = True) -> list[dict]:
+    """
+    Recipients for operational alerts.
+    Each: {phone, label, role, user_id?}
+    """
+    from ops.models import WhatsAppRoleContact
+
+    entries = []
+    seen = set()
+
+    def add(phone: str, label: str, role: str, user_id=None):
+        phone = normalize_whatsapp(phone)
+        if not phone or phone in seen:
+            return
+        seen.add(phone)
+        entries.append(
+            {"phone": phone, "label": label, "role": role, "user_id": user_id}
+        )
+
+    if include_roles:
+        role_labels = dict(WhatsAppRoleContact.ROLE_CHOICES)
+        for contact in WhatsAppRoleContact.objects.filter(role__in=User.NOTIFY_ROLES).exclude(
+            phone=""
+        ):
+            add(
+                contact.phone,
+                f"{role_labels.get(contact.role, contact.role)} (جدول الأدوار)",
+                contact.role,
+            )
+        for user in User.objects.filter(is_active=True, role__in=User.NOTIFY_ROLES).exclude(
+            whatsapp=""
+        ):
+            add(
+                user.whatsapp,
+                f"{user.display_name} — {user.get_role_display()}",
+                user.role,
+                user.pk,
+            )
+    return entries
+
+
 def notify_user(user, title: str, body: str = "") -> bool:
     if not user or not notify_enabled():
         return False
-    phone = normalize_whatsapp(getattr(user, "whatsapp", "") or "")
+    phone = _user_phone(user)
     if not phone:
         logger.info("Skip WhatsApp: user %s has no whatsapp number", getattr(user, "pk", "?"))
         return False
@@ -384,27 +478,7 @@ def notify_user(user, title: str, body: str = "") -> bool:
 
 def collect_notify_phones() -> list[str]:
     """Unique phones for NOTIFY_ROLES (role contacts + users)."""
-    from ops.models import WhatsAppRoleContact
-
-    seen = []
-    found = set()
-
-    for contact in WhatsAppRoleContact.objects.filter(role__in=User.NOTIFY_ROLES).exclude(phone=""):
-        phone = normalize_whatsapp(contact.phone)
-        if phone and phone not in found:
-            found.add(phone)
-            seen.append(phone)
-
-    for user in (
-        User.objects.filter(is_active=True, role__in=User.NOTIFY_ROLES)
-        .exclude(whatsapp="")
-        .only("whatsapp")
-    ):
-        phone = normalize_whatsapp(user.whatsapp)
-        if phone and phone not in found:
-            found.add(phone)
-            seen.append(phone)
-    return seen
+    return [e["phone"] for e in collect_recipient_entries(include_roles=True)]
 
 
 def notify_roles(title: str, body: str = "") -> dict:
@@ -439,6 +513,50 @@ def notify_roles(title: str, body: str = "") -> dict:
             "ضع EVOLUTION_INSTANCE_NAME=farsh ثم اقطع الاتصال/حدّث QR وامسح الرمز من جديد."
         )
     return {"sent": sent, "total": len(phones), "phones": phones, "error": err}
+
+
+def notify_with_pdf(
+    *,
+    message: str,
+    pdf_bytes: bytes,
+    filename: str,
+    recipients: list[dict],
+) -> dict:
+    """
+    Send structured text then PDF to each recipient.
+    recipients: list of {phone, label, role}
+    """
+    if not notify_enabled():
+        return {"sent": 0, "total": 0, "phones": [], "error": "الإشعارات غير مفعّلة أو الإعدادات ناقصة."}
+    if not recipients:
+        return {
+            "sent": 0,
+            "total": 0,
+            "phones": [],
+            "error": "لا توجد أرقام واتساب للمستلمين.",
+        }
+    if not pdf_bytes:
+        return {"sent": 0, "total": len(recipients), "phones": [], "error": "تعذّر إنشاء ملف PDF."}
+
+    sent = 0
+    phones = []
+    for entry in recipients:
+        phone = entry.get("phone") or ""
+        phones.append(phone)
+        dest = entry.get("label") or entry.get("role") or ""
+        text = message
+        if dest:
+            text = f"{message}\nإلى: {dest}"
+        short_caption = f"المرفق الرسمي: {filename}"
+        ok_text = send_text(phone, text)
+        ok_pdf = send_document(phone, pdf_bytes, filename=filename, caption=short_caption)
+        if ok_text or ok_pdf:
+            sent += 1
+
+    err = None
+    if sent == 0:
+        err = "فشل إرسال واتساب (تحقق من ربط الانستانس وأرقام المستلمين)."
+    return {"sent": sent, "total": len(recipients), "phones": phones, "error": err}
 
 
 def send_test_to_roles() -> dict:
