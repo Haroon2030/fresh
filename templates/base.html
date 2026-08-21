@@ -109,26 +109,30 @@
     </script>
     <style>
         :root {
-            --app-bg: #f4f7f5;
+            --app-bg: #f3f8fc;
             --app-bg-elevated: #ffffff;
-            --app-text: #14211d;
-            --app-text-muted: #3d524a;
-            --app-ink: #0f2744;
-            --app-accent: #145c4c;
-            --app-icon: #0f2744;
-            --app-table: #0f2744;
-            --app-table-soft: #e8eef4;
-            --app-border: #d0dcd6;
-            --app-gold: #b45309;
-            --app-modal-scrim: rgba(15, 39, 68, 0.48);
-            --app-shadow: 0 10px 40px rgba(15, 39, 68, 0.12);
+            --app-text: #0f172a;
+            --app-text-muted: #475569;
+            --app-ink: #1d4ed8;
+            --app-accent: #059669;
+            --app-warm: #f59e0b;
+            --app-coral: #f43f5e;
+            --app-sky: #0ea5e9;
+            --app-icon: #1d4ed8;
+            --app-table: #1d4ed8;
+            --app-table-soft: #eff6ff;
+            --app-border: #bfdbfe;
+            --app-gold: #d97706;
+            --app-modal-scrim: rgba(15, 23, 42, 0.45);
+            --app-shadow: 0 12px 36px rgba(29, 78, 216, 0.14);
         }
         body {
             font-family: 'IBM Plex Sans Arabic', sans-serif;
             background:
-                radial-gradient(900px 420px at 100% -10%, rgba(20, 92, 76, 0.08), transparent 55%),
-                radial-gradient(700px 360px at 0% 100%, rgba(15, 39, 68, 0.06), transparent 50%),
-                var(--app-bg);
+                radial-gradient(900px 420px at 100% -8%, rgba(14, 165, 233, 0.18), transparent 55%),
+                radial-gradient(780px 380px at 0% 100%, rgba(5, 150, 105, 0.14), transparent 52%),
+                radial-gradient(640px 300px at 70% 80%, rgba(245, 158, 11, 0.10), transparent 50%),
+                linear-gradient(180deg, #eef6ff 0%, #f3f8fc 40%, #f0fdf4 100%);
             color: var(--app-text);
             min-height: 100vh;
         }
@@ -474,13 +478,13 @@
         }
         .excel-grid thead th,
         .app-data-grid thead th {
-            background: var(--app-ink) !important;
+            background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 45%, #059669 130%) !important;
             color: #ffffff !important;
             font-weight: 700;
             font-size: 12px;
             text-align: center;
             padding: 11px 8px;
-            border-color: #1a3a55 !important;
+            border-color: #1e40af !important;
             white-space: nowrap;
             position: sticky;
             top: 0;
@@ -490,11 +494,11 @@
         }
         .excel-grid tbody tr:nth-child(even) td,
         .app-data-grid tbody tr:nth-child(even) td {
-            background: #f3f7f5;
+            background: #eff6ff;
         }
         .excel-grid tbody tr:hover td,
         .app-data-grid tbody tr:hover td {
-            background: #e8eef4 !important;
+            background: #dbeafe !important;
         }
         .app-data-grid td {
             padding: 10px 8px;
@@ -530,10 +534,10 @@
             white-space: nowrap;
             font-family: 'Cairo', sans-serif;
         }
-        .status-pending { background: #fff7ed; color: #c2410c; }
-        .status-wait { background: #eef2f0; color: #4b635a; }
-        .status-ok { background: #e8eef4; color: #0f2744; }
-        .status-bad { background: #fef2f2; color: #b91c1c; }
+        .status-pending { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
+        .status-wait { background: #f0f9ff; color: #0369a1; border: 1px solid #7dd3fc; }
+        .status-ok { background: #ecfdf5; color: #047857; border: 1px solid #6ee7b7; }
+        .status-bad { background: #fff1f2; color: #be123c; border: 1px solid #fda4af; }
         .act-btn {
             border: 0;
             border-radius: 6px;
@@ -548,29 +552,29 @@
             gap: 4px;
             font-family: 'Cairo', sans-serif;
         }
-        .act-ok { background: #e8eef4; color: #0f2744; }
-        .act-ok:hover { background: #d5e0ea; }
-        .act-bad { background: #ffecec; color: #ba1a1a; }
-        .act-bad:hover { background: #ffdad6; }
+        .act-ok { background: #dbeafe; color: #1e3a8a; }
+        .act-ok:hover { background: #bfdbfe; }
+        .act-bad { background: #ffe4e6; color: #be123c; }
+        .act-bad:hover { background: #fecdd3; }
         .btn-primary-app {
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            background: var(--app-ink);
+            background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #0891b2 120%);
             color: #fff;
-            border: 1px solid var(--app-ink);
+            border: 0;
             border-radius: 0.75rem;
             padding: 0.7rem 1.35rem;
             font-size: 13px;
             font-weight: 700;
             letter-spacing: 0.02em;
-            transition: background 0.2s, transform 0.15s;
+            transition: filter 0.2s, transform 0.15s;
             white-space: nowrap;
-            box-shadow: 0 2px 8px rgba(15,39,68,0.18);
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
             font-family: 'Cairo', sans-serif;
         }
-        .btn-primary-app:hover { background: #1a3a55; }
+        .btn-primary-app:hover { filter: brightness(1.06); transform: translateY(-1px); }
         .btn-primary-app .material-symbols-outlined {
             color: #fff !important;
             font-size: 20px;
@@ -624,7 +628,7 @@
             justify-content: space-between;
             gap: 12px;
             padding: 16px 20px;
-            background: linear-gradient(135deg, #0f2744 0%, #1a3a55 55%, #145c4c 140%);
+            background: linear-gradient(120deg, #1d4ed8 0%, #2563eb 40%, #059669 115%);
             color: #fff;
         }
         .app-modal-head h3 {
@@ -653,7 +657,7 @@
         .app-modal-body {
             padding: 20px;
             overflow: auto;
-            background: linear-gradient(180deg, #f8fbf9 0%, #ffffff 40%);
+            background: linear-gradient(180deg, #eff6ff 0%, #ffffff 45%);
         }
         .app-modal-foot {
             display: flex;
@@ -761,8 +765,8 @@
             gap: 12px;
             margin-bottom: 12px;
             padding: 10px 12px;
-            background: linear-gradient(135deg, #e8eef4, #eef3f0);
-            border: 1px solid var(--app-border);
+            background: linear-gradient(135deg, #eff6ff, #ecfdf5);
+            border: 1px solid #bfdbfe;
             border-radius: 10px;
         }
     </style>
