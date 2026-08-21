@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}نقص التوزيع والزيادات - عمليات الفرش{% endblock %}
+
+{% block header_search %}
+<form method="get" class="relative w-full flex gap-2 items-center">
+    <input type="date" name="date" value="{{ record_date|date:'Y-m-d' }}"
+           class="bg-surface-container-low border border-outline-variant rounded-full py-2 px-3 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+           onchange="this.form.submit()">
+    <select name="type" onchange="this.form.submit()"
+            class="bg-surface-container-low border border-outline-variant rounded-full py-2 px-3 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary">
+        <option value="" {% if not type_filter %}selected{% endif %}>الكل</option>
+        <option value="shortage" {% if type_filter == 'shortage' %}selected{% endif %}>نقص</option>
+        <option value="excess" {% if type_filter == 'excess' %}selected{% endif %}>زيادة</option>
+    </select>
+    <div class="relative flex-1">
+        <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+        <input name="q" value="{{ q }}" class="w-full bg-surface-container-low border border-outline-variant rounded-full py-2 pr-10 pl-4 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" placeholder="بحث: صنف، فرع، مورد..." type="text">
+    </div>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row md:items-center justify-between mb-lg gap-md">
+    <div>
+        <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">نقص التوزيع والزيادات</h2>
+        <p class="text-on-surface-variant font-body-md text-body-md mt-xs">
+            سجلات يوم
+            <b>{{ record_date|date:"Y/m/d" }}</b>
+            {% if record_date == today %}(اليوم){% endif %}
+            — بعد تعميد المستلم تُرسل رسالة واتساب للمورد بالنقص أو الزيادة.
+        </p>
+    </div>
+    <button type="button" class="btn-primary-app"
+            onclick="document.getElementById('newVarianceModal').classList.remove('hidden')">
+        <span class="material-symbols-outlined">add</span>
+        سجل جديد
+    </button>
+</div>
+
+<div class="app-table-frame w-full max-w-full">
+    <div class="app-toolbar">
+        <span class="font-label-md text-label-md font-bold text-on-surface flex items-center gap-sm">
+            <span class="material-symbols-outlined">swap_vert</span>
+            السجلات ({{ rows|length }})
+        </span>
+    </div>
+    <div class="app-table-sheet overflow-x-auto bg-white">
+        <table class="excel-grid app-data-grid w-full">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>النوع</th>
+                <th>اسم الصنف</th>
+                <th>الكمية</th>
+                <th>الفرع</th>
+                <th>المورد</th>
+                <th>الحالة</th>
+                <th>إجراء</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in rows %}
+            <tr>
+                <td class="row-num cell-center">{{ forloop.counter }}</td>
+                <td class="cell-center">
+                    {% if row.variance_type == 'shortage' %}
+                    <span class="status-chip status-bad">نقص</span>
+                    {% else %}
+                    <span class="status-chip status-wait">زيادة</span>
+                    {% endif %}
+                </td>
+                <td class="cell-strong">
+                    {{ row.item_name }}
+                    {% if row.item_number %}
+                    <span class="text-on-surface-variant text-xs font-bold block" dir="ltr">{{ row.item_number }}</span>
+                    {% endif %}
+                </td>
+                <td class="cell-center cell-strong">{{ row.quantity }}</td>
+                <td>{{ row.branch }}</td>
+                <td>{{ row.supplier }}</td>
+                <td class="cell-center">
+                    {% if row.status == 'authorized' %}
+                    <span class="status-chip status-ok">معتمد</span>
+                    {% elif row.status == 'rejected' %}
+                    <span class="status-chip status-bad">مرفوض</span>
+                    {% else %}
+                    <span class="status-chip status-pending">بانتظار المستلم</span>
+                    {% endif %}
+                </td>
+                <td class="cell-center">
+                    <div class="flex flex-wrap gap-1 justify-center">
+                        {% if can_authorize and row.status == 'pending' %}
+                        <form method="post" action="{% url 'ops:distribution_variance_authorize' row.pk %}" class="inline"
+                              onsubmit="return confirm('تعميد وإرسال إشعار للمورد؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-approve">تعميد</button>
+                        </form>
+                        <form method="post" action="{% url 'ops:distribution_variance_reject' row.pk %}" class="inline"
+                              onsubmit="return confirm('رفض هذا السجل؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-reject">رفض</button>
+                        </form>
+                        {% endif %}
+                        {% if user.is_manager or row.created_by_id == user.id %}
+                        <form method="post" action="{% url 'ops:distribution_variance_delete' row.pk %}" class="inline"
+                              onsubmit="return confirm('حذف سجل «{{ row.item_name }}»؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-delete">حذف</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" class="empty-row">لا سجلات لهذا اليوم — اضغط «سجل جديد».</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="app-modal hidden" id="newVarianceModal">
+    <div class="app-modal-panel app-modal-panel--xl">
+        <div class="app-modal-head">
+            <h3>نقص / زيادة توزيع</h3>
+            <button type="button" class="app-modal-close" aria-label="إغلاق"
+                    onclick="document.getElementById('newVarianceModal').classList.add('hidden')">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <form method="post" action="{% url 'ops:distribution_variance_create' %}" class="flex flex-col overflow-hidden">
+            {% csrf_token %}
+            <div class="app-modal-body flex flex-col gap-md">
+                <div class="flex flex-col gap-sm max-w-xs">
+                    <label class="font-label-md text-label-md text-on-surface" for="varDate">التاريخ</label>
+                    <input type="date" name="record_date" id="varDate" value="{{ record_date|date:'Y-m-d' }}" required
+                           class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 font-body-md text-body-md">
+                </div>
+
+                <div class="flex items-center justify-between gap-sm">
+                    <span class="font-label-md text-label-md font-bold text-on-surface">الأصناف</span>
+                    <button type="button" id="addVarianceRow"
+                            class="flex items-center gap-xs px-md py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface hover:bg-surface-container-low transition-colors">
+                        <span class="material-symbols-outlined text-[18px]">add</span>
+                        إضافة صف
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto border border-outline-variant rounded-xl">
+                    <table class="w-full text-right border-collapse min-w-[980px]">
+                        <thead class="bg-surface-container-low">
+                        <tr>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-10">#</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">النوع</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">اسم الصنف</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">الكمية</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">الفرع</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">المورد</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-14"></th>
+                        </tr>
+                        </thead>
+                        <tbody id="varianceRows" class="divide-y divide-outline-variant"></tbody>
+                    </table>
+                </div>
+                <p class="text-xs text-on-surface-variant font-bold m-0">
+                    بعد تعميد المستلم تُرسل رسالة واتساب للمورد (يجب تسجيل رقم المورد في التهيئة).
+                </p>
+            </div>
+            <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
+                <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md"
+                        onclick="document.getElementById('newVarianceModal').classList.add('hidden')">إلغاء</button>
+                <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:bg-primary/90">حفظ</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const tbody = document.getElementById('varianceRows');
+    const addBtn = document.getElementById('addVarianceRow');
+    if (!tbody || !addBtn) return;
+
+    const inputClass = 'w-full bg-surface border border-outline-variant rounded-lg py-2 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface';
+    const branchOptions = `{% for b in branches %}<option value="{{ b|escapejs }}" {% if b == default_branch %}selected{% endif %}>{{ b|escapejs }}</option>{% endfor %}`;
+    const supplierOptions = `{% for s in suppliers %}<option value="{{ s|escapejs }}">{{ s|escapejs }}</option>{% endfor %}`;
+
+    function renumber() {
+        tbody.querySelectorAll('tr').forEach((tr, i) => {
+            const num = tr.querySelector('[data-row-num]');
+            if (num) num.textContent = String(i + 1);
+        });
+    }
+
+    function addRow() {
+        const tr = document.createElement('tr');
+        tr.className = 'bg-surface-container-lowest';
+        tr.innerHTML = `
+            <td class="p-2 text-on-surface-variant font-label-md text-label-md text-center" data-row-num></td>
+            <td class="p-2">
+                <select name="variance_type" required class="${inputClass} app-select">
+                    <option value="">اختر...</option>
+                    <option value="shortage">نقص</option>
+                    <option value="excess">زيادة</option>
+                </select>
+            </td>
+            <td class="p-2">
+                <input name="item_name" type="text" required list="catalogNames" placeholder="اسم الصنف" class="${inputClass}">
+                <input name="item_number" type="hidden" value="">
+            </td>
+            <td class="p-2"><input name="quantity" type="number" min="1" value="1" required class="${inputClass}"></td>
+            <td class="p-2">
+                <select name="branch" required class="${inputClass} app-select">
+                    <option value="">اختر الفرع...</option>
+                    ${branchOptions}
+                </select>
+            </td>
+            <td class="p-2">
+                <select name="supplier" required class="${inputClass} app-select">
+                    <option value="">اختر المورد...</option>
+                    ${supplierOptions}
+                </select>
+            </td>
+            <td class="p-2 text-center">
+                <button type="button" class="text-error hover:bg-error-container p-1 rounded-full remove-row" title="حذف الصف">
+                    <span class="material-symbols-outlined text-[20px]">delete</span>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        renumber();
+    }
+
+    addBtn.addEventListener('click', addRow);
+    tbody.addEventListener('click', (e) => {
+        const btn = e.target.closest('.remove-row');
+        if (!btn) return;
+        if (tbody.querySelectorAll('tr').length <= 1) return;
+        btn.closest('tr').remove();
+        renumber();
+    });
+
+    addRow();
+})();
+</script>
+<datalist id="catalogNames">
+{% for c in catalog %}<option value="{{ c.name }}"></option>{% endfor %}
+</datalist>
+{% endblock %}

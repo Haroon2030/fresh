@@ -21,6 +21,7 @@ from .models import (
     CatalogItem,
     DailyOrder,
     DailySupplyDistribution,
+    DistributionVariance,
     ReturnBatch,
     ReturnRequest,
     SupplyOrder,
@@ -50,6 +51,7 @@ from .notify_ops import (
     schedule_task_assigned,
     schedule_task_review_result,
     schedule_task_submitted,
+    schedule_variance_authorized,
 )
 
 User = get_user_model()
@@ -571,6 +573,174 @@ def daily_distribution_delete(request, pk):
     row.delete()
     messages.success(request, f'تم حذف توزيع «{label}».')
     return redirect(f"{reverse('ops:daily_distribution')}?date={dist_date.isoformat()}")
+
+
+@login_required
+def distribution_variance_list(request):
+    q = (request.GET.get('q') or '').strip()
+    date_raw = (request.GET.get('date') or '').strip()
+    type_filter = (request.GET.get('type') or '').strip()
+    today = timezone.localdate()
+    if date_raw:
+        try:
+            record_date = datetime.strptime(date_raw, '%Y-%m-%d').date()
+        except ValueError:
+            record_date = today
+    else:
+        record_date = today
+
+    qs = DistributionVariance.objects.select_related(
+        'created_by', 'authorized_by',
+    ).filter(record_date=record_date)
+    if type_filter in dict(DistributionVariance.VarianceType.choices):
+        qs = qs.filter(variance_type=type_filter)
+    if q:
+        qs = qs.filter(
+            Q(item_name__icontains=q)
+            | Q(item_number__icontains=q)
+            | Q(branch__icontains=q)
+            | Q(supplier__icontains=q)
+            | Q(notes__icontains=q)
+        )
+
+    catalog = list(
+        CatalogItem.objects.order_by('name').values('item_number', 'name')[:500]
+    )
+    return render(request, 'ops/distribution_variance.html', {
+        'rows': qs.order_by('-created_at', 'pk'),
+        'q': q,
+        'record_date': record_date,
+        'today': today,
+        'type_filter': type_filter,
+        'branches': Branch.active_names(),
+        'suppliers': Supplier.active_names(),
+        'catalog': catalog,
+        'active_nav': 'variance',
+        'can_authorize': request.user.is_receiver or request.user.is_manager,
+    })
+
+
+@login_required
+@require_POST
+def distribution_variance_create(request):
+    date_raw = (request.POST.get('record_date') or '').strip()
+    today = timezone.localdate()
+    if date_raw:
+        try:
+            record_date = datetime.strptime(date_raw, '%Y-%m-%d').date()
+        except ValueError:
+            record_date = today
+    else:
+        record_date = today
+
+    variance_types = request.POST.getlist('variance_type')
+    item_names = request.POST.getlist('item_name')
+    item_numbers = request.POST.getlist('item_number')
+    branches = request.POST.getlist('branch')
+    quantities = request.POST.getlist('quantity')
+    suppliers = request.POST.getlist('supplier')
+    notes_list = request.POST.getlist('notes')
+    default_branch = Branch.default_name()
+
+    created = 0
+    for i, item_name in enumerate(item_names):
+        item_name = (item_name or '').strip()
+        if not item_name:
+            continue
+        vtype = (variance_types[i] if i < len(variance_types) else '').strip()
+        if vtype not in dict(DistributionVariance.VarianceType.choices):
+            messages.error(request, f'اختر نوع النقص/الزيادة للصنف «{item_name}».')
+            return redirect(f"{reverse('ops:distribution_variance')}?date={record_date.isoformat()}")
+        branch = (branches[i] if i < len(branches) else '').strip() or default_branch
+        if not branch:
+            messages.error(request, f'اختر الفرع للصنف «{item_name}».')
+            return redirect(f"{reverse('ops:distribution_variance')}?date={record_date.isoformat()}")
+        supplier = (suppliers[i] if i < len(suppliers) else '').strip()
+        if not supplier:
+            messages.error(request, f'اختر المورد للصنف «{item_name}».')
+            return redirect(f"{reverse('ops:distribution_variance')}?date={record_date.isoformat()}")
+        qty_raw = quantities[i] if i < len(quantities) else '1'
+        try:
+            quantity = max(1, int(qty_raw or 1))
+        except (TypeError, ValueError):
+            quantity = 1
+        DistributionVariance.objects.create(
+            record_date=record_date,
+            variance_type=vtype,
+            item_name=item_name,
+            item_number=(item_numbers[i] if i < len(item_numbers) else '').strip(),
+            branch=branch,
+            quantity=quantity,
+            supplier=supplier,
+            notes=(notes_list[i] if i < len(notes_list) else '').strip(),
+            created_by=request.user,
+        )
+        created += 1
+
+    if not created:
+        messages.error(request, 'أضف صنفاً واحداً على الأقل.')
+    else:
+        messages.success(
+            request,
+            f'تم تسجيل {created} سجل نقص/زيادة — بانتظار تعميد المستلم لإشعار المورد.',
+        )
+    return redirect(f"{reverse('ops:distribution_variance')}?date={record_date.isoformat()}")
+
+
+@login_required
+@require_POST
+def distribution_variance_authorize(request, pk):
+    row = get_object_or_404(DistributionVariance, pk=pk)
+    if not (request.user.is_receiver or request.user.is_manager):
+        messages.error(request, 'تعميد النقص/الزيادة متاح للمستلم أو مدير العمليات فقط.')
+        return redirect('ops:distribution_variance')
+    if row.status != DistributionVariance.Status.PENDING:
+        messages.error(request, 'تم اتخاذ قرار مسبقاً على هذا السجل.')
+        return redirect(f"{reverse('ops:distribution_variance')}?date={row.record_date.isoformat()}")
+
+    row.status = DistributionVariance.Status.AUTHORIZED
+    row.authorized_by = request.user
+    row.authorized_at = timezone.now()
+    row.save(update_fields=['status', 'authorized_by', 'authorized_at', 'updated_at'])
+    schedule_variance_authorized(row.pk, request.user.pk)
+    messages.success(
+        request,
+        f'تم تعميد «{row.item_name}» ({row.get_variance_type_display()}) وإرسال إشعار للمورد.',
+    )
+    return redirect(f"{reverse('ops:distribution_variance')}?date={row.record_date.isoformat()}")
+
+
+@login_required
+@require_POST
+def distribution_variance_reject(request, pk):
+    row = get_object_or_404(DistributionVariance, pk=pk)
+    if not (request.user.is_receiver or request.user.is_manager):
+        messages.error(request, 'رفض السجل متاح للمستلم أو مدير العمليات فقط.')
+        return redirect('ops:distribution_variance')
+    if row.status != DistributionVariance.Status.PENDING:
+        messages.error(request, 'تم اتخاذ قرار مسبقاً على هذا السجل.')
+        return redirect(f"{reverse('ops:distribution_variance')}?date={row.record_date.isoformat()}")
+
+    row.status = DistributionVariance.Status.REJECTED
+    row.authorized_by = request.user
+    row.authorized_at = timezone.now()
+    row.save(update_fields=['status', 'authorized_by', 'authorized_at', 'updated_at'])
+    messages.success(request, f'تم رفض سجل «{row.item_name}».')
+    return redirect(f"{reverse('ops:distribution_variance')}?date={row.record_date.isoformat()}")
+
+
+@login_required
+@require_POST
+def distribution_variance_delete(request, pk):
+    row = get_object_or_404(DistributionVariance, pk=pk)
+    if not (request.user.is_manager or row.created_by_id == request.user.id):
+        messages.error(request, 'لا يمكنك حذف هذا السجل.')
+        return redirect('ops:distribution_variance')
+    record_date = row.record_date
+    label = row.item_name
+    row.delete()
+    messages.success(request, f'تم حذف سجل «{label}».')
+    return redirect(f"{reverse('ops:distribution_variance')}?date={record_date.isoformat()}")
 
 
 @login_required

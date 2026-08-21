@@ -1021,6 +1021,10 @@
             <span class="material-symbols-outlined shrink-0 {% if active_nav == 'distribution' %}filled-icon{% endif %}">local_shipping</span>
             <span class="nav-label">توزيع التوريد اليومي</span>
         </a>
+        <a class="nav-link {% if active_nav == 'variance' %}is-active{% endif %}" href="{% url 'ops:distribution_variance' %}" title="نقص التوزيع والزيادات">
+            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'variance' %}filled-icon{% endif %}">swap_vert</span>
+            <span class="nav-label">نقص التوزيع والزيادات</span>
+        </a>
         <a class="nav-link {% if active_nav == 'returns' %}is-active{% endif %}" href="{% url 'ops:returns' %}" title="المرتجعات">
             <span class="material-symbols-outlined shrink-0 {% if active_nav == 'returns' %}filled-icon{% endif %}">assignment_return</span>
             <span class="nav-label">المرتجعات</span>
@@ -1104,6 +1108,10 @@
     <a href="{% url 'ops:daily_distribution' %}" class="flex flex-col items-center gap-1 px-2 py-1 {% if active_nav == 'distribution' %}text-primary{% else %}text-on-surface-variant{% endif %}">
         <span class="material-symbols-outlined">local_shipping</span>
         <span class="text-[10px] font-bold">التوزيع</span>
+    </a>
+    <a href="{% url 'ops:distribution_variance' %}" class="flex flex-col items-center gap-1 px-2 py-1 {% if active_nav == 'variance' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+        <span class="material-symbols-outlined">swap_vert</span>
+        <span class="text-[10px] font-bold">نقص/زيادة</span>
     </a>
     <a href="{% url 'ops:returns' %}" class="flex flex-col items-center gap-1 px-2 py-1 {% if active_nav == 'returns' %}text-primary{% else %}text-on-surface-variant{% endif %}">
         <span class="material-symbols-outlined">assignment_return</span>

@@ -5,6 +5,7 @@ from .models import (
     CatalogItem,
     DailyOrder,
     DailySupplyDistribution,
+    DistributionVariance,
     EvolutionConfig,
     ReturnRequest,
     SupplyOrder,
@@ -93,6 +94,17 @@ class DailySupplyDistributionAdmin(admin.ModelAdmin):
     list_filter = ('distribution_date', 'branch')
     search_fields = ('item_name', 'item_number', 'branch', 'notes')
     raw_id_fields = ('created_by',)
+
+
+@admin.register(DistributionVariance)
+class DistributionVarianceAdmin(admin.ModelAdmin):
+    list_display = (
+        'record_date', 'variance_type', 'item_name', 'branch', 'quantity',
+        'supplier', 'status', 'authorized_by', 'created_at',
+    )
+    list_filter = ('variance_type', 'status', 'record_date', 'branch')
+    search_fields = ('item_name', 'item_number', 'branch', 'supplier', 'notes')
+    raw_id_fields = ('created_by', 'authorized_by')
 
 
 @admin.register(EvolutionConfig)

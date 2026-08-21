@@ -667,6 +667,69 @@ class DailySupplyDistribution(models.Model):
         super().save(*args, **kwargs)
 
 
+class DistributionVariance(models.Model):
+    """نقص أو زيادة في التوزيع — يتعمدها المستلم ثم يُبلَّغ المورد."""
+
+    class VarianceType(models.TextChoices):
+        SHORTAGE = 'shortage', 'نقص'
+        EXCESS = 'excess', 'زيادة'
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'بانتظار تعميد المستلم'
+        AUTHORIZED = 'authorized', 'معتمد'
+        REJECTED = 'rejected', 'مرفوض'
+
+    record_date = models.DateField(verbose_name='التاريخ', db_index=True)
+    variance_type = models.CharField(
+        max_length=20,
+        choices=VarianceType.choices,
+        verbose_name='النوع',
+    )
+    item_name = models.CharField(max_length=255, verbose_name='اسم الصنف')
+    item_number = models.CharField(max_length=100, blank=True, verbose_name='رقم الصنف')
+    branch = models.CharField(max_length=150, verbose_name='الفرع')
+    quantity = models.PositiveIntegerField(default=1, verbose_name='الكمية')
+    supplier = models.CharField(max_length=150, verbose_name='المورد')
+    notes = models.CharField(max_length=255, blank=True, verbose_name='ملاحظات')
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        verbose_name='الحالة',
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='created_variances',
+        verbose_name='أنشئ بواسطة',
+    )
+    authorized_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='authorized_variances',
+        verbose_name='عمّد بواسطة',
+    )
+    authorized_at = models.DateTimeField(null=True, blank=True, verbose_name='وقت التعميد')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-record_date', '-created_at']
+        verbose_name = 'نقص/زيادة توزيع'
+        verbose_name_plural = 'نقص التوزيع والزيادات'
+
+    def __str__(self):
+        return f'{self.get_variance_type_display()} — {self.item_name} × {self.quantity}'
+
+    def save(self, *args, **kwargs):
+        if not self.record_date:
+            from django.utils import timezone
+            self.record_date = timezone.localdate()
+        super().save(*args, **kwargs)
+
+
 class EvolutionConfig(models.Model):
     """إعدادات Evolution المحفوظة في قاعدة البيانات (بديل عند فشل متغيرات Dokploy)."""
 

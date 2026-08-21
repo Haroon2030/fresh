@@ -501,6 +501,61 @@ def schedule_daily_distribution_notify(row_ids: list[int], actor_id: int) -> Non
     _run_in_background(f"dist-{row_ids[:1]}", _run)
 
 
+def schedule_variance_authorized(variance_id: int, actor_id: int) -> None:
+    """After receiver authorizes shortage/excess → WhatsApp the supplier."""
+
+    def _run():
+        from ops.models import DistributionVariance, Supplier
+        from ops.whatsapp import send_text
+
+        User = get_user_model()
+        row = DistributionVariance.objects.filter(pk=variance_id).first()
+        actor = User.objects.filter(pk=actor_id).first()
+        if not row or not actor:
+            return
+
+        kind = row.get_variance_type_display()
+        msg = "\n".join(
+            [
+                "════════════════════",
+                f"عمليات الفرش | إشعار {kind} توزيع",
+                "════════════════════",
+                f"النوع: {kind}",
+                f"الصنف: {row.item_name}",
+                f"رقم الصنف: {row.item_number or '—'}",
+                f"الكمية: {row.quantity}",
+                f"الفرع: {row.branch}",
+                f"المورد: {row.supplier}",
+                f"التاريخ: {row.record_date.strftime('%Y/%m/%d')}",
+                f"عمّد المستلم: {_actor_line(actor)}",
+                f"وقت التعميد: {_now_str()}",
+                "────────────────────",
+                f"يرجى مراجعة {kind} الكمية أعلاه والتنسيق مع العمليات.",
+                "════════════════════",
+            ]
+        )
+
+        supplier = Supplier.objects.filter(name=row.supplier).first()
+        phone = supplier.normalized_phone() if supplier else ""
+        if not phone:
+            logger.warning(
+                "No supplier WhatsApp for variance %s (supplier=%s)",
+                variance_id,
+                row.supplier,
+            )
+            return
+
+        ok = send_text(phone, msg)
+        if not ok:
+            logger.warning(
+                "Failed supplier WhatsApp for variance %s → %s",
+                variance_id,
+                phone,
+            )
+
+    _run_in_background(f"variance-auth-{variance_id}", _run)
+
+
 def schedule_daily_order_approved(order_id: int, actor_id: int) -> None:
     """Send purchase-order PDF to supplier via WhatsApp after approval (like returns)."""
 

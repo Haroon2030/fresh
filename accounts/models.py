@@ -64,6 +64,10 @@ class User(AbstractUser):
         return self.role == self.Role.REPRESENTATIVE
 
     @property
+    def is_receiver(self):
+        return self.role == self.Role.RECEIVER
+
+    @property
     def display_name(self):
         full = self.get_full_name().strip()
         return full or self.username
