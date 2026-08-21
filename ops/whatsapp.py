@@ -204,6 +204,30 @@ def connection_state() -> dict:
     }
 
 
+def _evolution_error_text(data) -> str:
+    """Human-readable Evolution error (Arabic-friendly)."""
+    if not isinstance(data, dict):
+        return str(data or "خطأ غير معروف")
+    msg = data.get("message")
+    if isinstance(msg, list):
+        msg = " | ".join(str(x) for x in msg)
+    if not msg:
+        nested = data.get("response") if isinstance(data.get("response"), dict) else {}
+        msg = nested.get("message") if isinstance(nested, dict) else None
+        if isinstance(msg, list):
+            msg = " | ".join(str(x) for x in msg)
+    err = data.get("error") or ""
+    parts = [p for p in (str(msg or "").strip(), str(err).strip()) if p]
+    text = " — ".join(dict.fromkeys(parts)) if parts else "خطأ غير معروف"
+    # Soften opaque API labels
+    if text.lower() in ("bad request", "forbidden", "not found"):
+        text = (
+            f"{text}. الانستانس غير جاهز — جرّب «إعادة إنشاء» مرة واحدة، "
+            "أو تأكد أن Evolution يعمل ثم حدّث الصفحة."
+        )
+    return text
+
+
 def fetch_qr(*, force: bool = False) -> dict:
     if not getattr(settings, "EVOLUTION_SERVER_URL", "") or not settings.EVOLUTION_API_KEY:
         return {"ok": False, "error": "إعدادات Evolution غير مكتملة."}
@@ -221,15 +245,21 @@ def fetch_qr(*, force: bool = False) -> dict:
             "message": "الواتساب متصل بالفعل — لا حاجة لـ QR.",
         }
 
-    # Ensure instance exists
     names = {
         (i.get("name") or i.get("instanceName") or "")
         for i in list_instances()
     }
-    if instance not in names:
+    exists = instance in names
+
+    # Missing instance → create (do not restart — restart on missing = Bad Request)
+    if not exists:
         created = create_instance()
         if not created.get("ok"):
-            return {"ok": False, "error": created.get("error") or "تعذّر إنشاء انستانس."}
+            return {
+                "ok": False,
+                "error": created.get("error") or "تعذّر إنشاء انستانس farshops.",
+                "instance": instance,
+            }
         base64, pairing, code = _extract_qr(created.get("detail") or {})
         if base64 or pairing:
             return {
@@ -241,31 +271,43 @@ def fetch_qr(*, force: bool = False) -> dict:
                 "state": "connecting",
                 "instance": instance,
             }
+        # Create ok but no QR in body — fall through to connect
+        exists = True
 
-    # NEVER auto-restart — restart drops the WhatsApp socket (401) and is why
-    # the session never stays "متصل". Only /connect for a QR when truly needed.
-    if force:
+    # force refresh: restart only when instance exists
+    if force and exists:
         _api(f"/instance/restart/{instance}", method="POST")
+
     status, data = _api(f"/instance/connect/{instance}")
     base64, pairing, code = _extract_qr(data if isinstance(data, dict) else {})
 
     if status == 404:
         created = create_instance()
         if created.get("ok"):
-            return fetch_qr(force=force)
-        return {
-            "ok": False,
-            "error": created.get("error") or "الانستانس غير موجود وتعذّر إنشاؤه.",
-            "detail": data,
-        }
+            base64, pairing, code = _extract_qr(created.get("detail") or {})
+            if base64 or pairing:
+                return {
+                    "ok": True,
+                    "connected": False,
+                    "base64": base64,
+                    "pairingCode": pairing,
+                    "code": code,
+                    "state": "connecting",
+                    "instance": instance,
+                }
+            status, data = _api(f"/instance/connect/{instance}")
+            base64, pairing, code = _extract_qr(data if isinstance(data, dict) else {})
+        else:
+            return {
+                "ok": False,
+                "error": created.get("error") or "الانستانس غير موجود وتعذّر إنشاؤه.",
+                "detail": data,
+            }
 
     if status == 0 or status >= 400:
-        err = data.get("error") or data.get("message") or "فشل جلب رمز QR"
-        if isinstance(err, list):
-            err = " | ".join(str(x) for x in err)
         return {
             "ok": False,
-            "error": str(err),
+            "error": _evolution_error_text(data if isinstance(data, dict) else {"error": data}),
             "detail": data,
             "status_code": status,
             "server_url": settings.EVOLUTION_SERVER_URL,
@@ -273,7 +315,6 @@ def fetch_qr(*, force: bool = False) -> dict:
         }
 
     if not base64 and not pairing:
-        # Maybe already connected after connect call
         again = connection_state()
         if again.get("ok"):
             return {
