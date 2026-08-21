@@ -205,7 +205,13 @@ def _from_photon(q: str, limit: int = 8) -> list[dict]:
 
 
 def _from_google(q: str, limit: int = 8) -> list[dict]:
-    key = (getattr(settings, "GOOGLE_MAPS_API_KEY", "") or "").strip()
+    import os
+
+    key = ""
+    try:
+        key = (getattr(settings, "GOOGLE_MAPS_API_KEY", "") or "").strip()
+    except Exception:
+        key = (os.environ.get("GOOGLE_MAPS_API_KEY") or "").strip()
     if not key:
         return []
     url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
