@@ -378,6 +378,62 @@ def schedule_task_review_result(task_id: int, approved: bool) -> None:
     _run_in_background(f"task-review-{task_id}", _run)
 
 
+def schedule_return_authorized(item_id: int, actor_id: int) -> None:
+    """After representative authorizes a return item → notify ops, accountant, receiver."""
+
+    def _run():
+        from ops.models import ReturnRequest
+        from ops.whatsapp import notify_roles
+
+        User = get_user_model()
+        ret = (
+            ReturnRequest.objects.select_related(
+                "batch", "representative", "rep_decided_by", "created_by"
+            )
+            .filter(pk=item_id)
+            .first()
+        )
+        actor = User.objects.filter(pk=actor_id).first()
+        if not ret or not actor:
+            return
+
+        batch_no = ret.return_number or (
+            ret.batch.return_number if ret.batch_id else "—"
+        )
+        body = "\n".join(
+            [
+                "════════════════════",
+                "عمليات الفرش | تعميد مندوب",
+                "════════════════════",
+                f"رقم الملف: {batch_no}",
+                f"الصنف: {ret.item_name}",
+                f"رقم الصنف: {ret.item_number or '—'}",
+                f"الكمية: {ret.quantity}",
+                f"النوع: {ret.get_return_type_display()}",
+                f"الفرع: {ret.batch.branch if ret.batch_id else '—'}",
+                f"المندوب: {ret.representative.display_name}",
+                f"عمّد بواسطة: {_actor_line(actor)}",
+                f"الوقت: {_now_str()}",
+                "────────────────────",
+                "المطلوب: متابعة القبول/الرفض من العمليات بعد التعميد.",
+                "════════════════════",
+            ]
+        )
+        result = notify_roles(
+            "تعميد مرتجع — للمحاسب والمستلم والعمليات",
+            body,
+            roles=User.RETURN_AUTHORIZE_NOTIFY_ROLES,
+        )
+        if result.get("error"):
+            logger.warning(
+                "Return authorize notify failed for item %s: %s",
+                item_id,
+                result.get("error"),
+            )
+
+    _run_in_background(f"return-authorize-{item_id}", _run)
+
+
 def schedule_daily_order_approved(order_id: int, actor_id: int) -> None:
     """Send purchase-order PDF to supplier via WhatsApp after approval (like returns)."""
 

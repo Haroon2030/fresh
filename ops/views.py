@@ -42,6 +42,7 @@ from .whatsapp import (
 )
 from .notify_ops import (
     schedule_daily_order_approved,
+    schedule_return_authorized,
     schedule_return_notify,
     schedule_supply_notify,
     schedule_task_assigned,
@@ -594,11 +595,8 @@ def return_rep_authorize(request, pk):
     ret.rep_decided_at = timezone.now()
     ret.save(update_fields=['rep_decision', 'rep_decided_by', 'rep_decided_at', 'updated_at'])
     messages.success(request, f'تم تعميد الصنف «{ret.item_name}».')
-    notify_roles(
-        'تعميد مرتجع',
-        f'{ret.return_number or (ret.batch.return_number if ret.batch_id else "")} — {ret.item_name}\n'
-        f'بواسطة: {request.user.display_name}',
-    )
+    schedule_return_authorized(ret.pk, request.user.pk)
+    messages.info(request, 'جاري إشعار المحاسب والمستلم والعمليات عبر واتساب.')
     return _redirect_returns(ret.batch_id)
 
 

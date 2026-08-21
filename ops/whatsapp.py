@@ -660,13 +660,15 @@ def _role_contact_phone(role: str) -> str:
     return normalize_whatsapp(contact.phone) if contact else ""
 
 
-def collect_recipient_entries(*, include_roles: bool = True) -> list[dict]:
+def collect_recipient_entries(*, include_roles: bool = True, roles: set | None = None) -> list[dict]:
     """
     Recipients for operational alerts.
     Each: {phone, label, role, user_id?}
+    If roles is set, only those roles are included (instead of NOTIFY_ROLES).
     """
     from ops.models import WhatsAppRoleContact
 
+    role_set = roles if roles is not None else (User.NOTIFY_ROLES if include_roles else set())
     entries = []
     seen = set()
 
@@ -679,9 +681,9 @@ def collect_recipient_entries(*, include_roles: bool = True) -> list[dict]:
             {"phone": phone, "label": label, "role": role, "user_id": user_id}
         )
 
-    if include_roles:
+    if role_set:
         role_labels = dict(WhatsAppRoleContact.ROLE_CHOICES)
-        for contact in WhatsAppRoleContact.objects.filter(role__in=User.NOTIFY_ROLES).exclude(
+        for contact in WhatsAppRoleContact.objects.filter(role__in=role_set).exclude(
             phone=""
         ):
             add(
@@ -689,7 +691,7 @@ def collect_recipient_entries(*, include_roles: bool = True) -> list[dict]:
                 f"{role_labels.get(contact.role, contact.role)} (جدول الأدوار)",
                 contact.role,
             )
-        for user in User.objects.filter(is_active=True, role__in=User.NOTIFY_ROLES).exclude(
+        for user in User.objects.filter(is_active=True, role__in=role_set).exclude(
             whatsapp=""
         ):
             add(
@@ -719,15 +721,17 @@ def collect_notify_phones() -> list[str]:
     return [e["phone"] for e in collect_recipient_entries(include_roles=True)]
 
 
-def notify_roles(title: str, body: str = "") -> dict:
+def notify_roles(title: str, body: str = "", *, roles: set | None = None) -> dict:
     """
-    Send WhatsApp to role contact numbers + active users in NOTIFY_ROLES.
+    Send WhatsApp to role contact numbers + active users in NOTIFY_ROLES
+    (or a custom roles set).
     Returns {sent, total, phones, error}.
     """
     if not notify_enabled():
         return {"sent": 0, "total": 0, "phones": [], "error": "الإشعارات غير مفعّلة أو الإعدادات ناقصة."}
 
-    phones = collect_notify_phones()
+    entries = collect_recipient_entries(include_roles=True, roles=roles)
+    phones = [e["phone"] for e in entries]
     if not phones:
         return {
             "sent": 0,
