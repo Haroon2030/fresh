@@ -6,7 +6,6 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -204,52 +203,6 @@ def _from_photon(q: str, limit: int = 8) -> list[dict]:
     return out
 
 
-def _from_google(q: str, limit: int = 8) -> list[dict]:
-    import os
-
-    key = ""
-    try:
-        key = (getattr(settings, "GOOGLE_MAPS_API_KEY", "") or "").strip()
-    except Exception:
-        key = (os.environ.get("GOOGLE_MAPS_API_KEY") or "").strip()
-    if not key:
-        return []
-    url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
-    params = {
-        "query": q,
-        "key": key,
-        "language": "ar",
-        "region": "sa",
-    }
-    try:
-        r = requests.get(url, params=params, timeout=10)
-        data = r.json() if r.status_code == 200 else {}
-    except requests.RequestException:
-        logger.exception("Google Places search failed")
-        return []
-    out = []
-    for item in (data.get("results") or [])[:limit]:
-        loc = (item.get("geometry") or {}).get("location") or {}
-        lat, lng = loc.get("lat"), loc.get("lng")
-        if lat is None or lng is None:
-            continue
-        title = item.get("name") or ""
-        label = item.get("formatted_address") or title
-        out.append(
-            {
-                "lat": float(lat),
-                "lng": float(lng),
-                "label": str(label)[:255],
-                "title": str(title)[:120],
-                "subtitle": str(label)[:160],
-                "source": "google",
-                "kind": ",".join(item.get("types") or [])[:80],
-                "score": _score_item(q, f"{title} {label}", "", "google") + 40,
-            }
-        )
-    return out
-
-
 def search_places(query: str, *, limit: int = 10) -> list[dict]:
     q = (query or "").strip()
     if len(q) < 2:
@@ -276,11 +229,11 @@ def search_places(query: str, *, limit: int = 10) -> list[dict]:
     variants = uniq_v[:3]
 
     pooled: list[dict] = []
-    # Always include local landmarks first (works offline / if APIs blocked)
+    # Free sources only: local landmarks + OpenStreetMap Nominatim + Photon
     pooled.extend(_from_landmarks(q))
 
-    with ThreadPoolExecutor(max_workers=5) as pool:
-        futures = [pool.submit(_from_google, q, 8)]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = []
         for v in variants:
             futures.append(pool.submit(_from_nominatim, v, 6))
             futures.append(pool.submit(_from_photon, v, 6))

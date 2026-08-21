@@ -35,8 +35,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
-  #taskMap { min-height: 320px; }
-  #taskMap .leaflet-container { font: inherit; }
+  #taskMap { min-height: 340px; background:#e2e8f0; }
   .map-layer-btn.active { background:#0f172a; color:#fff; border-color:#0f172a; }
 </style>
 
@@ -75,7 +74,7 @@
                     <div class="flex gap-2">
                         <input type="search" id="mapSearchInput" autocomplete="off"
                                class="flex-1 bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md"
-                               placeholder="ابحث: العليا، بوليفارد، جدة، نخيل مول…"
+                               placeholder="ابحث مجاناً: العليا، بوليفارد، جدة…"
                                aria-autocomplete="list" aria-controls="mapSearchResults">
                         <button type="button" id="mapSearchBtn" class="act-btn act-ok shrink-0">
                             <span class="material-symbols-outlined text-[16px] text-inherit">search</span>
@@ -84,10 +83,11 @@
                     </div>
                     <div id="mapSearchResults" class="hidden border border-sky-200 rounded-lg overflow-hidden bg-white max-h-56 overflow-y-auto shadow-sm z-20 relative"></div>
 
-                    <div class="flex flex-wrap gap-1.5" id="quickPlaces">
+                    <div class="flex flex-wrap gap-1.5">
                         <button type="button" class="quick-place px-2.5 py-1 rounded-full border border-slate-200 text-[11px] font-bold bg-white hover:bg-sky-50" data-lat="24.6931" data-lng="46.6855" data-label="حي العليا، الرياض">العليا</button>
                         <button type="button" class="quick-place px-2.5 py-1 rounded-full border border-slate-200 text-[11px] font-bold bg-white hover:bg-sky-50" data-lat="24.7675" data-lng="46.6710" data-label="بوليفارد رياض سيتي">بوليفارد</button>
                         <button type="button" class="quick-place px-2.5 py-1 rounded-full border border-slate-200 text-[11px] font-bold bg-white hover:bg-sky-50" data-lat="24.7430" data-lng="46.6620" data-label="نخيل مول، الرياض">نخيل مول</button>
+                        <button type="button" class="quick-place px-2.5 py-1 rounded-full border border-slate-200 text-[11px] font-bold bg-white hover:bg-sky-50" data-lat="24.7136" data-lng="46.6753" data-label="الرياض">الرياض</button>
                         <button type="button" class="quick-place px-2.5 py-1 rounded-full border border-slate-200 text-[11px] font-bold bg-white hover:bg-sky-50" data-lat="21.4858" data-lng="39.1925" data-label="جدة">جدة</button>
                         <button type="button" class="quick-place px-2.5 py-1 rounded-full border border-slate-200 text-[11px] font-bold bg-white hover:bg-sky-50" data-lat="26.4207" data-lng="50.0888" data-label="الدمام">الدمام</button>
                     </div>
@@ -103,8 +103,8 @@
                         </button>
                     </div>
 
-                    <div id="taskMap" class="w-full h-[340px] rounded-xl border border-sky-200 overflow-hidden z-0 shadow-inner bg-slate-100"></div>
-                    <p class="text-[12px] text-on-surface-variant">خريطة حقيقية: ابحث أو اختر اختصاراً أو انقر على الخريطة / اسحب الدبوس.</p>
+                    <div id="taskMap" class="w-full h-[340px] rounded-xl border border-sky-200 overflow-hidden z-0 shadow-inner"></div>
+                    <p class="text-[12px] text-on-surface-variant">خريطة مجانية بالكامل (بدون مفتاح): ابحث أو اختصار أو انقر على الخريطة.</p>
                     {{ form.branch }}
                     {{ form.location_lat }}
                     {{ form.location_lng }}
@@ -143,7 +143,6 @@
     const resultsBox = document.getElementById('mapSearchResults');
     const form = document.getElementById('newTaskForm');
     const placesUrl = "{% url 'ops:places_search' %}";
-    const googleKey = "{{ google_maps_api_key|default:''|escapejs }}";
 
     const DEFAULT = [24.7136, 46.6753];
     let map = null;
@@ -156,9 +155,6 @@
     let activeIdx = -1;
     let lastResults = [];
     let searchSeq = 0;
-    let gmap = null;
-    let gmarker = null;
-    let useGoogle = false;
 
     function closeModal() {
         modal.classList.add('hidden');
@@ -167,10 +163,7 @@
 
     function openModal() {
         modal.classList.remove('hidden');
-        setTimeout(() => {
-            if (useGoogle) initGoogleMap();
-            else initLeafletMap();
-        }, 60);
+        setTimeout(initMap, 60);
         setTimeout(() => searchInput && searchInput.focus(), 120);
     }
 
@@ -189,21 +182,6 @@
         lngInput.value = lng.toFixed(7);
         if (label) branchInput.value = String(label).slice(0, 255);
         if (hint) hint.classList.remove('hidden');
-
-        if (useGoogle && gmap) {
-            const pos = { lat, lng };
-            gmap.setCenter(pos);
-            gmap.setZoom(Math.max(gmap.getZoom() || 12, 15));
-            if (gmarker) gmarker.setPosition(pos);
-            else {
-                gmarker = new google.maps.Marker({ map: gmap, position: pos, draggable: true });
-                gmarker.addListener('dragend', () => {
-                    const p = gmarker.getPosition();
-                    reverseGeocode(p.lat(), p.lng());
-                });
-            }
-            return;
-        }
 
         if (marker) marker.setLatLng([lat, lng]);
         else if (map) {
@@ -239,7 +217,7 @@
         activeIdx = -1;
         resultsBox.classList.remove('hidden');
         if (!lastResults.length) {
-            resultsBox.innerHTML = '<div class="px-3 py-2.5 text-sm text-slate-500">لا نتائج — جرّب «العليا» أو اختر اختصاراً أو انقر على الخريطة.</div>';
+            resultsBox.innerHTML = '<div class="px-3 py-2.5 text-sm text-slate-500">لا نتائج — جرّب اختصاراً أو انقر على الخريطة.</div>';
             return;
         }
         resultsBox.innerHTML = '';
@@ -247,7 +225,6 @@
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'map-suggest block w-full text-right px-3 py-2.5 hover:bg-sky-50 border-b border-slate-100 last:border-0';
-            btn.dataset.idx = String(idx);
             const title = document.createElement('div');
             title.className = 'text-[13px] font-bold text-slate-900';
             title.textContent = item.title || item.label;
@@ -268,34 +245,9 @@
         });
     }
 
-    async function searchPlaces(q) {
-        q = (q || '').trim();
-        if (q.length < 2) { hideResults(); return; }
-        const seq = ++searchSeq;
-        resultsBox.classList.remove('hidden');
-        resultsBox.innerHTML = '<div class="px-3 py-2.5 text-sm text-slate-500">جاري البحث…</div>';
-        try {
-            const res = await fetch(placesUrl + '?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } });
-            const data = await res.json();
-            if (seq !== searchSeq) return;
-            let results = (data && data.results) || [];
-            // Client fallback if server empty
-            if (!results.length) {
-                results = await clientNominatim(q);
-            }
-            renderResults(results);
-        } catch (_) {
-            if (seq !== searchSeq) return;
-            try {
-                renderResults(await clientNominatim(q));
-            } catch (e2) {
-                resultsBox.innerHTML = '<div class="px-3 py-2.5 text-sm text-red-600">فشل البحث. استخدم الاختصارات أو انقر على الخريطة.</div>';
-            }
-        }
-    }
-
     async function clientNominatim(q) {
-        const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&q=' + encodeURIComponent(q + ' السعودية') +
+        const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&q=' +
+            encodeURIComponent(q + ' السعودية') +
             '&countrycodes=sa&limit=8&addressdetails=1&accept-language=ar';
         const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
         const rows = await res.json();
@@ -308,30 +260,52 @@
         }));
     }
 
+    async function searchPlaces(q) {
+        q = (q || '').trim();
+        if (q.length < 2) { hideResults(); return; }
+        const seq = ++searchSeq;
+        resultsBox.classList.remove('hidden');
+        resultsBox.innerHTML = '<div class="px-3 py-2.5 text-sm text-slate-500">جاري البحث المجاني…</div>';
+        try {
+            const res = await fetch(placesUrl + '?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+            if (seq !== searchSeq) return;
+            let results = (data && data.results) || [];
+            if (!results.length) results = await clientNominatim(q);
+            renderResults(results);
+        } catch (_) {
+            if (seq !== searchSeq) return;
+            try {
+                renderResults(await clientNominatim(q));
+            } catch (e2) {
+                resultsBox.innerHTML = '<div class="px-3 py-2.5 text-sm text-red-600">تعذّر البحث. استخدم الاختصارات أو الخريطة.</div>';
+            }
+        }
+    }
+
     function scheduleSearch() {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => searchPlaces(searchInput.value), 280);
     }
 
-    function initLeafletMap() {
+    function initMap() {
         if (!window.L) return;
         if (!mapReady) {
-            map = L.map('taskMap', { scrollWheelZoom: true, zoomControl: true }).setView(DEFAULT, 12);
+            map = L.map('taskMap', { scrollWheelZoom: true }).setView(DEFAULT, 12);
 
-            // Real street map (Esri)
-            streetLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-                maxZoom: 19,
-                attribution: 'Esri',
-            });
-            // Real satellite imagery
-            satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                maxZoom: 19,
-                attribution: 'Esri',
-            });
-            labelsLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-                maxZoom: 19,
-                opacity: 0.9,
-            });
+            // Free real map tiles (Esri — no API key)
+            streetLayer = L.tileLayer(
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+                { maxZoom: 19, attribution: 'Esri' }
+            );
+            satLayer = L.tileLayer(
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                { maxZoom: 19, attribution: 'Esri' }
+            );
+            labelsLayer = L.tileLayer(
+                'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+                { maxZoom: 19, opacity: 0.9 }
+            );
 
             streetLayer.addTo(map);
             map.on('click', (e) => reverseGeocode(e.latlng.lat, e.latlng.lng));
@@ -356,66 +330,9 @@
         setTimeout(() => map && map.invalidateSize(), 300);
     }
 
-    function initGoogleMap() {
-        if (!window.google || !google.maps) {
-            useGoogle = false;
-            initLeafletMap();
-            return;
-        }
-        const el = document.getElementById('taskMap');
-        if (!gmap) {
-            gmap = new google.maps.Map(el, {
-                center: { lat: DEFAULT[0], lng: DEFAULT[1] },
-                zoom: 12,
-                mapTypeId: 'hybrid',
-                streetViewControl: false,
-                fullscreenControl: true,
-            });
-            gmap.addListener('click', (e) => {
-                reverseGeocode(e.latLng.lat(), e.latLng.lng());
-            });
-            const ac = new google.maps.places.Autocomplete(searchInput, {
-                fields: ['geometry', 'formatted_address', 'name'],
-                componentRestrictions: { country: ['sa'] },
-            });
-            ac.addListener('place_changed', () => {
-                const place = ac.getPlace();
-                if (!place.geometry || !place.geometry.location) return;
-                const loc = place.geometry.location;
-                setLocation(loc.lat(), loc.lng(), place.formatted_address || place.name || '');
-                hideResults();
-            });
-            document.getElementById('btnMapStreet')?.addEventListener('click', () => {
-                gmap.setMapTypeId('roadmap');
-                document.getElementById('btnMapStreet').classList.add('active');
-                document.getElementById('btnMapSat').classList.remove('active');
-            });
-            document.getElementById('btnMapSat')?.addEventListener('click', () => {
-                gmap.setMapTypeId('hybrid');
-                document.getElementById('btnMapSat').classList.add('active');
-                document.getElementById('btnMapStreet').classList.remove('active');
-            });
-        }
-        google.maps.event.trigger(gmap, 'resize');
-    }
-
-    function loadGoogleThenOpen(cb) {
-        if (!googleKey) { useGoogle = false; cb(); return; }
-        if (window.google && google.maps) { useGoogle = true; cb(); return; }
-        const s = document.createElement('script');
-        s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(googleKey) + '&libraries=places&language=ar&region=SA';
-        s.async = true;
-        s.onload = () => { useGoogle = true; cb(); };
-        s.onerror = () => { useGoogle = false; cb(); };
-        document.head.appendChild(s);
-    }
-
-    openBtn?.addEventListener('click', () => {
-        loadGoogleThenOpen(openModal);
-    });
+    openBtn?.addEventListener('click', openModal);
     closeBtn?.addEventListener('click', closeModal);
     cancelBtn?.addEventListener('click', closeModal);
-
     searchBtn?.addEventListener('click', () => searchPlaces(searchInput.value));
     searchInput?.addEventListener('input', scheduleSearch);
     searchInput?.addEventListener('keydown', (e) => {
