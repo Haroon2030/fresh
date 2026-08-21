@@ -189,8 +189,14 @@ def search_places(query: str, *, limit: int = 10) -> list[dict]:
         variants.append(f"{q} السعودية")
     if "رياض" not in q and "riyadh" not in q.lower():
         variants.append(f"{q} الرياض")
-    if "فرع" in q or "مول" in q or "سوق" in q:
+    if "فرع" in q or "مول" in q or "سوق" in q or "هايبر" in q:
         variants.append(f"{q} متجر")
+        variants.append(f"{q} الرياض")
+    # Common mall shorthand
+    if "نخيل" in q and "مول" not in q:
+        variants.append("نخيل مول الرياض")
+    if "بوليفارد" in q or "boulevard" in q.lower():
+        variants.append("بوليفارد الرياض")
 
     # Deduplicate variants
     seen_v = []
