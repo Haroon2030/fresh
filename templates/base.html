@@ -331,7 +331,20 @@
             transition: background 0.2s ease;
         }
         .sidebar-user-btn:hover {
-            background: rgba(15, 39, 68, 0.10);
+            background: #eff6ff;
+        }
+        .sidebar-user-avatar {
+            background: linear-gradient(145deg, #1d4ed8 0%, #2563eb 50%, #059669 130%);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.25);
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+        }
+        .sidebar-user-avatar .material-symbols-outlined {
+            color: #fff !important;
+            visibility: visible;
+            width: auto;
+            height: auto;
+            overflow: visible;
         }
         body.sidebar-collapsed #sidebar .sidebar-user-btn {
             justify-content: center;
@@ -844,8 +857,8 @@
     <div class="sidebar-footer flex flex-col gap-sm mt-auto">
         <button type="button" class="sidebar-user-btn sidebar-user-meta w-full flex items-center gap-md px-md py-sm rounded-lg text-right"
                 title="{{ user.display_name }} — {{ user.get_role_display }}">
-            <span class="w-9 h-9 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-bold text-xs border border-outline-variant shrink-0">
-                {{ user.initials }}
+            <span class="sidebar-user-avatar w-9 h-9 rounded-full flex items-center justify-center shrink-0" aria-hidden="true">
+                <span class="material-symbols-outlined text-[22px] text-inherit filled-icon">person</span>
             </span>
             <span class="min-w-0 flex-1 sidebar-user-text">
                 <span class="block sidebar-user-name text-on-surface truncate">{{ user.display_name }}</span>
