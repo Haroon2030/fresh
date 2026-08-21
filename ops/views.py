@@ -15,7 +15,16 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
 from .forms import TaskForm
-from .models import CatalogItem, ReturnBatch, ReturnRequest, SupplyOrder, Task, WhatsAppRoleContact
+from .models import (
+    Branch,
+    CatalogItem,
+    ReturnBatch,
+    ReturnRequest,
+    SupplyOrder,
+    Task,
+    TaskResponsePhoto,
+    WhatsAppRoleContact,
+)
 from .pdf_docs import build_return_batch_pdf
 from .whatsapp import (
     collect_notify_phones,
@@ -25,11 +34,16 @@ from .whatsapp import (
     recreate_instance,
     normalize_whatsapp,
     notify_roles,
-    notify_user,
     resolve_instance_name,
     send_test_to_roles,
 )
-from .notify_ops import schedule_return_notify, schedule_supply_notify
+from .notify_ops import (
+    schedule_return_notify,
+    schedule_supply_notify,
+    schedule_task_assigned,
+    schedule_task_review_result,
+    schedule_task_submitted,
+)
 
 User = get_user_model()
 
@@ -105,8 +119,9 @@ def dashboard(request):
 
     tasks_todo = tasks_qs.filter(status=Task.Status.TODO).count()
     tasks_progress = tasks_qs.filter(status=Task.Status.IN_PROGRESS).count()
+    tasks_review = tasks_qs.filter(status=Task.Status.PENDING_REVIEW).count()
     tasks_done = tasks_qs.filter(status=Task.Status.DONE).count()
-    tasks_total = tasks_todo + tasks_progress + tasks_done
+    tasks_total = tasks_todo + tasks_progress + tasks_review + tasks_done
 
     items_total = CatalogItem.objects.count()
     users_total = User.objects.filter(is_active=True).count() if user.is_manager else None
@@ -131,8 +146,8 @@ def dashboard(request):
             'values': [supply_pending, supply_completed, supply_rejected],
         },
         'tasks_status': {
-            'labels': ['انتظار', 'تنفيذ', 'مكتمل'],
-            'values': [tasks_todo, tasks_progress, tasks_done],
+            'labels': ['انتظار', 'تنفيذ', 'مراجعة', 'مكتمل'],
+            'values': [tasks_todo, tasks_progress, tasks_review, tasks_done],
         },
     }
 
@@ -152,7 +167,7 @@ def dashboard(request):
             'returns_total': returns_total,
             'returns_pending': returns_pending,
             'tasks_total': tasks_total,
-            'tasks_open': tasks_todo + tasks_progress,
+            'tasks_open': tasks_todo + tasks_progress + tasks_review,
             'items_total': items_total,
             'users_total': users_total,
             'returns_accepted': returns_accepted,
@@ -653,14 +668,17 @@ def return_reject(request, pk):
 
 @login_required
 def tasks_board(request):
-    qs = _task_queryset(request.user)
+    qs = _task_queryset(request.user).prefetch_related('response_photos')
     q = request.GET.get('q', '').strip()
     if q:
-        qs = qs.filter(Q(title__icontains=q) | Q(description__icontains=q))
+        qs = qs.filter(
+            Q(title__icontains=q) | Q(description__icontains=q) | Q(branch__icontains=q)
+        )
 
     columns = {
         'todo': qs.filter(status=Task.Status.TODO),
         'in_progress': qs.filter(status=Task.Status.IN_PROGRESS),
+        'pending_review': qs.filter(status=Task.Status.PENDING_REVIEW),
         'done': qs.filter(status=Task.Status.DONE),
     }
     form = TaskForm() if request.user.is_manager else None
@@ -682,40 +700,12 @@ def _public_task_url(task, request=None) -> str:
     return path
 
 
-def _notify_assignee_task(task, request=None, created=False):
-    if not task.assigned_to_id:
-        return
-    link = _public_task_url(task, request)
-    lines = [
-        f'المهمة: {task.title}',
-        f'الفرع: {task.branch or "—"}',
-        f'تفاصيل الزيارة:\n{task.visit_details or task.description or "—"}',
-        f'الأولوية: {task.get_priority_display()}',
-    ]
-    if task.maps_url:
-        lines.append(f'الموقع على الخريطة: {task.maps_url}')
-    if task.due_at:
-        lines.append(f'الموعد: {timezone.localtime(task.due_at).strftime("%Y-%m-%d %H:%M")}')
-    lines.append('')
-    lines.append('افتح الرابط لعرض التفاصيل وإغلاق المهمة عند الإنجاز:')
-    lines.append(link)
-    title = 'مهمة جديدة مُسندة إليك' if created else 'تحديث مهمة'
-    notify_user(task.assigned_to, title, '\n'.join(lines))
-
-
-@login_required
-def places_search_api(request):
-    """Smart place autocomplete for task map picker."""
-    from .places import search_places
-
-    q = (request.GET.get('q') or '').strip()
-    if len(q) < 2:
-        return JsonResponse({'ok': True, 'results': []})
-    try:
-        results = search_places(q, limit=10)
-    except Exception:
-        return JsonResponse({'ok': False, 'results': [], 'error': 'تعذّر البحث عن المواقع.'}, status=500)
-    return JsonResponse({'ok': True, 'results': results, 'q': q})
+def _is_allowed_task_image(uploaded) -> bool:
+    name = (getattr(uploaded, 'name', '') or '').lower()
+    content = (getattr(uploaded, 'content_type', '') or '').lower()
+    if content.startswith('image/'):
+        return True
+    return name.endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic'))
 
 
 @manager_required
@@ -727,51 +717,110 @@ def task_create(request):
         task.created_by = request.user
         task.status = Task.Status.TODO
         task.save()
-        messages.success(request, 'تم إنشاء المهمة وإرسالها للموظف عبر واتساب إن وُجد الرقم.')
-        _notify_assignee_task(task, request, created=True)
+        messages.success(
+            request,
+            'تم إنشاء المهمة وإرسال رابط الرد للموظف عبر واتساب إن وُجد الرقم.',
+        )
+        schedule_task_assigned(task.pk)
         notify_roles(
             'مهمة جديدة',
             f'{task.title}\n'
             f'الفرع: {task.branch or "—"}\n'
             f'الموظف: {task.assigned_to.display_name if task.assigned_to_id else "—"}\n'
-            f'بواسطة: {request.user.display_name}'
-            + (f'\nالخريطة: {task.maps_url}' if task.maps_url else ''),
+            f'بواسطة: {request.user.display_name}',
         )
     else:
-        messages.error(request, 'تعذر حفظ المهمة. تحقق من البيانات (الموظف وموقع الخريطة وتفاصيل الزيارة مطلوبة).')
+        messages.error(request, 'تعذر حفظ المهمة. تحقق من العنوان والموظف والفرع.')
     return redirect('ops:tasks')
 
 
 @require_http_methods(['GET', 'POST'])
 def task_public(request, token):
     task = get_object_or_404(
-        Task.objects.select_related('assigned_to', 'created_by'),
+        Task.objects.select_related('assigned_to', 'created_by', 'reviewed_by')
+        .prefetch_related('response_photos'),
         public_token=token,
     )
-    done = False
+    submitted = False
     error = None
+
     if request.method == 'POST':
         action = request.POST.get('action')
-        if action == 'complete':
+        if action == 'submit_response':
             if task.status == Task.Status.DONE:
-                done = True
+                error = 'المهمة مغلقة ولا يمكن تعديلها.'
+            elif task.status == Task.Status.PENDING_REVIEW:
+                error = 'الرد قيد المراجعة حالياً.'
             else:
-                task.mark_done()
-                done = True
-                notify_roles(
-                    'إنجاز مهمة',
-                    f'{task.title}\n'
-                    f'الفرع: {task.branch or "—"}\n'
-                    f'الموظف: {task.assigned_to.display_name if task.assigned_to_id else "—"}\n'
-                    f'أُغلقت عبر رابط المهمة',
-                )
+                text = (request.POST.get('response_text') or '').strip()
+                files = request.FILES.getlist('photos')
+                if not text and not files and not task.response_photos.exists():
+                    error = 'أدخل نص الرد أو أرفق صورة واحدة على الأقل.'
+                else:
+                    bad = [f.name for f in files if not _is_allowed_task_image(f)]
+                    if bad:
+                        error = 'يُسمح بصور فقط (JPG/PNG/WEBP).'
+                    elif len(files) > 8:
+                        error = 'حد أقصى 8 صور في المرة الواحدة.'
+                    else:
+                        oversized = [
+                            f.name for f in files
+                            if getattr(f, 'size', 0) and f.size > 8 * 1024 * 1024
+                        ]
+                        if oversized:
+                            error = 'حجم الصورة يجب ألا يتجاوز 8MB.'
+                        else:
+                            if text or files:
+                                # keep previous text if empty update with only photos
+                                if not text and task.response_text:
+                                    text = task.response_text
+                            task.submit_for_review(text)
+                            for f in files:
+                                TaskResponsePhoto.objects.create(task=task, image=f)
+                            submitted = True
+                            schedule_task_submitted(task.pk)
         else:
             error = 'إجراء غير معروف.'
+
     return render(request, 'ops/task_public.html', {
         'task': task,
-        'just_completed': done,
+        'just_submitted': submitted,
         'error': error,
+        'can_respond': task.status in (
+            Task.Status.TODO,
+            Task.Status.IN_PROGRESS,
+        ),
     })
+
+
+@manager_required
+@require_POST
+def task_review(request, pk):
+    task = get_object_or_404(
+        Task.objects.select_related('assigned_to').prefetch_related('response_photos'),
+        pk=pk,
+    )
+    action = (request.POST.get('action') or '').strip()
+    note = (request.POST.get('review_note') or '').strip()
+
+    if task.status != Task.Status.PENDING_REVIEW and action in ('approve', 'reject'):
+        messages.error(request, 'هذه المهمة ليست بانتظار المراجعة.')
+        return redirect('ops:tasks')
+
+    if action == 'approve':
+        task.approve_response(request.user, note)
+        schedule_task_review_result(task.pk, approved=True)
+        messages.success(request, 'تم اعتماد الرد وإغلاق المهمة.')
+    elif action == 'reject':
+        if not note:
+            messages.error(request, 'اكتب ملاحظة عند رد المهمة للموظف.')
+            return redirect('ops:tasks')
+        task.reject_response(request.user, note)
+        schedule_task_review_result(task.pk, approved=False)
+        messages.success(request, 'تم رد المهمة للموظف مع الملاحظة.')
+    else:
+        messages.error(request, 'إجراء غير معروف.')
+    return redirect('ops:tasks')
 
 
 @login_required
@@ -783,28 +832,91 @@ def task_move(request, pk):
         return redirect('ops:tasks')
 
     new_status = request.POST.get('status')
+    # Employees cannot force-close without review — managers can
+    if (
+        new_status == Task.Status.DONE
+        and not request.user.is_manager
+        and task.status != Task.Status.PENDING_REVIEW
+    ):
+        messages.error(request, 'إغلاق المهمة يتم عبر رابط الرد ثم اعتماد المسؤول.')
+        return redirect('ops:tasks')
+
     if new_status in dict(Task.Status.choices):
         if new_status == Task.Status.DONE:
-            task.mark_done()
+            if request.user.is_manager and task.status == Task.Status.PENDING_REVIEW:
+                task.approve_response(request.user, 'اعتماد سريع من اللوحة')
+                schedule_task_review_result(task.pk, approved=True)
+            else:
+                task.mark_done()
         else:
             task.status = new_status
             if new_status == Task.Status.IN_PROGRESS and task.progress == 0:
                 task.progress = 45
-            task.completed_at = None
+            if new_status != Task.Status.DONE:
+                task.completed_at = None
             task.save(update_fields=['status', 'progress', 'completed_at', 'updated_at'])
         messages.success(request, 'تم تحديث حالة المهمة.')
-        notify_roles(
-            'تحديث مهمة',
-            f'{task.title}\n'
-            f'الحالة: {task.get_status_display()}\n'
-            f'بواسطة: {request.user.display_name}',
-        )
     return redirect('ops:tasks')
 
 
 @login_required
 def settings_view(request):
     return render(request, 'ops/settings.html', {'active_nav': 'settings'})
+
+
+def _normalize_branch_name(raw: str) -> str:
+    name = (raw or '').strip()
+    if not name:
+        return ''
+    if not name.startswith('فرع'):
+        name = f'فرع {name}'
+    return ' '.join(name.split())
+
+
+@manager_required
+def branches_setup(request):
+    """تهيئة الفروع — تُستخدم في اختيار موقع الفرع بالمهام."""
+    if request.method == 'POST':
+        action = (request.POST.get('action') or '').strip()
+        if action == 'add':
+            name = _normalize_branch_name(request.POST.get('name'))
+            if not name:
+                messages.error(request, 'أدخل اسم الفرع.')
+            elif Branch.objects.filter(name=name).exists():
+                messages.error(request, f'الفرع «{name}» موجود مسبقاً.')
+            else:
+                last = Branch.objects.order_by('-sort_order').values_list('sort_order', flat=True).first() or 0
+                Branch.objects.create(name=name, sort_order=last + 1, is_active=True)
+                messages.success(request, f'تمت إضافة «{name}».')
+        elif action == 'toggle':
+            branch = get_object_or_404(Branch, pk=request.POST.get('branch_id'))
+            branch.is_active = not branch.is_active
+            branch.save(update_fields=['is_active', 'updated_at'])
+            state = 'تفعيل' if branch.is_active else 'إيقاف'
+            messages.success(request, f'تم {state} «{branch.name}».')
+        elif action == 'delete':
+            branch = get_object_or_404(Branch, pk=request.POST.get('branch_id'))
+            label = branch.name
+            branch.delete()
+            messages.success(request, f'تم حذف «{label}».')
+        elif action == 'rename':
+            branch = get_object_or_404(Branch, pk=request.POST.get('branch_id'))
+            name = _normalize_branch_name(request.POST.get('name'))
+            if not name:
+                messages.error(request, 'أدخل اسم الفرع.')
+            elif Branch.objects.exclude(pk=branch.pk).filter(name=name).exists():
+                messages.error(request, f'الاسم «{name}» مستخدم لفرع آخر.')
+            else:
+                branch.name = name
+                branch.save(update_fields=['name', 'updated_at'])
+                messages.success(request, 'تم تحديث اسم الفرع.')
+        return redirect('ops:branches')
+
+    branches = Branch.objects.all().order_by('sort_order', 'name')
+    return render(request, 'ops/branches.html', {
+        'active_nav': 'branches',
+        'branches': branches,
+    })
 
 
 @manager_required
@@ -826,28 +938,40 @@ def whatsapp_hub(request):
         c.role: c.phone
         for c in WhatsAppRoleContact.objects.all()
     }
-    role_rows = []
+    notify_rows = []
+    other_rows = []
     for value, label in WhatsAppRoleContact.ROLE_CHOICES:
         users = User.objects.filter(role=value, is_active=True).order_by('first_name', 'username')
-        role_rows.append({
+        phone = contacts.get(value, '')
+        row = {
             'value': value,
             'label': label,
-            'phone': contacts.get(value, ''),
+            'phone': phone,
             'notify': value in User.NOTIFY_ROLES,
+            'filled': bool(phone),
             'users': users,
-        })
+        }
+        if row['notify']:
+            notify_rows.append(row)
+        else:
+            other_rows.append(row)
 
     state = connection_state()
     notify_phones = collect_notify_phones()
+    notify_roles_filled = sum(1 for r in notify_rows if r['filled'])
     return render(request, 'ops/whatsapp.html', {
         'active_nav': 'whatsapp',
-        'role_rows': role_rows,
+        'notify_rows': notify_rows,
+        'other_rows': other_rows,
         'wa_state': state,
         'instance_name': state.get('instance') or resolve_instance_name() or getattr(settings, 'EVOLUTION_INSTANCE_NAME', ''),
         'server_url': getattr(settings, 'EVOLUTION_SERVER_URL', ''),
+        'has_api_key': bool(getattr(settings, 'EVOLUTION_API_KEY', '')),
         'notify_enabled': getattr(settings, 'EVOLUTION_NOTIFY_ENABLED', False),
         'notify_phones_count': len(notify_phones),
         'notify_phones': notify_phones,
+        'notify_roles_filled': notify_roles_filled,
+        'notify_roles_total': len(notify_rows),
     })
 
 

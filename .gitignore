@@ -5,5 +5,6 @@ db.sqlite3
 .venv/
 venv/
 staticfiles/
+media/
 *.sqlite3
 .DS_Store

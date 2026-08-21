@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from .models import CatalogItem, ReturnRequest, SupplyOrder, Task, WhatsAppRoleContact
+from .models import Branch, CatalogItem, ReturnRequest, SupplyOrder, Task, TaskResponsePhoto, WhatsAppRoleContact
+
+
+@admin.register(Branch)
+class BranchAdmin(admin.ModelAdmin):
+    list_display = ('name', 'is_active', 'sort_order', 'updated_at')
+    list_editable = ('is_active', 'sort_order')
+    search_fields = ('name',)
+    list_filter = ('is_active',)
 
 
 @admin.register(CatalogItem)
@@ -33,8 +41,14 @@ class ReturnRequestAdmin(admin.ModelAdmin):
 class TaskAdmin(admin.ModelAdmin):
     list_display = ('title', 'branch', 'priority', 'status', 'assigned_to', 'due_at')
     list_filter = ('status', 'priority')
-    search_fields = ('title', 'branch', 'visit_details', 'public_token')
-    readonly_fields = ('public_token', 'completed_at')
+    search_fields = ('title', 'branch', 'visit_details', 'public_token', 'response_text')
+    readonly_fields = ('public_token', 'completed_at', 'response_submitted_at', 'reviewed_at')
+
+
+@admin.register(TaskResponsePhoto)
+class TaskResponsePhotoAdmin(admin.ModelAdmin):
+    list_display = ('id', 'task', 'uploaded_at')
+    raw_id_fields = ('task',)
 
 
 @admin.register(WhatsAppRoleContact)

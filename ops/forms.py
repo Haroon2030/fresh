@@ -155,37 +155,33 @@ class TaskForm(forms.ModelForm):
             'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors app-select',
         }),
     )
+    branch = forms.ChoiceField(
+        choices=[('', 'اختر الفرع...')],
+        label='موقع الفرع',
+        required=True,
+        widget=forms.Select(attrs={
+            'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors app-select',
+            'id': 'id_branch',
+        }),
+    )
 
     class Meta:
         model = Task
         fields = [
             'title', 'description', 'priority', 'assigned_to',
-            'branch', 'location_lat', 'location_lng', 'visit_details', 'due_at',
+            'branch', 'due_at',
         ]
         widgets = {
             'description': forms.Textarea(attrs={
                 'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors resize-none',
                 'rows': 3,
-                'placeholder': 'وصف عام للمهمة',
+                'placeholder': 'وصف عام للمهمة (اختياري)',
             }),
             'priority': forms.Select(attrs={
                 'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors app-select',
             }),
             'assigned_to': forms.Select(attrs={
                 'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors app-select',
-            }),
-            'branch': forms.TextInput(attrs={
-                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
-                'placeholder': 'اختر الموقع من الخريطة…',
-                'readonly': True,
-                'id': 'id_branch',
-            }),
-            'location_lat': forms.HiddenInput(attrs={'id': 'id_location_lat'}),
-            'location_lng': forms.HiddenInput(attrs={'id': 'id_location_lng'}),
-            'visit_details': forms.Textarea(attrs={
-                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors resize-none',
-                'rows': 3,
-                'placeholder': 'تفاصيل الزيارة: المطلوب، ملاحظات…',
             }),
             'due_at': forms.DateTimeInput(attrs={
                 'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
@@ -195,25 +191,38 @@ class TaskForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        from .models import Branch
+
         self.fields['assigned_to'].queryset = User.objects.filter(is_active=True).order_by(
             'first_name', 'username'
         )
         self.fields['assigned_to'].required = True
         self.fields['assigned_to'].empty_label = 'اختر الموظف...'
+        self.fields['assigned_to'].label_from_instance = (
+            lambda user: user.display_name or user.get_full_name() or user.username
+        )
         self.fields['title'].required = True
         self.fields['description'].required = False
+
+        branch_names = Branch.active_names()
+        choices = [('', 'اختر الفرع...')] + [(n, n) for n in branch_names]
+        current = ''
+        if self.is_bound:
+            current = (self.data.get('branch') or '').strip()
+        elif getattr(self.instance, 'pk', None):
+            current = (self.instance.branch or '').strip()
+        if current and current not in dict(choices):
+            choices.append((current, current))
+        self.fields['branch'].choices = choices
         self.fields['branch'].required = True
-        self.fields['location_lat'].required = True
-        self.fields['location_lng'].required = True
-        self.fields['visit_details'].required = True
+        if not branch_names:
+            self.fields['branch'].help_text = 'لا فروع نشطة — أضفها من شاشة الفروع أولاً.'
+
         self.fields['due_at'].required = False
         self.fields['description'].label = 'الوصف'
         self.fields['priority'].label = 'الأولوية'
         self.fields['assigned_to'].label = 'تعيين للموظف'
-        self.fields['branch'].label = 'موقع الفرع (من الخريطة)'
-        self.fields['location_lat'].label = ''
-        self.fields['location_lng'].label = ''
-        self.fields['visit_details'].label = 'تفاصيل الزيارة'
+        self.fields['branch'].label = 'موقع الفرع'
         self.fields['due_at'].label = 'الموعد'
 
         # Keep legacy free-text titles selectable when editing

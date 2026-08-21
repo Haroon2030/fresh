@@ -2,164 +2,524 @@
 
 {% block title %}ربط واتساب - عمليات الفرش{% endblock %}
 
-{% block content %}
-<div class="mb-lg flex flex-col sm:flex-row sm:items-end sm:justify-between gap-md">
-    <div>
-        <h2 class="font-bold text-[26px] text-black" style="font-family:'Cairo',sans-serif">ربط واتساب</h2>
-        <p class="text-[14px] text-slate-600 mt-1" style="font-family:'Cairo',sans-serif">
-            امسح رمز QR لربط الجهاز، ثم عيّن رقم واتساب لكل دور لاستلام الإشعارات.
-        </p>
-        <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-bold text-amber-900 leading-relaxed" style="font-family:'Cairo',sans-serif">
-            مهم لاستقرار الاتصال: امسح QR <u>مرة واحدة فقط</u> ثم اترك الصفحة. لا تضغط «تحديث QR» أو «إعادة إنشاء» وأنت متصل — ذلك يفصل الجلسة (401).
-            أبقِ انستانس واحد فقط (`farshops`) ولا تربط نفس الرقم على أكثر من جهاز Evolution.
-        </div>
-    </div>
-    <div class="flex flex-wrap gap-sm text-[12px] font-bold" style="font-family:'Cairo',sans-serif">
-        <span class="px-3 py-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-800">
-            Instance: {{ instance_name|default:"—" }}
-        </span>
-        <span id="waStateChip" class="px-3 py-1.5 rounded-full border
-            {% if wa_state.ok %}border-emerald-200 bg-emerald-50 text-emerald-800{% else %}border-amber-200 bg-amber-50 text-amber-800{% endif %}">
-            {% if wa_state.ok %}متصل{% elif not wa_state.configured %}غير مُعدّ{% else %}{{ wa_state.state }}{% endif %}
-        </span>
-    </div>
-</div>
+{% block extra_head %}
+<style>
+    .wa-page { font-family: 'Cairo', sans-serif; }
+    .wa-hero {
+        border: 1px solid #93c5fd;
+        border-radius: 18px;
+        padding: 22px 24px;
+        background:
+            radial-gradient(700px 220px at 100% 0%, rgba(37,99,235,.14), transparent 55%),
+            radial-gradient(520px 200px at 0% 100%, rgba(5,150,105,.12), transparent 50%),
+            linear-gradient(135deg, #eff6ff, #fff 55%, #ecfdf5);
+    }
+    .wa-hero h2 {
+        margin: 0;
+        font-size: clamp(22px, 2.4vw, 28px);
+        font-weight: 800;
+        color: #1e3a8a;
+    }
+    .wa-hero p { margin: 6px 0 0; font-size: 14px; color: #475569; font-weight: 600; }
+    .wa-status-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 16px;
+    }
+    @media (min-width: 768px) {
+        .wa-status-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+    .wa-stat {
+        background: rgba(255,255,255,.92);
+        border: 1px solid #bfdbfe;
+        border-radius: 12px;
+        padding: 12px 14px;
+    }
+    .wa-stat .lbl { font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 4px; }
+    .wa-stat .val {
+        font-size: 14px;
+        font-weight: 800;
+        color: #0f172a;
+        word-break: break-all;
+        direction: ltr;
+        text-align: right;
+    }
+    .wa-stat .val.ar { direction: rtl; text-align: right; }
+    .wa-panel {
+        border: 1px solid #93c5fd;
+        border-radius: 16px;
+        background: #fff;
+        overflow: hidden;
+        box-shadow: 0 6px 18px rgba(37,99,235,.07);
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
+    }
+    .wa-panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 14px 16px;
+        border-bottom: 1px solid #bfdbfe;
+        background: linear-gradient(135deg, #eff6ff, #ecfdf5);
+    }
+    .wa-panel-head h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 800;
+        color: #1e3a8a;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .wa-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .wa-body { padding: 20px; flex: 1; }
+    .wa-steps {
+        display: grid;
+        gap: 8px;
+        margin-top: 14px;
+    }
+    .wa-step {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        font-size: 13px;
+        font-weight: 600;
+        color: #334155;
+        line-height: 1.5;
+    }
+    .wa-step .n {
+        width: 24px; height: 24px; border-radius: 999px;
+        display: grid; place-items: center;
+        background: #1d4ed8; color: #fff;
+        font-size: 12px; font-weight: 800; flex-shrink: 0;
+    }
+    .wa-qr-frame {
+        width: min(260px, 100%);
+        aspect-ratio: 1;
+        margin: 0 auto;
+        border-radius: 16px;
+        border: 2px dashed #93c5fd;
+        background: linear-gradient(180deg, #eff6ff, #fff);
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+    }
+    .wa-qr-frame img { max-width: 100%; max-height: 100%; }
+    .wa-check {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 13px; font-weight: 700; padding: 8px 0;
+        border-bottom: 1px solid #eef2f7;
+    }
+    .wa-check:last-child { border-bottom: 0; }
+    .wa-check .ok { color: #059669; }
+    .wa-check .bad { color: #e11d48; }
+    .wa-code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        background: #0f172a;
+        color: #e2e8f0;
+        border-radius: 8px;
+        padding: 10px 12px;
+        direction: ltr;
+        text-align: left;
+        line-height: 1.6;
+        overflow-x: auto;
+    }
+    .wa-role-sec {
+        padding: 14px 16px 6px;
+    }
+    .wa-role-sec-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 10px;
+        font-size: 12px;
+        font-weight: 800;
+        color: #1e3a8a;
+        letter-spacing: .02em;
+    }
+    .wa-role-sec-title .hint {
+        font-size: 11px;
+        font-weight: 700;
+        color: #64748b;
+    }
+    .wa-role-list { display: grid; gap: 10px; }
+    .wa-role-card {
+        border: 1px solid #dbeafe;
+        border-radius: 12px;
+        padding: 12px;
+        background: #f8fbff;
+        transition: border-color .15s ease, background .15s ease;
+    }
+    .wa-role-card.is-priority {
+        border-color: #86efac;
+        background: linear-gradient(180deg, #f0fdf4, #fff);
+    }
+    .wa-role-card.is-empty.is-priority {
+        border-color: #fcd34d;
+        background: linear-gradient(180deg, #fffbeb, #fff);
+    }
+    .wa-role-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    .wa-role-name {
+        font-size: 14px;
+        font-weight: 800;
+        color: #0f172a;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .wa-role-badge {
+        font-size: 10px;
+        font-weight: 800;
+        padding: 3px 8px;
+        border-radius: 999px;
+        white-space: nowrap;
+    }
+    .wa-role-badge.ok { background: #d1fae5; color: #047857; }
+    .wa-role-badge.miss { background: #fef3c7; color: #b45309; }
+    .wa-role-badge.opt { background: #e2e8f0; color: #475569; }
+    .wa-phone-row {
+        display: flex;
+        align-items: stretch;
+        border: 1px solid #bfdbfe;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #fff;
+    }
+    .wa-phone-row:focus-within {
+        border-color: #1d4ed8;
+        box-shadow: 0 0 0 2px rgba(29,78,216,.15);
+    }
+    .wa-phone-prefix {
+        display: grid;
+        place-items: center;
+        padding: 0 10px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 12px;
+        font-weight: 800;
+        border-left: 1px solid #bfdbfe;
+        direction: ltr;
+    }
+    .wa-phone-row input {
+        flex: 1;
+        border: 0;
+        outline: none;
+        background: transparent;
+        padding: 10px 12px;
+        font-size: 15px;
+        font-weight: 700;
+        direction: ltr;
+        text-align: left;
+        min-width: 0;
+    }
+    .wa-role-users {
+        margin-top: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+    .wa-user-chip {
+        font-size: 11px;
+        font-weight: 700;
+        color: #475569;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 2px 7px;
+    }
+    .wa-progress {
+        height: 6px;
+        border-radius: 999px;
+        background: #e2e8f0;
+        overflow: hidden;
+        margin-top: 8px;
+    }
+    .wa-progress > span {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, #059669, #34d399);
+        border-radius: inherit;
+    }
+</style>
+{% endblock %}
 
-<div class="grid grid-cols-1 xl:grid-cols-2 gap-lg">
-    {# —— QR Connection —— #}
-    <section class="app-table-frame overflow-hidden">
-        <div class="app-toolbar !mb-0 rounded-none border-0 border-b border-[#dbeafe]">
-            <div class="flex items-center gap-sm">
-                <span class="material-symbols-outlined text-[#1d4ed8]">qr_code_2</span>
-                <span class="font-bold text-[16px] text-black" style="font-family:'Cairo',sans-serif">ربط الجهاز (QR)</span>
+{% block content %}
+<div class="wa-page flex flex-col gap-lg">
+
+    <section class="wa-hero">
+        <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-md">
+            <div class="min-w-0">
+                <h2>مركز ربط واتساب</h2>
+                <p>إدارة جلسة Evolution وإشعارات الأدوار التشغيلية — ربط مرة واحدة ثم أبقِ الجلسة مستقرة.</p>
             </div>
-            <div class="flex gap-sm flex-wrap">
-                <button type="button" id="btnRefreshQr" class="act-btn act-ok">
-                    <span class="material-symbols-outlined text-[16px] text-inherit">refresh</span>
-                    تحديث QR
-                </button>
-                <button type="button" id="btnRecreateWa" class="act-btn act-ok">
-                    <span class="material-symbols-outlined text-[16px] text-inherit">restart_alt</span>
-                    إعادة إنشاء
-                </button>
-                <button type="button" id="btnLogoutWa" class="act-btn act-bad">
-                    <span class="material-symbols-outlined text-[16px] text-inherit">logout</span>
-                    قطع الاتصال
-                </button>
+            <div class="flex flex-wrap gap-2 shrink-0">
+                <span id="waStateChip" class="px-3 py-1.5 rounded-full border text-[12px] font-extrabold
+                    {% if wa_state.ok %}border-emerald-300 bg-emerald-50 text-emerald-800
+                    {% elif not wa_state.configured %}border-rose-300 bg-rose-50 text-rose-800
+                    {% else %}border-amber-300 bg-amber-50 text-amber-900{% endif %}">
+                    {% if wa_state.ok %}● متصل
+                    {% elif not wa_state.configured %}● غير مُعدّ
+                    {% else %}● {{ wa_state.state }}{% endif %}
+                </span>
+                {% if notify_enabled %}
+                <span class="px-3 py-1.5 rounded-full border border-sky-300 bg-sky-50 text-sky-800 text-[12px] font-extrabold">الإشعارات مفعّلة</span>
+                {% else %}
+                <span class="px-3 py-1.5 rounded-full border border-slate-300 bg-slate-50 text-slate-600 text-[12px] font-extrabold">الإشعارات متوقفة</span>
+                {% endif %}
             </div>
         </div>
-        <div class="p-lg flex flex-col items-center gap-md bg-white min-h-[360px] justify-center">
-            {% if not wa_state.configured %}
-            <div class="text-center max-w-md">
-                <span class="material-symbols-outlined text-[48px] text-amber-500">warning</span>
-                <p class="font-bold text-[15px] mt-2" style="font-family:'Cairo',sans-serif">إعدادات Evolution غير مكتملة</p>
-                <p class="text-[13px] text-slate-500 mt-1" style="font-family:'Cairo',sans-serif">
-                    أضف في Dokploy: <code class="text-sky-700">EVOLUTION_SERVER_URL</code> و
-                    <code class="text-sky-700">EVOLUTION_API_KEY</code> و
-                    <code class="text-sky-700">EVOLUTION_INSTANCE_NAME</code>
-                </p>
+
+        <div class="wa-status-grid">
+            <div class="wa-stat">
+                <div class="lbl">الانستانس</div>
+                <div class="val">{{ instance_name|default:"—" }}</div>
             </div>
-            {% else %}
-            <div id="waConnectedBox" class="{% if not wa_state.ok %}hidden{% endif %} text-center">
-                <span class="material-symbols-outlined text-[56px] text-emerald-600">check_circle</span>
-                <p class="font-extrabold text-[18px] mt-2 text-emerald-800" style="font-family:'Cairo',sans-serif">الواتساب متصل</p>
-                <p class="text-[13px] text-slate-500 mt-1 max-w-sm mx-auto" style="font-family:'Cairo',sans-serif">
-                    إن فشل الإرسال برغم ظهور «متصل»، الجلسة قد تكون ميتة — اضغط «قطع الاتصال» ثم «تحديث QR» وامسح الرمز من جديد.
-                    استخدم انستانس واحد فقط: <b>farshops</b>. لا تمسح QR مرتين ولا تربط نفس الرقم على انستانسين.
-                </p>
-                <button type="button" id="btnTestWa" class="btn-primary-app mt-4" style="font-family:'Cairo',sans-serif">
-                    <span class="material-symbols-outlined text-[18px]">send</span>
-                    إرسال رسالة اختبار
-                </button>
-                <p id="waTestMsg" class="text-[13px] font-bold mt-2" style="font-family:'Cairo',sans-serif"></p>
+            <div class="wa-stat">
+                <div class="lbl">خادم Evolution</div>
+                <div class="val">{{ server_url|default:"غير مضبوط" }}</div>
             </div>
-            <div id="waQrBox" class="{% if wa_state.ok %}hidden{% endif %} flex flex-col items-center gap-3 w-full">
-                <div class="w-[260px] h-[260px] rounded-xl border-2 border-dashed border-sky-200 bg-sky-50/50 flex items-center justify-center overflow-hidden">
-                    <img id="waQrImg" alt="QR واتساب" class="hidden max-w-full max-h-full">
-                    <span id="waQrPlaceholder" class="text-slate-400 text-sm font-bold" style="font-family:'Cairo',sans-serif">جاري التحميل…</span>
-                </div>
-                <p id="waPairing" class="hidden text-[14px] font-bold text-sky-800" style="font-family:'Cairo',sans-serif"></p>
-                <p id="waQrMsg" class="text-[13px] text-slate-600 text-center max-w-sm" style="font-family:'Cairo',sans-serif">
-                    1) من الجوال: واتساب ← الأجهزة المرتبطة ← تسجيل الخروج من أي جهاز Evolution قديم<br>
-                    2) اضغط «تحديث QR» وامسح خلال أقل من دقيقة<br>
-                    3) إن رفض المسح: «إعادة إنشاء» ثم امسح فوراً
-                </p>
-                <p id="waQrError" class="hidden text-[13px] text-red-600 font-bold text-center" style="font-family:'Cairo',sans-serif"></p>
+            <div class="wa-stat">
+                <div class="lbl">أرقام الإشعار</div>
+                <div class="val ar">{{ notify_phones_count }} رقم جاهز</div>
             </div>
-            {% endif %}
+            <div class="wa-stat">
+                <div class="lbl">مفتاح API</div>
+                <div class="val ar">{% if has_api_key %}مضبوط{% else %}ناقص{% endif %}</div>
+            </div>
         </div>
     </section>
 
-    {# —— Role phones —— #}
-    <section class="app-table-frame overflow-hidden">
-        <div class="app-toolbar !mb-0 rounded-none border-0 border-b border-[#dbeafe]">
-            <div class="flex items-center gap-sm">
-                <span class="material-symbols-outlined text-[#1d4ed8]">contact_phone</span>
-                <span class="font-bold text-[16px] text-black" style="font-family:'Cairo',sans-serif">أرقام الأدوار</span>
+    <div class="grid grid-cols-1 xl:grid-cols-5 gap-lg items-stretch">
+
+        {# —— Connection / QR —— #}
+        <section class="wa-panel xl:col-span-3">
+            <div class="wa-panel-head">
+                <h3>
+                    <span class="material-symbols-outlined text-[22px]">qr_code_2</span>
+                    1) ربط الجلسة
+                </h3>
+                {% if wa_state.configured %}
+                <div class="wa-actions">
+                    <button type="button" id="btnRefreshQr" class="act-btn act-ok" title="يقطع الجلسة الحالية">
+                        <span class="material-symbols-outlined text-[16px] text-inherit">refresh</span>
+                        تحديث QR
+                    </button>
+                    <button type="button" id="btnRecreateWa" class="act-btn act-ok">
+                        <span class="material-symbols-outlined text-[16px] text-inherit">restart_alt</span>
+                        إعادة إنشاء
+                    </button>
+                    <button type="button" id="btnLogoutWa" class="act-btn act-bad">
+                        <span class="material-symbols-outlined text-[16px] text-inherit">logout</span>
+                        قطع الاتصال
+                    </button>
+                </div>
+                {% endif %}
             </div>
-            <span class="text-[11px] font-bold text-slate-500" style="font-family:'Cairo',sans-serif">
-                أرقام جاهزة للإشعار: {{ notify_phones_count }}
-            </span>
-        </div>
-        {% if notify_phones_count == 0 %}
-        <div class="mx-4 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-bold text-amber-900" style="font-family:'Cairo',sans-serif">
-            لم تُحفظ أرقام بعد. عبّئ رقم المدير/المحاسب أدناه ثم اضغط «حفظ الأرقام» — بدونها لن يصل إشعار عند المرتجع.
-        </div>
-        {% endif %}
-        <form method="post" class="bg-white">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="save_roles">
-            <div class="overflow-x-auto">
-                <table class="user-form-grid w-full">
-                    <thead>
-                    <tr>
-                        <th style="width:28%">الدور</th>
-                        <th>رقم واتساب</th>
-                        <th style="width:22%">المستخدمون</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {% for row in role_rows %}
-                    <tr>
-                        <th>
-                            <div class="flex flex-col gap-1">
-                                <span>{{ row.label }}</span>
-                                {% if row.notify %}
-                                <span class="status-chip status-ok w-fit">يستلم إشعارات</span>
+
+            <div class="wa-body">
+                {% if not wa_state.configured %}
+                <div class="rounded-xl border border-rose-200 bg-rose-50 p-4">
+                    <div class="flex items-start gap-3">
+                        <span class="material-symbols-outlined text-rose-600 text-[28px]">settings_alert</span>
+                        <div class="min-w-0 flex-1">
+                            <p class="font-extrabold text-[15px] text-rose-900 m-0">إعدادات Evolution غير مكتملة</p>
+                            <p class="text-[13px] text-rose-800 mt-1 mb-3 font-semibold">أضف المتغيرات التالية في Dokploy ثم أعد النشر:</p>
+                            <div class="wa-code">EVOLUTION_SERVER_URL=http://IP:8081
+EVOLUTION_API_KEY=••••••••
+EVOLUTION_INSTANCE_NAME=farshops
+EVOLUTION_NOTIFY_ENABLED=True
+EVOLUTION_VERIFY_SSL=False</div>
+                            <div class="mt-3">
+                                <div class="wa-check">
+                                    <span class="material-symbols-outlined {% if server_url %}ok{% else %}bad{% endif %} text-[18px]">{% if server_url %}check_circle{% else %}cancel{% endif %}</span>
+                                    <span>EVOLUTION_SERVER_URL</span>
+                                </div>
+                                <div class="wa-check">
+                                    <span class="material-symbols-outlined {% if has_api_key %}ok{% else %}bad{% endif %} text-[18px]">{% if has_api_key %}check_circle{% else %}cancel{% endif %}</span>
+                                    <span>EVOLUTION_API_KEY</span>
+                                </div>
+                                <div class="wa-check">
+                                    <span class="material-symbols-outlined {% if instance_name %}ok{% else %}bad{% endif %} text-[18px]">{% if instance_name %}check_circle{% else %}cancel{% endif %}</span>
+                                    <span>EVOLUTION_INSTANCE_NAME</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+
+                <div id="waConnectedBox" class="{% if not wa_state.ok %}hidden{% endif %} text-center py-4">
+                    <span class="material-symbols-outlined text-[56px] text-emerald-600">verified</span>
+                    <p class="font-extrabold text-[18px] mt-2 text-emerald-800 m-0">الجلسة متصلة وجاهزة للإرسال</p>
+                    <p class="text-[13px] text-slate-600 mt-2 max-w-md mx-auto font-semibold">
+                        لا تضغط «تحديث QR» وأنت متصل. انستانس واحد فقط: <b dir="ltr">{{ instance_name }}</b>
+                    </p>
+                    <button type="button" id="btnTestWa" class="btn-primary-app mt-4">
+                        <span class="material-symbols-outlined text-[18px]">send</span>
+                        إرسال رسالة اختبار
+                    </button>
+                    <p id="waTestMsg" class="text-[13px] font-bold mt-2"></p>
+                </div>
+
+                <div id="waQrBox" class="{% if wa_state.ok %}hidden{% endif %} flex flex-col items-center">
+                    <div class="wa-qr-frame">
+                        <img id="waQrImg" alt="QR واتساب" class="hidden">
+                        <span id="waQrPlaceholder" class="text-slate-400 text-sm font-bold px-3 text-center">جاري التحميل…</span>
+                    </div>
+                    <p id="waPairing" class="hidden text-[14px] font-bold text-sky-800 mt-3"></p>
+                    <p id="waQrError" class="hidden text-[13px] text-red-600 font-bold text-center mt-2 max-w-md"></p>
+
+                    <div class="wa-steps w-full max-w-lg">
+                        <div class="wa-step"><span class="n">1</span><span>من الجوال: واتساب ← الأجهزة المرتبطة ← احذف أي جهاز Evolution قديم.</span></div>
+                        <div class="wa-step"><span class="n">2</span><span>امسح رمز QR أعلاه خلال أقل من دقيقة — مرة واحدة فقط.</span></div>
+                        <div class="wa-step"><span class="n">3</span><span>انتظر حتى يظهر «متصل»، ثم اترك الصفحة دون تحديث QR.</span></div>
+                    </div>
+                    <p id="waQrMsg" class="hidden"></p>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        {# —— Role phones —— #}
+        <section class="wa-panel xl:col-span-2">
+            <div class="wa-panel-head">
+                <h3>
+                    <span class="material-symbols-outlined text-[22px]">contact_phone</span>
+                    2) أرقام الإشعار
+                </h3>
+                <span class="text-[11px] font-extrabold
+                    {% if notify_roles_filled == notify_roles_total %}text-emerald-700{% else %}text-amber-700{% endif %}">
+                    {{ notify_roles_filled }}/{{ notify_roles_total }} أدوار أساسية
+                </span>
+            </div>
+
+            <div class="px-4 pt-3">
+                <div class="flex items-center justify-between gap-2 text-[12px] font-bold text-slate-600">
+                    <span>جاهزية أدوار الإشعار</span>
+                    <span dir="ltr">{{ notify_phones_count }} رقم فعّال</span>
+                </div>
+                <div class="wa-progress" aria-hidden="true">
+                    <span style="width:{% widthratio notify_roles_filled notify_roles_total 100 %}%"></span>
+                </div>
+            </div>
+
+            {% if notify_roles_filled == 0 %}
+            <div class="mx-4 mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] font-bold text-amber-900">
+                ابدأ بأرقام المدير والمحاسب أدناه — بدونها لن تصل إشعارات المرتجع/التوريد.
+            </div>
+            {% endif %}
+
+            <form method="post" class="flex flex-col flex-1">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="save_roles">
+
+                <div class="wa-role-sec">
+                    <div class="wa-role-sec-title">
+                        <span>مستلمون الإشعارات (إلزامي)</span>
+                        <span class="hint">صيغة: 9665xxxxxxxx</span>
+                    </div>
+                    <div class="wa-role-list">
+                        {% for row in notify_rows %}
+                        <div class="wa-role-card is-priority {% if not row.filled %}is-empty{% endif %}">
+                            <div class="wa-role-top">
+                                <div class="wa-role-name">
+                                    <span class="material-symbols-outlined text-[18px] text-emerald-700">notifications_active</span>
+                                    {{ row.label }}
+                                </div>
+                                {% if row.filled %}
+                                <span class="wa-role-badge ok">جاهز</span>
+                                {% else %}
+                                <span class="wa-role-badge miss">ناقص</span>
                                 {% endif %}
                             </div>
-                        </th>
-                        <td>
-                            <input type="text" name="phone_{{ row.value }}" value="{{ row.phone }}"
-                                   dir="ltr" placeholder="9665xxxxxxxx"
-                                   class="w-full bg-white border border-[#bfdbfe] rounded-lg py-2.5 px-3 text-[15px] font-semibold focus:border-[#1d4ed8] focus:ring-1 focus:ring-[#1d4ed8]">
-                        </td>
-                        <td>
+                            <div class="wa-phone-row">
+                                <span class="wa-phone-prefix" title="صيغة دولية">WA</span>
+                                <input type="text" name="phone_{{ row.value }}" value="{{ row.phone }}"
+                                       dir="ltr" placeholder="9665xxxxxxxx" autocomplete="tel" inputmode="numeric">
+                            </div>
                             {% if row.users %}
-                            <div class="flex flex-col gap-1">
+                            <div class="wa-role-users">
                                 {% for u in row.users %}
-                                <span class="text-[12px] font-semibold text-slate-700" style="font-family:'Cairo',sans-serif">
-                                    {{ u.display_name }}
-                                    {% if u.whatsapp %}<span class="text-slate-400" dir="ltr">({{ u.whatsapp }})</span>{% endif %}
-                                </span>
+                                <span class="wa-user-chip">{{ u.display_name }}{% if u.whatsapp %} · <span dir="ltr">{{ u.whatsapp }}</span>{% endif %}</span>
                                 {% endfor %}
                             </div>
-                            {% else %}
-                            <span class="text-[12px] text-slate-400">لا مستخدمين</span>
                             {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            <div class="px-lg py-md border-t border-[#bfdbfe] bg-[#f8fbff] flex justify-end">
-                <button type="submit" class="btn-primary-app" style="font-family:'Cairo',sans-serif">
-                    <span class="material-symbols-outlined text-[18px]">save</span>
-                    حفظ الأرقام
-                </button>
-            </div>
-        </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="wa-role-sec" style="padding-bottom:14px">
+                    <div class="wa-role-sec-title">
+                        <span>أدوار تشغيلية (اختياري)</span>
+                        <span class="hint">لا تُرسل لها إشعارات تلقائياً</span>
+                    </div>
+                    <div class="wa-role-list">
+                        {% for row in other_rows %}
+                        <div class="wa-role-card">
+                            <div class="wa-role-top">
+                                <div class="wa-role-name">
+                                    <span class="material-symbols-outlined text-[18px] text-slate-500">person</span>
+                                    {{ row.label }}
+                                </div>
+                                <span class="wa-role-badge opt">{% if row.filled %}محفوظ{% else %}اختياري{% endif %}</span>
+                            </div>
+                            <div class="wa-phone-row">
+                                <span class="wa-phone-prefix" title="صيغة دولية">WA</span>
+                                <input type="text" name="phone_{{ row.value }}" value="{{ row.phone }}"
+                                       dir="ltr" placeholder="9665xxxxxxxx" autocomplete="tel" inputmode="numeric">
+                            </div>
+                            {% if row.users %}
+                            <div class="wa-role-users">
+                                {% for u in row.users %}
+                                <span class="wa-user-chip">{{ u.display_name }}{% if u.whatsapp %} · <span dir="ltr">{{ u.whatsapp }}</span>{% endif %}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="px-4 py-3 border-t border-[#bfdbfe] bg-[#f8fbff] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sticky bottom-0">
+                    <span class="text-[11px] font-bold text-slate-500">يُحفظ الرقم بصيغة دولية بدون +</span>
+                    <button type="submit" class="btn-primary-app">
+                        <span class="material-symbols-outlined text-[18px]">save</span>
+                        حفظ الأرقام
+                    </button>
+                </div>
+            </form>
+        </section>
+    </div>
+
+    <section class="wa-panel">
+        <div class="wa-panel-head">
+            <h3>
+                <span class="material-symbols-outlined text-[22px]">rule</span>
+                قواعد استقرار الجلسة
+            </h3>
+        </div>
+        <div class="wa-body grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div class="wa-step"><span class="n">!</span><span>امسح QR مرة واحدة فقط واترك الصفحة بعد الاتصال.</span></div>
+            <div class="wa-step"><span class="n">!</span><span>لا تربط نفس الرقم على أكثر من انستانس Evolution.</span></div>
+            <div class="wa-step"><span class="n">!</span><span>لا تحذف الجهاز من الجوال إلا عند إعادة الربط عمداً.</span></div>
+        </div>
     </section>
 </div>
 {% endblock %}
@@ -185,20 +545,20 @@
 
     function setChip(ok, state) {
         if (!chip) return;
-        chip.className = 'px-3 py-1.5 rounded-full border ' +
-            (ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800');
-        chip.textContent = ok ? 'متصل' : (state || 'غير متصل');
+        chip.className = 'px-3 py-1.5 rounded-full border text-[12px] font-extrabold ' +
+            (ok ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-amber-300 bg-amber-50 text-amber-900');
+        chip.textContent = ok ? '● متصل' : ('● ' + (state || 'غير متصل'));
     }
 
     function showConnected() {
-        connectedBox.classList.remove('hidden');
-        qrBox.classList.add('hidden');
+        if (connectedBox) connectedBox.classList.remove('hidden');
+        if (qrBox) qrBox.classList.add('hidden');
         setChip(true, 'open');
     }
 
     function showQrMode() {
-        connectedBox.classList.add('hidden');
-        qrBox.classList.remove('hidden');
+        if (connectedBox) connectedBox.classList.add('hidden');
+        if (qrBox) qrBox.classList.remove('hidden');
     }
 
     async function applyQrPayload(data) {
@@ -208,26 +568,28 @@
         }
         showQrMode();
         if (!data.ok) {
-            placeholder.textContent = 'تعذّر جلب الرمز';
-            errEl.textContent = data.error || 'خطأ غير معروف';
-            errEl.classList.remove('hidden');
+            if (placeholder) placeholder.textContent = 'تعذّر جلب الرمز';
+            if (errEl) {
+                errEl.textContent = data.error || 'خطأ غير معروف';
+                errEl.classList.remove('hidden');
+            }
             return;
         }
-        if (data.recreate_warning) {
+        if (data.recreate_warning && errEl) {
             errEl.textContent = data.recreate_warning;
             errEl.classList.remove('hidden');
         }
-        if (data.base64) {
+        if (data.base64 && img) {
             img.src = data.base64;
             img.classList.remove('hidden');
-            placeholder.classList.add('hidden');
-        } else {
+            if (placeholder) placeholder.classList.add('hidden');
+        } else if (placeholder) {
             placeholder.textContent = 'في انتظار رمز QR…';
         }
-        if (data.pairingCode) {
+        if (data.pairingCode && pairEl) {
             pairEl.textContent = 'رمز الربط: ' + data.pairingCode;
             pairEl.classList.remove('hidden');
-        } else {
+        } else if (pairEl) {
             pairEl.classList.add('hidden');
         }
         setChip(false, data.state || 'connecting');
@@ -235,9 +597,11 @@
 
     async function loadQr(force) {
         if (!img) return;
-        errEl.classList.add('hidden');
-        placeholder.classList.remove('hidden');
-        placeholder.textContent = 'جاري التحميل…';
+        if (errEl) errEl.classList.add('hidden');
+        if (placeholder) {
+            placeholder.classList.remove('hidden');
+            placeholder.textContent = 'جاري التحميل…';
+        }
         img.classList.add('hidden');
         try {
             const url = force ? (qrUrl + (qrUrl.includes('?') ? '&' : '?') + 'force=1') : qrUrl;
@@ -245,9 +609,11 @@
             const data = await res.json();
             await applyQrPayload(data);
         } catch (e) {
-            placeholder.textContent = 'فشل الاتصال';
-            errEl.textContent = String(e);
-            errEl.classList.remove('hidden');
+            if (placeholder) placeholder.textContent = 'فشل الاتصال';
+            if (errEl) {
+                errEl.textContent = String(e);
+                errEl.classList.remove('hidden');
+            }
         }
     }
 
@@ -255,12 +621,10 @@
         try {
             const res = await fetch(statusUrl, { headers: { 'Accept': 'application/json' } });
             const data = await res.json();
-            if (data.ok) {
-                showConnected();
-            } else {
+            if (data.ok) showConnected();
+            else {
                 setChip(false, data.state);
                 showQrMode();
-                // Do NOT auto-call loadQr here — that used to restart the socket every few seconds.
             }
         } catch (_) {}
     }
@@ -272,9 +636,11 @@
     document.getElementById('btnRecreateWa')?.addEventListener('click', async () => {
         if (!confirm('إعادة إنشاء انستانس واتساب وجلب QR جديد؟')) return;
         showQrMode();
-        placeholder.classList.remove('hidden');
-        placeholder.textContent = 'جاري إعادة الإنشاء…';
-        img.classList.add('hidden');
+        if (placeholder) {
+            placeholder.classList.remove('hidden');
+            placeholder.textContent = 'جاري إعادة الإنشاء…';
+        }
+        if (img) img.classList.add('hidden');
         try {
             const res = await fetch(recreateUrl, {
                 method: 'POST',
@@ -283,9 +649,11 @@
             const data = await res.json();
             await applyQrPayload(data);
         } catch (e) {
-            placeholder.textContent = 'فشل إعادة الإنشاء';
-            errEl.textContent = String(e);
-            errEl.classList.remove('hidden');
+            if (placeholder) placeholder.textContent = 'فشل إعادة الإنشاء';
+            if (errEl) {
+                errEl.textContent = String(e);
+                errEl.classList.remove('hidden');
+            }
         }
     });
     document.getElementById('btnLogoutWa')?.addEventListener('click', async () => {
@@ -316,7 +684,6 @@
                 const err = String(data.error || '');
                 if (err.includes('Closed') || err.includes('جلسة') || err.includes('QR')) {
                     showQrMode();
-                    // Soft fetch — no force restart
                     loadQr(false);
                 }
             }
@@ -328,7 +695,6 @@
         }
     });
 
-    // Poll status only. Load QR once if not connected — never auto-restart on a timer.
     pollStatus();
     setInterval(pollStatus, 10000);
     {% if not wa_state.ok %}

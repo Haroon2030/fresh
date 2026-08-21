@@ -288,3 +288,91 @@ def notify_supply_orders_saved(orders: list, *, actor, representative) -> dict:
         filename=filename,
         recipients=recipients,
     )
+
+
+def _task_public_url(task) -> str:
+    path = reverse("ops:task_public", kwargs={"token": task.public_token})
+    base = getattr(settings, "PUBLIC_BASE_URL", "") or ""
+    if base:
+        return f"{base.rstrip('/')}{path}"
+    return path
+
+
+def schedule_task_assigned(task_id: int) -> None:
+    def _run():
+        from ops.models import Task
+        from ops.whatsapp import notify_user
+
+        task = Task.objects.select_related("assigned_to", "created_by").filter(pk=task_id).first()
+        if not task or not task.assigned_to_id:
+            return
+        link = _task_public_url(task)
+        body = "\n".join([
+            f"المهمة: {task.title}",
+            f"الفرع: {task.branch or '—'}",
+            f"تفاصيل الزيارة:\n{task.visit_details or task.description or '—'}",
+            f"الأولوية: {task.get_priority_display()}",
+            "",
+            "افتح الرابط للرد (نص + صور) وإرسال المهمة للمراجعة:",
+            link,
+        ])
+        notify_user(task.assigned_to, "مهمة جديدة مُسندة إليك", body)
+
+    _run_in_background(f"task-assign-{task_id}", _run)
+
+
+def schedule_task_submitted(task_id: int) -> None:
+    def _run():
+        from ops.models import Task
+        from ops.whatsapp import notify_roles, notify_user
+
+        task = Task.objects.select_related("assigned_to", "created_by").filter(pk=task_id).first()
+        if not task:
+            return
+        link = _task_public_url(task)
+        body = "\n".join([
+            f"المهمة: {task.title}",
+            f"الفرع: {task.branch or '—'}",
+            f"الموظف: {task.assigned_to.display_name if task.assigned_to_id else '—'}",
+            f"الرد:\n{(task.response_text or '—')[:500]}",
+            f"الصور: {task.response_photos.count()}",
+            "",
+            "راجع الرد من لوحة المهام (عمود بانتظار المراجعة).",
+            f"رابط المهمة: {link}",
+        ])
+        notify_roles("رد مهمة بانتظار مراجعتك", body)
+        if task.created_by_id and getattr(task.created_by, "whatsapp", ""):
+            notify_user(task.created_by, "رد مهمة بانتظار مراجعتك", body)
+
+    _run_in_background(f"task-submit-{task_id}", _run)
+
+
+def schedule_task_review_result(task_id: int, approved: bool) -> None:
+    def _run():
+        from ops.models import Task
+        from ops.whatsapp import notify_user
+
+        task = Task.objects.select_related("assigned_to", "reviewed_by").filter(pk=task_id).first()
+        if not task or not task.assigned_to_id:
+            return
+        link = _task_public_url(task)
+        if approved:
+            title = "تم اعتماد رد المهمة وإغلاقها"
+            body = "\n".join([
+                f"المهمة: {task.title}",
+                f"الفرع: {task.branch or '—'}",
+                f"ملاحظة المراجع: {task.review_note or '—'}",
+            ])
+        else:
+            title = "رُدّت المهمة — مطلوب تصحيح"
+            body = "\n".join([
+                f"المهمة: {task.title}",
+                f"الفرع: {task.branch or '—'}",
+                f"ملاحظة المراجع: {task.review_note or '—'}",
+                "",
+                "افتح الرابط وعدّل الرد ثم أعد الإرسال:",
+                link,
+            ])
+        notify_user(task.assigned_to, title, body)
+
+    _run_in_background(f"task-review-{task_id}", _run)

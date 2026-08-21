@@ -1,89 +1,156 @@
 {% extends "base.html" %}
 
-{% block title %}تفاصيل الطلب - عمليات الفرش{% endblock %}
+{% block title %}{{ order.order_number }} — توريد{% endblock %}
+
+{% block extra_head %}
+<style>
+    .sd-page { font-family: 'Cairo', sans-serif; }
+    .sd-top {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+    .sd-top h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 800;
+        color: #1e3a8a;
+        direction: ltr;
+        text-align: right;
+    }
+    .sd-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 800;
+        border: 1px solid transparent;
+    }
+    .sd-chip.pending { background: #fffbeb; color: #b45309; border-color: #fcd34d; }
+    .sd-chip.completed { background: #ecfdf5; color: #047857; border-color: #6ee7b7; }
+    .sd-chip.rejected { background: #fff1f2; color: #be123c; border-color: #fda4af; }
+    .sd-full .excel-grid td {
+        white-space: nowrap;
+        font-weight: 700;
+        font-size: 13px;
+        padding: 12px 10px !important;
+    }
+    .sd-full .excel-grid td.notes-cell {
+        white-space: normal;
+        min-width: 140px;
+        max-width: 220px;
+    }
+    .sd-full .excel-grid td.total-cell {
+        background: #ecfdf5 !important;
+        color: #047857;
+        font-weight: 800;
+    }
+    .sd-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: flex-end;
+        padding: 12px 14px;
+        border-top: 1px solid #bfdbfe;
+        background: #f8fbff;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="flex items-center gap-md mb-md">
-    <a href="{% url 'ops:supply' %}" class="text-on-surface-variant hover:text-primary p-sm rounded-full hover:bg-surface-container-high">
-        <span class="material-symbols-outlined">arrow_forward</span>
-    </a>
-    <div>
-        <h2 class="font-headline-lg text-headline-lg font-bold text-primary">{{ order.order_number }}</h2>
-        <p class="font-body-md text-body-md text-on-surface-variant">تفاصيل طلب التوريد</p>
-    </div>
-</div>
+<div class="sd-page flex flex-col gap-md">
 
-<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg flex flex-col gap-md max-w-2xl">
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
-        <div>
-            <span class="font-label-md text-label-md text-on-surface-variant">المندوب</span>
-            <p class="font-body-lg text-body-lg text-on-surface mt-1">{{ order.representative.display_name }}</p>
-        </div>
-        <div>
-            <span class="font-label-md text-label-md text-on-surface-variant">الحالة</span>
-            <p class="font-body-lg text-body-lg text-on-surface mt-1">{{ order.get_status_display }}</p>
-        </div>
-        <div>
-            <span class="font-label-md text-label-md text-on-surface-variant">الاسم</span>
-            <p class="font-body-lg text-body-lg text-on-surface mt-1">{{ order.item_name }}</p>
-        </div>
-        <div>
-            <span class="font-label-md text-label-md text-on-surface-variant">رقم الصنف</span>
-            <p class="font-body-lg text-body-lg text-on-surface mt-1">{% if order.item_number %}{{ order.item_number }}{% else %}—{% endif %}</p>
-        </div>
-        <div>
-            <span class="font-label-md text-label-md text-on-surface-variant">الوحدة</span>
-            <p class="font-body-lg text-body-lg text-on-surface mt-1">{% if order.unit %}{{ order.unit }}{% else %}—{% endif %}</p>
-        </div>
-        <div>
-            <span class="font-label-md text-label-md text-on-surface-variant">العبوة</span>
-            <p class="font-body-lg text-body-lg text-on-surface mt-1">{% if order.package %}{{ order.package }}{% else %}—{% endif %}</p>
-        </div>
-        <div>
-            <span class="font-label-md text-label-md text-on-surface-variant">الكمية</span>
-            <p class="font-body-lg text-body-lg text-on-surface mt-1">{{ order.quantity }}</p>
-        </div>
-        <div>
-            <span class="font-label-md text-label-md text-on-surface-variant">السعر</span>
-            <p class="font-body-lg text-body-lg text-on-surface mt-1">{{ order.unit_price }} ر.س</p>
-        </div>
-        <div>
-            <span class="font-label-md text-label-md text-on-surface-variant">التاريخ المتوقع</span>
-            <p class="font-body-lg text-body-lg text-on-surface mt-1">{% if order.expected_date %}{{ order.expected_date|date:"Y-m-d" }}{% else %}—{% endif %}</p>
-        </div>
-        <div class="sm:col-span-2">
-            <span class="font-label-md text-label-md text-on-surface-variant">ملاحظات</span>
-            <p class="font-body-md text-body-md text-on-surface mt-1">{% if order.notes %}{{ order.notes }}{% else %}لا توجد{% endif %}</p>
-        </div>
-        <div>
-            <span class="font-label-md text-label-md text-on-surface-variant">تاريخ الإنشاء</span>
-            <p class="font-body-md text-body-md text-on-surface mt-1">{{ order.created_at|date:"Y-m-d H:i" }}</p>
-        </div>
-        {% if order.reviewed_by %}
-        <div>
-            <span class="font-label-md text-label-md text-on-surface-variant">راجعه</span>
-            <p class="font-body-md text-body-md text-on-surface mt-1">{{ order.reviewed_by.display_name }}</p>
-        </div>
+    <a href="{% url 'ops:supply' %}"
+       class="inline-flex items-center gap-1 text-[13px] font-bold text-sky-800 hover:text-sky-950 w-fit">
+        <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+        العودة للتوريد
+    </a>
+
+    <div class="sd-top">
+        <h1>{{ order.order_number }}</h1>
+        {% if order.status == 'pending' %}
+        <span class="sd-chip pending"><span class="material-symbols-outlined text-[16px]">schedule</span> قيد الانتظار</span>
+        {% elif order.status == 'completed' %}
+        <span class="sd-chip completed"><span class="material-symbols-outlined text-[16px]">check_circle</span> مكتمل</span>
+        {% else %}
+        <span class="sd-chip rejected"><span class="material-symbols-outlined text-[16px]">cancel</span> مرفوض</span>
         {% endif %}
     </div>
 
-    {% if user.is_manager and order.status == 'pending' %}
-    <div class="flex gap-sm pt-md border-t border-outline-variant">
-        <form method="post" action="{% url 'ops:supply_reject' order.pk %}">
-            {% csrf_token %}
-            <button type="submit" class="px-md py-2 border border-error text-error hover:bg-error-container rounded-lg font-label-md text-label-md flex items-center gap-xs">
-                <span class="material-symbols-outlined">close</span>
-                رفض
-            </button>
-        </form>
-        <form method="post" action="{% url 'ops:supply_complete' order.pk %}">
-            {% csrf_token %}
-            <button type="submit" class="px-md py-2 bg-primary text-on-primary hover:bg-primary/90 rounded-lg font-label-md text-label-md flex items-center gap-xs">
-                <span class="material-symbols-outlined">check</span>
-                إكمال
-            </button>
-        </form>
-    </div>
-    {% endif %}
+    <section class="app-table-frame overflow-hidden sd-full">
+        <div class="app-toolbar !mb-0 rounded-none border-0 border-b border-[#dbeafe]">
+            <span class="font-bold text-[14px] text-[#1e3a8a] flex items-center gap-sm">
+                <span class="material-symbols-outlined text-[20px]">view_week</span>
+                صف كامل — كل الأعمدة
+            </span>
+        </div>
+        <div class="app-table-sheet overflow-x-auto bg-white">
+            <table class="excel-grid app-data-grid">
+                <thead>
+                <tr>
+                    <th>رقم الطلب</th>
+                    <th>المندوب</th>
+                    <th>الحالة</th>
+                    <th>الاسم</th>
+                    <th>رقم الصنف</th>
+                    <th>الوحدة</th>
+                    <th>العبوة</th>
+                    <th>الكمية</th>
+                    <th>السعر</th>
+                    <th>الإجمالي</th>
+                    <th>التاريخ المتوقع</th>
+                    <th>ملاحظات</th>
+                    <th>تاريخ الإنشاء</th>
+                    <th>أنشئ بواسطة</th>
+                    {% if order.reviewed_by %}<th>راجعه</th>{% endif %}
+                </tr>
+                </thead>
+                <tbody>
+                <tr>
+                    <td dir="ltr" class="cell-strong">{{ order.order_number }}</td>
+                    <td>{{ order.representative.display_name }}</td>
+                    <td>{{ order.get_status_display }}</td>
+                    <td class="cell-strong">{{ order.item_name }}</td>
+                    <td dir="ltr">{{ order.item_number|default:"—" }}</td>
+                    <td>{{ order.unit|default:"—" }}</td>
+                    <td>{{ order.package|default:"—" }}</td>
+                    <td class="cell-center">{{ order.quantity }}</td>
+                    <td dir="ltr">{{ order.unit_price }}</td>
+                    <td dir="ltr" class="total-cell">{{ order.total_amount }}</td>
+                    <td>{% if order.expected_date %}{{ order.expected_date|date:"Y/m/d" }}{% else %}—{% endif %}</td>
+                    <td class="notes-cell">{% if order.notes %}{{ order.notes }}{% else %}—{% endif %}</td>
+                    <td>{{ order.created_at|date:"Y/m/d H:i" }}</td>
+                    <td>{{ order.created_by.display_name }}</td>
+                    {% if order.reviewed_by %}<td>{{ order.reviewed_by.display_name }}</td>{% endif %}
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        {% if user.is_manager and order.status == 'pending' %}
+        <div class="sd-actions">
+            <form method="post" action="{% url 'ops:supply_reject' order.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="act-btn act-bad"
+                        onclick="return confirm('رفض طلب التوريد {{ order.order_number }}؟');">
+                    <span class="material-symbols-outlined text-[16px] text-inherit">close</span>
+                    رفض
+                </button>
+            </form>
+            <form method="post" action="{% url 'ops:supply_complete' order.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn-primary-app"
+                        onclick="return confirm('إكمال طلب التوريد {{ order.order_number }}؟');">
+                    <span class="material-symbols-outlined text-[18px]">done_all</span>
+                    اعتماد وإكمال
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </section>
 </div>
 {% endblock %}

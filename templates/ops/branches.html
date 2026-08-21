@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}تهيئة الفروع - عمليات الفرش{% endblock %}
+
+{% block content %}
+<div class="mb-lg flex flex-col sm:flex-row sm:items-end sm:justify-between gap-md">
+    <div>
+        <h2 class="font-bold text-[26px] text-black" style="font-family:'Cairo',sans-serif">تهيئة الفروع</h2>
+        <p class="text-[14px] text-slate-600 mt-1" style="font-family:'Cairo',sans-serif">
+            قائمة الفروع التي تظهر عند إنشاء مهمة (موقع الفرع).
+        </p>
+    </div>
+    <span class="text-[12px] font-bold text-slate-500" style="font-family:'Cairo',sans-serif">
+        {{ branches|length }} فرع
+    </span>
+</div>
+
+<section class="app-table-frame overflow-hidden mb-lg">
+    <div class="app-toolbar !mb-0 rounded-none border-0 border-b border-[#dbeafe]">
+        <div class="flex items-center gap-sm">
+            <span class="material-symbols-outlined text-[#1d4ed8]">store</span>
+            <span class="font-bold text-[16px] text-black" style="font-family:'Cairo',sans-serif">إضافة فرع</span>
+        </div>
+    </div>
+    <form method="post" class="p-lg bg-white flex flex-col sm:flex-row gap-md items-stretch sm:items-end">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add">
+        <div class="flex-1 flex flex-col gap-sm">
+            <label class="font-label-md text-label-md text-on-surface">اسم الفرع</label>
+            <input type="text" name="name" required maxlength="150"
+                   placeholder="مثال: المنصورة أو فرع المنصورة"
+                   class="w-full bg-white border border-[#bfdbfe] rounded-lg py-2.5 px-3 text-[15px] font-semibold focus:border-[#1d4ed8] focus:ring-1 focus:ring-[#1d4ed8]">
+            <p class="text-[11px] font-bold text-slate-500 m-0">يُضاف تلقائياً بادئة «فرع» إن لم تُكتب.</p>
+        </div>
+        <button type="submit" class="btn-primary-app shrink-0">
+            <span class="material-symbols-outlined text-[18px]">add</span>
+            إضافة
+        </button>
+    </form>
+</section>
+
+<section class="app-table-frame overflow-hidden">
+    <div class="app-toolbar !mb-0 rounded-none border-0 border-b border-[#dbeafe]">
+        <div class="flex items-center gap-sm">
+            <span class="material-symbols-outlined text-[#1d4ed8]">list_alt</span>
+            <span class="font-bold text-[16px] text-black" style="font-family:'Cairo',sans-serif">الفروع المسجّلة</span>
+        </div>
+    </div>
+    <div class="overflow-x-auto bg-white">
+        <table class="user-form-grid w-full">
+            <thead>
+            <tr>
+                <th style="width:8%">#</th>
+                <th>اسم الفرع</th>
+                <th style="width:14%">الحالة</th>
+                <th style="width:36%">إجراءات</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for b in branches %}
+            <tr>
+                <td class="text-slate-500 font-bold">{{ forloop.counter }}</td>
+                <td>
+                    <form method="post" class="flex gap-2 items-center">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="rename">
+                        <input type="hidden" name="branch_id" value="{{ b.pk }}">
+                        <input type="text" name="name" value="{{ b.name }}" maxlength="150"
+                               class="flex-1 bg-white border border-[#bfdbfe] rounded-lg py-2 px-3 text-[14px] font-semibold focus:border-[#1d4ed8] focus:ring-1 focus:ring-[#1d4ed8]">
+                        <button type="submit" class="act-btn act-ok shrink-0" title="حفظ الاسم">
+                            <span class="material-symbols-outlined text-[16px] text-inherit">save</span>
+                        </button>
+                    </form>
+                </td>
+                <td>
+                    {% if b.is_active %}
+                    <span class="status-chip status-ok">نشط</span>
+                    {% else %}
+                    <span class="status-chip status-bad">متوقف</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="flex flex-wrap gap-2">
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="toggle">
+                            <input type="hidden" name="branch_id" value="{{ b.pk }}">
+                            <button type="submit" class="act-btn act-ok">
+                                <span class="material-symbols-outlined text-[16px] text-inherit">{% if b.is_active %}pause{% else %}play_arrow{% endif %}</span>
+                                {% if b.is_active %}إيقاف{% else %}تفعيل{% endif %}
+                            </button>
+                        </form>
+                        <form method="post" onsubmit="return confirm('حذف الفرع «{{ b.name }}»؟');">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="branch_id" value="{{ b.pk }}">
+                            <button type="submit" class="act-btn act-bad">
+                                <span class="material-symbols-outlined text-[16px] text-inherit">delete</span>
+                                حذف
+                            </button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" class="text-center text-slate-500 py-8 font-bold">لا فروع بعد — أضف أول فرع أعلاه.</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

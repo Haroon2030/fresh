@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ task.title }} — مهمة زيارة</title>
+    <title>{{ task.title }} — مهمة ميدانية</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -23,15 +23,35 @@
             </div>
         </div>
 
-        {% if just_completed or task.status == 'done' %}
+        {% if just_submitted %}
+        <div class="m-4 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-emerald-800 font-bold flex items-center gap-2">
+            <span class="material-symbols-outlined text-emerald-600">send</span>
+            تم إرسال ردك — بانتظار مراجعة مسؤول القسم
+        </div>
+        {% elif task.status == 'done' %}
         <div class="m-4 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-emerald-800 font-bold flex items-center gap-2">
             <span class="material-symbols-outlined text-emerald-600">check_circle</span>
-            تم إنجاز المهمة وإغلاقها{% if task.completed_at %} — {{ task.completed_at|date:"Y/m/d H:i" }}{% endif %}
+            تم اعتماد المهمة وإغلاقها{% if task.completed_at %} — {{ task.completed_at|date:"Y/m/d H:i" }}{% endif %}
+        </div>
+        {% elif task.status == 'pending_review' %}
+        <div class="m-4 rounded-xl bg-violet-50 border border-violet-200 px-4 py-3 text-violet-900 font-bold flex items-center gap-2">
+            <span class="material-symbols-outlined text-violet-600">hourglass_top</span>
+            الرد قيد المراجعة لدى مسؤول القسم
         </div>
         {% endif %}
 
         {% if error %}
         <div class="m-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-red-700 font-bold">{{ error }}</div>
+        {% endif %}
+
+        {% if task.review_note and task.status == 'in_progress' %}
+        <div class="m-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-amber-950">
+            <p class="font-extrabold text-[13px] flex items-center gap-1">
+                <span class="material-symbols-outlined text-[18px]">reply</span>
+                ملاحظة المراجع — مطلوب تصحيح
+            </p>
+            <p class="mt-1 text-[14px] font-semibold whitespace-pre-wrap">{{ task.review_note }}</p>
+        </div>
         {% endif %}
 
         <div class="p-5 space-y-4">
@@ -52,27 +72,31 @@
                     موقع الفرع
                 </p>
                 <p class="font-extrabold text-lg mt-1">{{ task.branch|default:"—" }}</p>
-                {% if task.maps_url %}
-                <a href="{{ task.maps_url }}" target="_blank" rel="noopener"
-                   class="mt-3 inline-flex items-center gap-1.5 text-[13px] font-bold text-sky-700 hover:underline">
-                    <span class="material-symbols-outlined text-[18px]">map</span>
-                    فتح الموقع في خرائط Google
-                </a>
-                {% endif %}
             </div>
 
             <div class="rounded-xl border border-sky-100 bg-sky-50/50 p-4">
                 <p class="text-[12px] font-bold text-sky-800 flex items-center gap-1">
-                    <span class="material-symbols-outlined text-[18px]">map</span>
+                    <span class="material-symbols-outlined text-[18px]">assignment</span>
                     تفاصيل الزيارة
                 </p>
                 <p class="mt-2 text-[15px] leading-relaxed whitespace-pre-wrap">{{ task.visit_details|default:task.description|default:"—" }}</p>
             </div>
 
-            {% if task.description and task.visit_details %}
-            <div>
-                <p class="text-[12px] font-bold text-slate-500">الوصف</p>
-                <p class="mt-1 text-slate-700 whitespace-pre-wrap">{{ task.description }}</p>
+            {% if task.response_text or task.response_photos.exists %}
+            <div class="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
+                <p class="text-[12px] font-bold text-emerald-800">آخر رد مرسل</p>
+                {% if task.response_text %}
+                <p class="mt-2 text-[14px] whitespace-pre-wrap font-semibold">{{ task.response_text }}</p>
+                {% endif %}
+                {% if task.response_photos.exists %}
+                <div class="mt-3 grid grid-cols-2 gap-2">
+                    {% for photo in task.response_photos.all %}
+                    <a href="{{ photo.image.url }}" target="_blank" rel="noopener" class="block rounded-lg overflow-hidden border border-emerald-100 bg-white">
+                        <img src="{{ photo.image.url }}" alt="صورة رد" class="w-full h-28 object-cover">
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
             </div>
             {% endif %}
 
@@ -86,14 +110,26 @@
                 <p><span class="font-bold">أنشئت بواسطة:</span> {{ task.created_by.display_name }}</p>
             </div>
 
-            {% if task.status != 'done' %}
-            <form method="post" class="pt-2">
+            {% if can_respond %}
+            <form method="post" enctype="multipart/form-data" class="pt-2 space-y-3 border-t border-slate-100">
                 {% csrf_token %}
-                <input type="hidden" name="action" value="complete">
+                <input type="hidden" name="action" value="submit_response">
+                <div>
+                    <label class="text-[13px] font-extrabold text-slate-800">نص الرد</label>
+                    <textarea name="response_text" rows="4" required
+                              class="mt-1 w-full rounded-xl border border-sky-200 bg-white px-3 py-2.5 text-[15px] font-semibold focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                              placeholder="اكتب ما تم إنجازه في الزيارة…">{{ task.response_text }}</textarea>
+                </div>
+                <div>
+                    <label class="text-[13px] font-extrabold text-slate-800">صور من الموقع</label>
+                    <input type="file" name="photos" accept="image/*" multiple capture="environment"
+                           class="mt-1 block w-full text-[13px] font-semibold file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-sky-600 file:text-white">
+                    <p class="text-[11px] text-slate-500 mt-1 font-bold">يمكن اختيار عدة صور (حتى 8) — JPG/PNG</p>
+                </div>
                 <button type="submit"
                         class="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[16px] flex items-center justify-center gap-2">
-                    <span class="material-symbols-outlined">done_all</span>
-                    تم الإنجاز — إغلاق المهمة
+                    <span class="material-symbols-outlined">send</span>
+                    إرسال الرد للمراجعة وإغلاق من طرفي
                 </button>
             </form>
             {% endif %}

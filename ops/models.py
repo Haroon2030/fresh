@@ -259,6 +259,7 @@ class Task(models.Model):
     class Status(models.TextChoices):
         TODO = 'todo', 'قيد الانتظار'
         IN_PROGRESS = 'in_progress', 'قيد التنفيذ'
+        PENDING_REVIEW = 'pending_review', 'بانتظار المراجعة'
         DONE = 'done', 'مكتمل'
 
     title = models.CharField(max_length=255, verbose_name='العنوان')
@@ -299,6 +300,20 @@ class Task(models.Model):
         verbose_name='خط الطول',
     )
     visit_details = models.TextField(blank=True, verbose_name='تفاصيل الزيارة')
+    response_text = models.TextField(blank=True, verbose_name='رد الموظف')
+    response_submitted_at = models.DateTimeField(
+        null=True, blank=True, verbose_name='وقت إرسال الرد',
+    )
+    review_note = models.TextField(blank=True, verbose_name='ملاحظة المراجعة')
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_tasks',
+        verbose_name='راجعه',
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name='وقت المراجعة')
     public_token = models.CharField(
         max_length=64,
         unique=True,
@@ -342,6 +357,44 @@ class Task(models.Model):
         self.completed_at = timezone.now()
         self.save(update_fields=['status', 'progress', 'completed_at', 'updated_at'])
 
+    def submit_for_review(self, text: str):
+        from django.utils import timezone
+        self.response_text = (text or '').strip()
+        self.response_submitted_at = timezone.now()
+        self.status = self.Status.PENDING_REVIEW
+        self.progress = 80
+        self.completed_at = None
+        self.save(update_fields=[
+            'response_text', 'response_submitted_at', 'status',
+            'progress', 'completed_at', 'updated_at',
+        ])
+
+    def approve_response(self, reviewer, note: str = ''):
+        from django.utils import timezone
+        self.review_note = (note or '').strip()
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.status = self.Status.DONE
+        self.progress = 100
+        self.completed_at = timezone.now()
+        self.save(update_fields=[
+            'review_note', 'reviewed_by', 'reviewed_at',
+            'status', 'progress', 'completed_at', 'updated_at',
+        ])
+
+    def reject_response(self, reviewer, note: str = ''):
+        from django.utils import timezone
+        self.review_note = (note or '').strip()
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.status = self.Status.IN_PROGRESS
+        self.progress = 45
+        self.completed_at = None
+        self.save(update_fields=[
+            'review_note', 'reviewed_by', 'reviewed_at',
+            'status', 'progress', 'completed_at', 'updated_at',
+        ])
+
     @property
     def is_overdue(self):
         from django.utils import timezone
@@ -356,6 +409,25 @@ class Task(models.Model):
         return (
             f'https://www.google.com/maps?q={self.location_lat},{self.location_lng}'
         )
+
+
+class TaskResponsePhoto(models.Model):
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name='response_photos',
+        verbose_name='المهمة',
+    )
+    image = models.FileField(upload_to='task_responses/%Y/%m/', verbose_name='صورة')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['uploaded_at']
+        verbose_name = 'صورة رد مهمة'
+        verbose_name_plural = 'صور ردود المهام'
+
+    def __str__(self):
+        return f'صورة #{self.pk} — {self.task_id}'
 
 
 class CatalogItem(models.Model):
@@ -373,6 +445,28 @@ class CatalogItem(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.item_number})'
+
+
+class Branch(models.Model):
+    """فروع التشغيل — تُستخدم في مهام الزيارة وغيرها."""
+
+    name = models.CharField(max_length=150, unique=True, verbose_name='اسم الفرع')
+    is_active = models.BooleanField(default=True, verbose_name='نشط')
+    sort_order = models.PositiveSmallIntegerField(default=0, verbose_name='الترتيب')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name = 'فرع'
+        verbose_name_plural = 'الفروع'
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def active_names(cls):
+        return list(cls.objects.filter(is_active=True).order_by('sort_order', 'name').values_list('name', flat=True))
 
 
 class WhatsAppRoleContact(models.Model):

@@ -8,7 +8,7 @@
     </div>
     <div class="p-sm flex-1 overflow-y-auto space-y-sm">
         {% for task in tasks %}
-        <div class="task-card rounded-lg p-md border transition-all hover:-translate-y-0.5 hover:shadow-md {{ card_bg }} {{ card_border }} {% if status_key == 'done' %}cursor-default{% else %}cursor-pointer{% endif %}">
+        <div class="task-card rounded-lg p-md border transition-all hover:-translate-y-0.5 hover:shadow-md {{ card_bg }} {{ card_border }}">
             <div class="flex justify-between items-start mb-2 {% if status_key == 'done' %}opacity-70{% endif %}">
                 {% if task.priority == 'urgent' %}
                 <span class="px-2 py-1 rounded text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">عاجل</span>
@@ -19,6 +19,8 @@
                 {% endif %}
                 {% if status_key == 'done' %}
                 <span class="material-symbols-outlined text-[18px] text-emerald-600">check_circle</span>
+                {% elif status_key == 'pending_review' %}
+                <span class="material-symbols-outlined text-[18px] text-violet-600">rate_review</span>
                 {% elif status_key == 'in_progress' %}
                 <span class="material-symbols-outlined text-[18px] text-sky-600">pending</span>
                 {% else %}
@@ -31,30 +33,38 @@
                 <span class="material-symbols-outlined text-[14px]">store</span>
                 {{ task.branch }}
             </p>
-            {% if task.maps_url %}
-            <a href="{{ task.maps_url }}" target="_blank" rel="noopener"
-               class="text-[11px] font-bold text-sky-700 mb-1 inline-flex items-center gap-0.5 hover:underline"
-               onclick="event.stopPropagation()">
-                خريطة
-            </a>
-            {% endif %}
             {% endif %}
             {% if task.visit_details %}
             <p class="font-body-md text-[13px] text-slate-600 mb-2 line-clamp-2">{{ task.visit_details }}</p>
             {% elif task.description %}
             <p class="font-body-md text-[13px] text-slate-600 mb-2 line-clamp-2">{{ task.description }}</p>
             {% endif %}
+
+            {% if status_key == 'pending_review' or status_key == 'done' %}
+                {% if task.response_text %}
+                <div class="mb-2 rounded-md bg-violet-50 border border-violet-100 px-2 py-1.5">
+                    <p class="text-[11px] font-bold text-violet-800">رد الموظف</p>
+                    <p class="text-[12px] text-slate-700 line-clamp-3 whitespace-pre-wrap">{{ task.response_text }}</p>
+                </div>
+                {% endif %}
+                {% if task.response_photos.exists %}
+                <div class="flex gap-1 mb-2 overflow-x-auto">
+                    {% for photo in task.response_photos.all %}
+                    <a href="{{ photo.image.url }}" target="_blank" rel="noopener" class="shrink-0">
+                        <img src="{{ photo.image.url }}" alt="" class="w-14 h-14 rounded object-cover border border-slate-200">
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            {% endif %}
+
             {% if task.public_token %}
             <a href="{% url 'ops:task_public' task.public_token %}" class="text-[11px] font-bold text-sky-700 hover:underline inline-flex items-center gap-1 mb-2" target="_blank" rel="noopener">
                 <span class="material-symbols-outlined text-[14px]">link</span>
                 رابط الموظف
             </a>
             {% endif %}
-            {% if status_key == 'in_progress' and task.progress %}
-            <div class="w-full bg-sky-100 rounded-full h-1.5 mb-3 overflow-hidden">
-                <div class="bg-sky-500 h-1.5 rounded-full" style="width: {{ task.progress }}%"></div>
-            </div>
-            {% endif %}
+
             <div class="flex justify-between items-center border-t {{ card_border }} pt-3 mt-2">
                 <div class="flex -space-x-2 rtl:space-x-reverse">
                     {% if task.assigned_to %}
@@ -73,23 +83,34 @@
                     {% endif %}
                 </div>
             </div>
-            {% if status_key != 'done' or user.is_manager %}
+
+            {% if status_key == 'pending_review' and user.is_manager %}
+            <form method="post" action="{% url 'ops:task_review' task.pk %}" class="mt-3 pt-2 border-t {{ card_border }} space-y-2">
+                {% csrf_token %}
+                <textarea name="review_note" rows="2" placeholder="ملاحظة للموظف (مطلوبة عند الرد)"
+                          class="w-full text-[12px] rounded-lg border border-violet-200 px-2 py-1.5 font-semibold"></textarea>
+                <div class="flex flex-wrap gap-1">
+                    <button type="submit" name="action" value="approve" class="text-[10px] px-2 py-1 rounded-md font-bold bg-emerald-100 text-emerald-800 hover:bg-emerald-200">اعتماد وإغلاق ✓</button>
+                    <button type="submit" name="action" value="reject" class="text-[10px] px-2 py-1 rounded-md font-bold bg-amber-100 text-amber-900 hover:bg-amber-200">رد للموظف</button>
+                </div>
+            </form>
+            {% elif status_key != 'done' or user.is_manager %}
             <div class="flex flex-wrap gap-1 mt-3 pt-2 border-t {{ card_border }}">
-                {% if status_key != 'todo' %}
+                {% if status_key != 'todo' and user.is_manager %}
                 <form method="post" action="{% url 'ops:task_move' task.pk %}">
                     {% csrf_token %}
                     <input type="hidden" name="status" value="todo">
                     <button type="submit" class="text-[10px] px-2 py-1 rounded-md font-bold bg-amber-100 text-amber-800 hover:bg-amber-200">← انتظار</button>
                 </form>
                 {% endif %}
-                {% if status_key != 'in_progress' %}
+                {% if status_key != 'in_progress' and status_key != 'pending_review' %}
                 <form method="post" action="{% url 'ops:task_move' task.pk %}">
                     {% csrf_token %}
                     <input type="hidden" name="status" value="in_progress">
                     <button type="submit" class="text-[10px] px-2 py-1 rounded-md font-bold bg-sky-100 text-sky-800 hover:bg-sky-200">تنفيذ</button>
                 </form>
                 {% endif %}
-                {% if status_key != 'done' %}
+                {% if status_key != 'done' and user.is_manager %}
                 <form method="post" action="{% url 'ops:task_move' task.pk %}">
                     {% csrf_token %}
                     <input type="hidden" name="status" value="done">

@@ -26,35 +26,15 @@
 <div class="flex gap-lg overflow-x-auto pb-4 items-start min-h-[60vh]">
     {% include "ops/_task_column.html" with status_key="todo" title="قيد الانتظار" tasks=columns.todo col_icon="schedule" col_bg="bg-amber-50" col_border="border-amber-200" header_bg="bg-amber-100/80" header_text="text-amber-900" header_icon="text-amber-600" badge="bg-amber-200 text-amber-900" card_bg="bg-white border-l-4 border-l-amber-400" card_border="border-amber-100" avatar="bg-amber-500" %}
     {% include "ops/_task_column.html" with status_key="in_progress" title="قيد التنفيذ" tasks=columns.in_progress col_icon="autorenew" col_bg="bg-sky-50" col_border="border-sky-200" header_bg="bg-sky-100/80" header_text="text-sky-900" header_icon="text-sky-600" badge="bg-sky-200 text-sky-900" card_bg="bg-white border-l-4 border-l-sky-500" card_border="border-sky-100" avatar="bg-sky-600" %}
+    {% include "ops/_task_column.html" with status_key="pending_review" title="بانتظار المراجعة" tasks=columns.pending_review col_icon="rate_review" col_bg="bg-violet-50" col_border="border-violet-200" header_bg="bg-violet-100/80" header_text="text-violet-900" header_icon="text-violet-600" badge="bg-violet-200 text-violet-900" card_bg="bg-white border-l-4 border-l-violet-500" card_border="border-violet-100" avatar="bg-violet-600" %}
     {% include "ops/_task_column.html" with status_key="done" title="مكتمل" tasks=columns.done col_icon="check_circle" col_bg="bg-emerald-50" col_border="border-emerald-200" header_bg="bg-emerald-100/80" header_text="text-emerald-900" header_icon="text-emerald-600" badge="bg-emerald-200 text-emerald-900" card_bg="bg-white border-l-4 border-l-emerald-500" card_border="border-emerald-100" avatar="bg-emerald-600" faded=True %}
 </div>
 {% endblock %}
 
 {% block modals %}
 {% if user.is_manager and form %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="anonymous">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin="anonymous"></script>
-<style>
-  #taskMap {
-    width: 100%;
-    height: 360px;
-    min-height: 360px;
-    background: #dbeafe;
-    border-radius: 12px;
-    position: relative;
-    z-index: 1;
-  }
-  #taskMap .leaflet-container {
-    width: 100%;
-    height: 100%;
-    border-radius: 12px;
-    font: inherit;
-  }
-  .map-layer-btn.active { background:#0f172a; color:#fff; border-color:#0f172a; }
-</style>
-
 <div class="app-modal hidden" id="newTaskModal">
-    <div class="app-modal-panel app-modal-panel--lg">
+    <div class="app-modal-panel app-modal-panel--md">
         <div class="app-modal-head">
             <h3>مهمة جديدة</h3>
             <button type="button" class="app-modal-close" aria-label="إغلاق" id="btnCloseNewTask">
@@ -63,7 +43,7 @@
         </div>
         <form method="post" action="{% url 'ops:task_create' %}" class="flex flex-col overflow-hidden" id="newTaskForm">
             {% csrf_token %}
-            <div class="p-lg overflow-y-auto flex flex-col gap-md" id="newTaskScroll">
+            <div class="p-lg overflow-y-auto flex flex-col gap-md">
                 <div class="flex flex-col gap-sm">
                     <label class="font-label-md text-label-md text-on-surface">{{ form.title.label }}</label>
                     {{ form.title }}
@@ -78,50 +58,13 @@
                         {{ form.assigned_to }}
                     </div>
                 </div>
-
-                {# —— Map first (visible without scrolling far) —— #}
-                <div class="flex flex-col gap-sm" id="mapSection">
+                <div class="flex flex-col gap-sm">
                     <label class="font-label-md text-label-md text-on-surface">{{ form.branch.label }}</label>
-                    <div class="flex gap-2">
-                        <input type="search" id="mapSearchInput" autocomplete="off"
-                               class="flex-1 bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md"
-                               placeholder="ابحث: العليا، جدة، بوليفارد…">
-                        <button type="button" id="mapSearchBtn" class="act-btn act-ok shrink-0">بحث</button>
-                    </div>
-                    <div id="mapSearchResults" class="hidden border border-sky-200 rounded-lg overflow-hidden bg-white max-h-48 overflow-y-auto shadow-sm"></div>
-
-                    <div class="flex flex-wrap gap-1.5">
-                        <button type="button" class="quick-place px-2.5 py-1 rounded-full border text-[11px] font-bold bg-white hover:bg-sky-50" data-lat="24.6931" data-lng="46.6855" data-label="حي العليا، الرياض">العليا</button>
-                        <button type="button" class="quick-place px-2.5 py-1 rounded-full border text-[11px] font-bold bg-white hover:bg-sky-50" data-lat="24.7675" data-lng="46.6710" data-label="بوليفارد رياض سيتي">بوليفارد</button>
-                        <button type="button" class="quick-place px-2.5 py-1 rounded-full border text-[11px] font-bold bg-white hover:bg-sky-50" data-lat="24.7430" data-lng="46.6620" data-label="نخيل مول، الرياض">نخيل مول</button>
-                        <button type="button" class="quick-place px-2.5 py-1 rounded-full border text-[11px] font-bold bg-white hover:bg-sky-50" data-lat="24.7136" data-lng="46.6753" data-label="الرياض">الرياض</button>
-                        <button type="button" class="quick-place px-2.5 py-1 rounded-full border text-[11px] font-bold bg-white hover:bg-sky-50" data-lat="21.4858" data-lng="39.1925" data-label="جدة">جدة</button>
-                        <button type="button" class="quick-place px-2.5 py-1 rounded-full border text-[11px] font-bold bg-white hover:bg-sky-50" data-lat="26.4207" data-lng="50.0888" data-label="الدمام">الدمام</button>
-                    </div>
-
-                    <div class="flex items-center justify-between gap-2">
-                        <div class="flex gap-1">
-                            <button type="button" id="btnMapStreet" class="map-layer-btn active px-2.5 py-1 rounded-lg border text-[11px] font-bold">خريطة</button>
-                            <button type="button" id="btnMapSat" class="map-layer-btn px-2.5 py-1 rounded-lg border text-[11px] font-bold">قمر صناعي</button>
-                        </div>
-                        <button type="button" id="btnMyLocation" class="act-btn act-ok !py-1 !px-2 text-[11px]">موقعي</button>
-                    </div>
-
-                    <div id="taskMap"></div>
-                    <p id="mapStatus" class="text-[12px] text-slate-500">افتح المودال لتحميل الخريطة…</p>
                     {{ form.branch }}
-                    {{ form.location_lat }}
-                    {{ form.location_lng }}
-                    <p id="mapPickHint" class="hidden text-[12px] font-bold text-emerald-700">تم اختيار الموقع ✓</p>
                 </div>
-
                 <div class="flex flex-col gap-sm">
                     <label class="font-label-md text-label-md text-on-surface">{{ form.description.label }}</label>
                     {{ form.description }}
-                </div>
-                <div class="flex flex-col gap-sm">
-                    <label class="font-label-md text-label-md text-on-surface">{{ form.visit_details.label }}</label>
-                    {{ form.visit_details }}
                 </div>
                 <div class="flex flex-col gap-sm">
                     <label class="font-label-md text-label-md text-on-surface">{{ form.due_at.label }}</label>
@@ -142,316 +85,11 @@
     const openBtn = document.getElementById('btnOpenNewTask');
     const closeBtn = document.getElementById('btnCloseNewTask');
     const cancelBtn = document.getElementById('btnCancelNewTask');
-    const branchInput = document.getElementById('id_branch');
-    const latInput = document.getElementById('id_location_lat');
-    const lngInput = document.getElementById('id_location_lng');
-    const hint = document.getElementById('mapPickHint');
-    const statusEl = document.getElementById('mapStatus');
-    const searchInput = document.getElementById('mapSearchInput');
-    const searchBtn = document.getElementById('mapSearchBtn');
-    const resultsBox = document.getElementById('mapSearchResults');
-    const form = document.getElementById('newTaskForm');
-    const placesUrl = "{% url 'ops:places_search' %}";
-    const mapEl = document.getElementById('taskMap');
-
-    const DEFAULT = [24.7136, 46.6753];
-    let map = null;
-    let marker = null;
-    let streetLayer = null;
-    let satLayer = null;
-    let debounceTimer = null;
-    let activeIdx = -1;
-    let lastResults = [];
-    let searchSeq = 0;
-    let layersBound = false;
-
-    function setStatus(msg, ok) {
-        if (!statusEl) return;
-        statusEl.textContent = msg;
-        statusEl.className = 'text-[12px] font-bold ' + (ok ? 'text-emerald-700' : 'text-slate-500');
-    }
-
-    function destroyMap() {
-        if (map) {
-            try { map.remove(); } catch (_) {}
-        }
-        map = null;
-        marker = null;
-        streetLayer = null;
-        satLayer = null;
-        if (mapEl) mapEl.innerHTML = '';
-    }
-
-    function closeModal() {
-        modal.classList.add('hidden');
-        hideResults();
-        destroyMap();
-    }
-
-    function openModal() {
-        modal.classList.remove('hidden');
-        // Wait until modal is visible then build a fresh map
-        requestAnimationFrame(() => {
-            setTimeout(() => {
-                initMap(true);
-                document.getElementById('mapSection')?.scrollIntoView({ block: 'nearest' });
-            }, 50);
-        });
-    }
-
-    function hideResults() {
-        resultsBox.classList.add('hidden');
-        resultsBox.innerHTML = '';
-        activeIdx = -1;
-        lastResults = [];
-    }
-
-    function ensureMarker(lat, lng) {
-        if (!map) return;
-        if (marker) {
-            marker.setLatLng([lat, lng]);
-            return;
-        }
-        marker = L.marker([lat, lng], { draggable: true }).addTo(map);
-        marker.on('dragend', function () {
-            const p = marker.getLatLng();
-            reverseGeocode(p.lat, p.lng);
-        });
-    }
-
-    function setLocation(lat, lng, label) {
-        lat = Number(lat);
-        lng = Number(lng);
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-        latInput.value = lat.toFixed(7);
-        lngInput.value = lng.toFixed(7);
-        if (label) branchInput.value = String(label).slice(0, 255);
-        if (hint) hint.classList.remove('hidden');
-        if (!map) initMap(false);
-        if (map) {
-            ensureMarker(lat, lng);
-            map.setView([lat, lng], Math.max(map.getZoom() || 12, 14));
-            map.invalidateSize();
-        }
-        setStatus('تم تحديد الموقع على الخريطة', true);
-    }
-
-    function pickResult(item) {
-        if (!item) return;
-        setLocation(item.lat, item.lng, item.label || item.title || '');
-        searchInput.value = item.title || item.label || '';
-        hideResults();
-    }
-
-    async function reverseGeocode(lat, lng) {
-        const fallback = lat.toFixed(5) + ', ' + lng.toFixed(5);
-        setLocation(lat, lng, branchInput.value || fallback);
-        try {
-            const url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + lat + '&lon=' + lng + '&accept-language=ar';
-            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-            const data = await res.json();
-            if (data.display_name) branchInput.value = String(data.display_name).slice(0, 255);
-        } catch (_) {}
-    }
-
-    function renderResults(items) {
-        lastResults = items || [];
-        activeIdx = -1;
-        resultsBox.classList.remove('hidden');
-        if (!lastResults.length) {
-            resultsBox.innerHTML = '<div class="px-3 py-2.5 text-sm text-slate-500">لا نتائج — استخدم الاختصارات أو انقر على الخريطة.</div>';
-            return;
-        }
-        resultsBox.innerHTML = '';
-        lastResults.forEach((item) => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'map-suggest block w-full text-right px-3 py-2.5 hover:bg-sky-50 border-b border-slate-100 last:border-0';
-            btn.innerHTML = '<div class="text-[13px] font-bold text-slate-900"></div><div class="text-[11px] text-slate-500 mt-0.5"></div>';
-            btn.children[0].textContent = item.title || item.label || '';
-            btn.children[1].textContent = item.subtitle || item.label || '';
-            btn.addEventListener('click', () => pickResult(item));
-            resultsBox.appendChild(btn);
-        });
-    }
-
-    function highlightActive() {
-        resultsBox.querySelectorAll('.map-suggest').forEach((el, i) => {
-            el.classList.toggle('bg-sky-100', i === activeIdx);
-        });
-    }
-
-    async function clientNominatim(q) {
-        const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&q=' +
-            encodeURIComponent(q + ' السعودية') +
-            '&countrycodes=sa&limit=8&accept-language=ar';
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-        const rows = await res.json();
-        return (rows || []).map((item) => ({
-            lat: Number(item.lat),
-            lng: Number(item.lon),
-            title: item.name || (item.display_name || '').split(',')[0],
-            subtitle: item.display_name,
-            label: item.display_name,
-        }));
-    }
-
-    async function searchPlaces(q) {
-        q = (q || '').trim();
-        if (q.length < 2) { hideResults(); return; }
-        const seq = ++searchSeq;
-        resultsBox.classList.remove('hidden');
-        resultsBox.innerHTML = '<div class="px-3 py-2.5 text-sm text-slate-500">جاري البحث…</div>';
-        try {
-            const res = await fetch(placesUrl + '?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } });
-            const data = await res.json();
-            if (seq !== searchSeq) return;
-            let results = (data && data.results) || [];
-            if (!results.length) results = await clientNominatim(q);
-            renderResults(results);
-        } catch (_) {
-            if (seq !== searchSeq) return;
-            try { renderResults(await clientNominatim(q)); }
-            catch (e2) {
-                resultsBox.innerHTML = '<div class="px-3 py-2.5 text-sm text-red-600">تعذّر البحث — انقر على الخريطة.</div>';
-            }
-        }
-    }
-
-    function bindLayerButtons() {
-        if (layersBound) return;
-        layersBound = true;
-        document.getElementById('btnMapStreet')?.addEventListener('click', () => {
-            if (!map) return;
-            if (map.hasLayer(satLayer)) map.removeLayer(satLayer);
-            if (!map.hasLayer(streetLayer)) streetLayer.addTo(map);
-            document.getElementById('btnMapStreet').classList.add('active');
-            document.getElementById('btnMapSat').classList.remove('active');
-        });
-        document.getElementById('btnMapSat')?.addEventListener('click', () => {
-            if (!map) return;
-            if (map.hasLayer(streetLayer)) map.removeLayer(streetLayer);
-            if (!map.hasLayer(satLayer)) satLayer.addTo(map);
-            document.getElementById('btnMapSat').classList.add('active');
-            document.getElementById('btnMapStreet').classList.remove('active');
-        });
-    }
-
-    function refreshMapSize() {
-        if (!map) return;
-        map.invalidateSize(true);
-        [50, 150, 350, 700].forEach((ms) => setTimeout(() => map && map.invalidateSize(true), ms));
-    }
-
-    function initMap(withDefaultPin) {
-        if (!window.L) {
-            setStatus('تعذّر تحميل مكتبة الخريطة. حدّث الصفحة.', false);
-            return;
-        }
-        destroyMap();
-        setStatus('جاري تحميل الخريطة…', false);
-
-        try {
-            map = L.map(mapEl, {
-                scrollWheelZoom: true,
-                zoomControl: true,
-                preferCanvas: false,
-            }).setView(DEFAULT, 12);
-
-            // Free OpenStreetMap + Carto (reliable, no key)
-            streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                maxZoom: 20,
-                subdomains: 'abcd',
-                attribution: '&copy; OpenStreetMap &copy; CARTO',
-            });
-            satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                maxZoom: 19,
-                attribution: 'Esri',
-            });
-
-            streetLayer.addTo(map);
-            streetLayer.on('load', () => setStatus('الخريطة جاهزة — انقر لتحديد الموقع', true));
-            streetLayer.on('tileerror', () => {
-                // fallback OSM
-                if (!map.hasLayer(streetLayer)) return;
-                map.removeLayer(streetLayer);
-                streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '&copy; OpenStreetMap',
-                }).addTo(map);
-                setStatus('تم التبديل لمصدر خريطة بديل', true);
-            });
-
-            map.on('click', (e) => reverseGeocode(e.latlng.lat, e.latlng.lng));
-            bindLayerButtons();
-            refreshMapSize();
-
-            if (withDefaultPin) {
-                // Show a visible pin immediately so the map never looks empty
-                const lat = latInput.value ? Number(latInput.value) : DEFAULT[0];
-                const lng = lngInput.value ? Number(lngInput.value) : DEFAULT[1];
-                ensureMarker(lat, lng);
-                if (!latInput.value) {
-                    // Don't force branch text until user picks, but keep coords ready optional
-                    setStatus('حرّك الدبوس أو انقر على الخريطة لاختيار الفرع', true);
-                }
-            }
-        } catch (err) {
-            setStatus('فشل إنشاء الخريطة: ' + String(err), false);
-        }
-    }
-
+    function closeModal() { modal?.classList.add('hidden'); }
+    function openModal() { modal?.classList.remove('hidden'); }
     openBtn?.addEventListener('click', openModal);
     closeBtn?.addEventListener('click', closeModal);
     cancelBtn?.addEventListener('click', closeModal);
-    searchBtn?.addEventListener('click', () => searchPlaces(searchInput.value));
-    searchInput?.addEventListener('input', () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => searchPlaces(searchInput.value), 280);
-    });
-    searchInput?.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            if (!lastResults.length) return;
-            activeIdx = Math.min(activeIdx + 1, lastResults.length - 1);
-            highlightActive();
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            if (!lastResults.length) return;
-            activeIdx = Math.max(activeIdx - 1, 0);
-            highlightActive();
-        } else if (e.key === 'Enter') {
-            e.preventDefault();
-            if (activeIdx >= 0 && lastResults[activeIdx]) pickResult(lastResults[activeIdx]);
-            else searchPlaces(searchInput.value);
-        } else if (e.key === 'Escape') hideResults();
-    });
-
-    document.querySelectorAll('.quick-place').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            if (!map) initMap(false);
-            setLocation(btn.dataset.lat, btn.dataset.lng, btn.dataset.label);
-            searchInput.value = btn.textContent.trim();
-            hideResults();
-        });
-    });
-
-    document.getElementById('btnMyLocation')?.addEventListener('click', () => {
-        if (!navigator.geolocation) return alert('المتصفح لا يدعم تحديد الموقع');
-        navigator.geolocation.getCurrentPosition(
-            (pos) => reverseGeocode(pos.coords.latitude, pos.coords.longitude),
-            () => alert('تعذّر الحصول على موقعك'),
-            { enableHighAccuracy: true, timeout: 10000 }
-        );
-    });
-
-    form?.addEventListener('submit', (e) => {
-        if (!latInput.value || !lngInput.value || !branchInput.value.trim()) {
-            e.preventDefault();
-            alert('اختر موقعاً من الخريطة أو الاختصارات أولاً.');
-            initMap(true);
-        }
-    });
 })();
 </script>
 {% endif %}

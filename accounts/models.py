@@ -60,6 +60,9 @@ class User(AbstractUser):
         full = self.get_full_name().strip()
         return full or self.username
 
+    def __str__(self):
+        return self.display_name
+
     @property
     def initials(self):
         name = self.display_name

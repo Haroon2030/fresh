@@ -237,7 +237,8 @@
             margin-right: 80px !important;
         }
         body.sidebar-collapsed #sidebar .nav-label,
-        body.sidebar-collapsed #sidebar .brand-text {
+        body.sidebar-collapsed #sidebar .brand-text,
+        body.sidebar-collapsed #sidebar .nav-section-title {
             display: none;
         }
         body.sidebar-collapsed #sidebar .sidebar-user-meta .sidebar-user-text {
@@ -431,6 +432,104 @@
             font-weight: 700;
             line-height: 1.35;
             letter-spacing: 0;
+        }
+        #sidebar .nav-section-title {
+            margin-top: 8px;
+            padding: 10px 14px 2px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            color: #64748b;
+            font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border-top: 1px solid #e2e8f0;
+        }
+        #sidebar .nav-section-title:first-child {
+            margin-top: 0;
+            border-top: 0;
+            padding-top: 2px;
+        }
+        #sidebar .nav-section-title .material-symbols-outlined {
+            font-size: 16px;
+            color: #1d4ed8;
+        }
+        #sidebar .nav-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-top: 6px;
+        }
+        #sidebar .nav-group-toggle {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 8px 12px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #475569;
+            font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            text-align: right;
+            transition: background .15s ease, color .15s ease;
+        }
+        #sidebar .nav-group-toggle:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+        #sidebar .nav-group-toggle.is-active,
+        #sidebar .nav-group.open .nav-group-toggle {
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+        #sidebar .nav-group-toggle .nav-chevron {
+            margin-right: auto;
+            margin-left: 0;
+            font-size: 20px;
+            transition: transform .2s ease;
+        }
+        #sidebar .nav-group.open .nav-group-toggle .nav-chevron {
+            transform: rotate(180deg);
+        }
+        #sidebar .nav-submenu {
+            display: none;
+            flex-direction: column;
+            gap: 2px;
+            padding: 2px 0 4px 0;
+            margin-right: 12px;
+            border-right: 2px solid #bfdbfe;
+            padding-right: 8px;
+        }
+        #sidebar .nav-group.open .nav-submenu {
+            display: flex;
+        }
+        #sidebar .nav-submenu .nav-link {
+            font-size: 14px;
+            padding-top: 7px;
+            padding-bottom: 7px;
+        }
+        #sidebar .nav-submenu .nav-label {
+            font-size: 14px;
+            font-weight: 700;
+        }
+        body.sidebar-collapsed #sidebar .nav-group-toggle .nav-label,
+        body.sidebar-collapsed #sidebar .nav-group-toggle .nav-chevron {
+            display: none;
+        }
+        body.sidebar-collapsed #sidebar .nav-group-toggle {
+            justify-content: center;
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+        body.sidebar-collapsed #sidebar .nav-submenu {
+            margin-right: 0;
+            border-right: 0;
+            padding-right: 0;
         }
         #sidebar .sidebar-user-text .sidebar-user-name,
         #sidebar .sidebar-user-text .sidebar-user-role {
@@ -839,20 +938,40 @@
             <span class="material-symbols-outlined shrink-0 {% if active_nav == 'tasks' %}filled-icon{% endif %}">checklist</span>
             <span class="nav-label">المهام</span>
         </a>
-        <a class="nav-link flex items-center gap-md px-md py-sm rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out {% if active_nav == 'items' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}" href="{% url 'ops:items' %}" title="الأصناف">
-            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'items' %}filled-icon{% endif %}">inventory_2</span>
-            <span class="nav-label">الأصناف</span>
-        </a>
-        {% if user.is_manager %}
-        <a class="nav-link flex items-center gap-md px-md py-sm rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out {% if active_nav == 'users' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}" href="{% url 'accounts:users' %}" title="المستخدمون">
-            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'users' %}filled-icon{% endif %}">group</span>
-            <span class="nav-label">المستخدمون</span>
-        </a>
-        <a class="nav-link flex items-center gap-md px-md py-sm rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out {% if active_nav == 'whatsapp' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}" href="{% url 'ops:whatsapp' %}" title="واتساب">
-            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'whatsapp' %}filled-icon{% endif %}">sms</span>
-            <span class="nav-label">واتساب</span>
-        </a>
-        {% endif %}
+
+        <div class="nav-group{% if active_nav == 'items' or active_nav == 'branches' or active_nav == 'users' or active_nav == 'whatsapp' or active_nav == 'settings' %} open{% endif %}"
+             id="navSetupGroup"
+             data-nav-group="setup">
+            <button type="button" class="nav-group-toggle{% if active_nav == 'items' or active_nav == 'branches' or active_nav == 'users' or active_nav == 'whatsapp' or active_nav == 'settings' %} is-active{% endif %}"
+                    id="navSetupToggle"
+                    aria-expanded="{% if active_nav == 'items' or active_nav == 'branches' or active_nav == 'users' or active_nav == 'whatsapp' or active_nav == 'settings' %}true{% else %}false{% endif %}"
+                    aria-controls="navSetupSubmenu"
+                    title="التهيئة">
+                <span class="material-symbols-outlined shrink-0">tune</span>
+                <span class="nav-label">التهيئة</span>
+                <span class="material-symbols-outlined nav-chevron">expand_more</span>
+            </button>
+            <div class="nav-submenu" id="navSetupSubmenu" role="group" aria-label="قائمة التهيئة">
+                <a class="nav-link flex items-center gap-md px-md py-sm rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out {% if active_nav == 'items' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}" href="{% url 'ops:items' %}" title="الأصناف">
+                    <span class="material-symbols-outlined shrink-0 {% if active_nav == 'items' %}filled-icon{% endif %}">inventory_2</span>
+                    <span class="nav-label">الأصناف</span>
+                </a>
+                {% if user.is_manager %}
+                <a class="nav-link flex items-center gap-md px-md py-sm rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out {% if active_nav == 'branches' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}" href="{% url 'ops:branches' %}" title="الفروع">
+                    <span class="material-symbols-outlined shrink-0 {% if active_nav == 'branches' %}filled-icon{% endif %}">store</span>
+                    <span class="nav-label">الفروع</span>
+                </a>
+                <a class="nav-link flex items-center gap-md px-md py-sm rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out {% if active_nav == 'users' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}" href="{% url 'accounts:users' %}" title="المستخدمون">
+                    <span class="material-symbols-outlined shrink-0 {% if active_nav == 'users' %}filled-icon{% endif %}">group</span>
+                    <span class="nav-label">المستخدمون</span>
+                </a>
+                <a class="nav-link flex items-center gap-md px-md py-sm rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out {% if active_nav == 'whatsapp' %}bg-secondary-container text-on-secondary-container font-bold{% else %}text-on-surface-variant hover:bg-surface-container-high{% endif %}" href="{% url 'ops:whatsapp' %}" title="واتساب">
+                    <span class="material-symbols-outlined shrink-0 {% if active_nav == 'whatsapp' %}filled-icon{% endif %}">sms</span>
+                    <span class="nav-label">واتساب</span>
+                </a>
+                {% endif %}
+            </div>
+        </div>
     </div>
     <div class="sidebar-footer flex flex-col gap-sm mt-auto">
         <button type="button" class="sidebar-user-btn sidebar-user-meta w-full flex items-center gap-md px-md py-sm rounded-lg text-right"
@@ -1043,6 +1162,34 @@
     } catch (e) {}
 
     toggleBtns.forEach((btn) => btn.addEventListener('click', toggle));
+})();
+</script>
+<script>
+(function () {
+    const group = document.getElementById('navSetupGroup');
+    const btn = document.getElementById('navSetupToggle');
+    if (!group || !btn) return;
+    const KEY = 'farsh-nav-setup-open';
+    const forceOpen = group.classList.contains('open');
+
+    function setOpen(open) {
+        group.classList.toggle('open', open);
+        btn.classList.toggle('is-active', open || forceOpen);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        try { localStorage.setItem(KEY, open ? '1' : '0'); } catch (e) {}
+    }
+
+    if (forceOpen) {
+        setOpen(true);
+    } else {
+        try {
+            if (localStorage.getItem(KEY) === '1') setOpen(true);
+        } catch (e) {}
+    }
+
+    btn.addEventListener('click', function () {
+        setOpen(!group.classList.contains('open'));
+    });
 })();
 </script>
 {% endif %}
