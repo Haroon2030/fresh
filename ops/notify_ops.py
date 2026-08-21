@@ -15,8 +15,6 @@ from ops.whatsapp import (
     collect_recipient_entries,
     notify_with_pdf,
     normalize_whatsapp,
-    send_document,
-    send_text,
 )
 from ops.models import ReturnBatch, WhatsAppRoleContact
 
@@ -185,50 +183,48 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
     )
 
     recipients = collect_recipient_entries(include_roles=True)
+    rep = batch.representative
+    rep_phone = _user_phone(rep) or _role_contact_phone("representative")
+
+    # One bubble per unique phone: PDF + caption (no separate text message)
+    enriched = []
+    seen = set()
+    for entry in recipients:
+        phone = entry.get("phone") or ""
+        if not phone or phone in seen:
+            continue
+        seen.add(phone)
+        # Representative gets the action-focused caption on the same PDF
+        msg = rep_msg if phone == rep_phone else staff_msg
+        enriched.append({**entry, "message": msg})
+
+    if rep_phone and rep_phone not in seen:
+        enriched.append(
+            {
+                "phone": rep_phone,
+                "label": f"{rep.display_name} — {role_label(rep)}",
+                "role": "representative",
+                "user_id": getattr(rep, "pk", None),
+                "message": rep_msg,
+            }
+        )
+        seen.add(rep_phone)
+
     result = notify_with_pdf(
         message=staff_msg,
         pdf_bytes=pdf_bytes,
         filename=filename,
-        recipients=recipients,
+        recipients=enriched,
         media_url=pdf_url,
     )
     result["pdf_url"] = pdf_url
     result["pdf_filename"] = filename
-
-    # Representative — dedicated action notice (even if also in notify roles)
-    rep = batch.representative
-    rep_phone = _user_phone(rep) or _role_contact_phone("representative")
-    if rep_phone:
-        try:
-            ok_text = send_text(rep_phone, rep_msg)
-            ok_pdf = send_document(
-                rep_phone,
-                pdf_bytes,
-                filename=filename,
-                caption=f"ملف مرتجع {batch.return_number} — للتحميل والمراجعة",
-                media_url=pdf_url,
-            )
-            ok = ok_text or ok_pdf
-        except Exception:
-            logger.exception("Rep WhatsApp notify failed for return %s", batch.pk)
-            ok = False
-        if ok:
-            result["sent"] = result.get("sent", 0) + 1
-            result["total"] = result.get("total", 0) + 1
-            phones = list(result.get("phones") or [])
-            phones.append(rep_phone)
-            result["phones"] = phones
-            result["rep_notified"] = True
-        else:
-            result["rep_notified"] = False
-            if not result.get("error"):
-                result["error"] = "تعذّر إرسال تنبيه المندوب."
-    else:
+    result["rep_notified"] = bool(rep_phone and rep_phone in (result.get("phones") or []) and result.get("sent"))
+    if not rep_phone:
         result["rep_notified"] = False
         result["rep_warning"] = (
             "المندوب بلا رقم واتساب — أضف رقمه في ملف المستخدم أو جدول الأدوار في /whatsapp/."
         )
-        # Don't overwrite a clearer session error with only the phone warning
         if not result.get("error"):
             result["error"] = result["rep_warning"]
         elif "بلا رقم" not in (result.get("error") or ""):

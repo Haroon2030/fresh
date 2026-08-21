@@ -545,7 +545,7 @@ def send_document(
     if not raw_name.lower().endswith(".pdf"):
         raw_name = f"{raw_name}.pdf"
     filename = raw_name
-    caption = (caption or "")[:900]
+    caption = (caption or "")[:1024]
 
     url_media = ""
     if media_url and str(media_url).startswith(("http://", "https://")):
@@ -715,8 +715,8 @@ def notify_with_pdf(
     media_url: str = "",
 ) -> dict:
     """
-    Send structured text then PDF to each recipient.
-    recipients: list of {phone, label, role}
+    One WhatsApp message per recipient: PDF document + full text as caption.
+    Falls back to text-only if media send fails.
     """
     if not notify_enabled():
         return {"sent": 0, "total": 0, "phones": [], "error": "الإشعارات غير مفعّلة أو الإعدادات ناقصة."}
@@ -730,27 +730,37 @@ def notify_with_pdf(
     if not pdf_bytes and not media_url:
         return {"sent": 0, "total": len(recipients), "phones": [], "error": "تعذّر إنشاء ملف PDF."}
 
-    sent = 0
-    phones = []
+    # Deduplicate by phone so the same number never gets multiple bubbles
+    unique: list[dict] = []
+    seen = set()
     for entry in recipients:
         phone = entry.get("phone") or ""
+        if not phone or phone in seen:
+            continue
+        seen.add(phone)
+        unique.append(entry)
+
+    sent = 0
+    phones = []
+    for entry in unique:
+        phone = entry.get("phone") or ""
         phones.append(phone)
-        dest = entry.get("label") or entry.get("role") or ""
-        text = message
-        if dest:
-            text = f"{message}\nإلى: {dest}"
-        short_caption = f"المرفق الرسمي: {filename}"
+        caption = (entry.get("message") or message or "").strip()
+        # WhatsApp caption hard limit ~1024
+        if len(caption) > 1000:
+            caption = caption[:997] + "…"
         try:
-            # Text first (fast) so the download link always arrives even if PDF stalls
-            ok_text = send_text(phone, text)
-            ok_pdf = send_document(
+            ok = send_document(
                 phone,
                 pdf_bytes or b"",
                 filename=filename,
-                caption=short_caption,
+                caption=caption,
                 media_url=media_url,
             )
-            if ok_text or ok_pdf:
+            if not ok:
+                # Last resort: text alone (still one message)
+                ok = send_text(phone, caption or message)
+            if ok:
                 sent += 1
         except Exception:
             logger.exception("WhatsApp notify failed for %s", phone)
@@ -764,7 +774,7 @@ def notify_with_pdf(
                 "فشل إرسال واتساب: الجلسة غير مربوطة أو Evolution بطيء. "
                 "افتح /whatsapp/ → تحديث QR وامسح الرمز (farshops)."
             )
-    return {"sent": sent, "total": len(recipients), "phones": phones, "error": err}
+    return {"sent": sent, "total": len(unique), "phones": phones, "error": err}
 
 
 def send_test_to_roles() -> dict:
