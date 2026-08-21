@@ -137,25 +137,25 @@
                 <td class="cell-center cell-strong">{{ batch.items_count }}</td>
                 <td class="cell-center" onclick="event.stopPropagation()">
                     <div class="flex flex-wrap gap-1 justify-center">
-                        <a href="{% url 'ops:daily_order_batch_pdf' batch.seed_pk %}" class="act-btn act-ok" title="تحميل ملف PDF">PDF</a>
-                        <button type="button" class="act-btn act-ok" data-open-batch="{{ batch.seed_pk }}">عرض الأصناف</button>
+                        <a href="{% url 'ops:daily_order_batch_pdf' batch.seed_pk %}" class="act-btn act-pdf" title="تحميل ملف PDF">PDF</a>
+                        <button type="button" class="act-btn act-view" data-open-batch="{{ batch.seed_pk }}">عرض الأصناف</button>
                         {% if user.is_manager %}
                         {% if batch.display_status == 'pending' %}
                         <form method="post" action="{% url 'ops:daily_order_approve' batch.seed_pk %}" class="inline"
                               onsubmit="return confirm('اعتماد الملف وإرسال PDF للمورد؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-ok">اعتماد</button>
+                            <button type="submit" class="act-btn act-approve">اعتماد</button>
                         </form>
                         <form method="post" action="{% url 'ops:daily_order_reject' batch.seed_pk %}" class="inline"
                               onsubmit="return confirm('رفض ملف الطلبية؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-bad">رفض</button>
+                            <button type="submit" class="act-btn act-reject">رفض</button>
                         </form>
                         {% endif %}
                         <form method="post" action="{% url 'ops:daily_order_delete' batch.seed_pk %}" class="inline"
                               onsubmit="return confirm('حذف ملف {{ batch.batch_number }} وجميع أصنافه؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-bad">حذف</button>
+                            <button type="submit" class="act-btn act-delete">حذف</button>
                         </form>
                         {% endif %}
                     </div>
