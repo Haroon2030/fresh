@@ -100,7 +100,7 @@ def list_instances() -> list:
 def resolve_instance_name() -> str:
     """Always use configured name only — never auto-pick a zombie 'open' instance."""
     configured = (getattr(settings, "EVOLUTION_INSTANCE_NAME", "") or "").strip()
-    return configured or "farsh2"
+    return configured or "farshops"
 
 
 def _normalize_qr_base64(base64: str) -> str:
@@ -285,9 +285,27 @@ def create_instance() -> dict:
             "instanceName": instance,
             "qrcode": True,
             "integration": "WHATSAPP-BAILEYS",
+            "alwaysOnline": True,
+            "readMessages": False,
+            "readStatus": False,
+            "syncFullHistory": False,
+            "groupsIgnore": True,
         },
     )
     if status in (200, 201):
+        # Stabilize session settings (always online helps keep socket alive)
+        _api(
+            f"/settings/set/{instance}",
+            method="POST",
+            json_body={
+                "rejectCall": False,
+                "groupsIgnore": True,
+                "alwaysOnline": True,
+                "readMessages": False,
+                "readStatus": False,
+                "syncFullHistory": False,
+            },
+        )
         return {"ok": True, "detail": data}
     msg = str(data)
     if "already" in msg.lower() or status == 403:
@@ -338,8 +356,8 @@ def recreate_instance() -> dict:
                 "تعذّر حذف الانستانس القديم. جُلب QR للجلسة الحالية — امسحه فوراً."
             )
             return qr
-        # last resort: farsh2 / farsh3 style
-        alt = "farsh2" if instance != "farsh2" else "farsh3"
+        # last resort: farshops / farshops2 style
+        alt = "farshops" if instance != "farshops" else "farshops2"
         status, data = _api(
             "/instance/create",
             method="POST",
@@ -415,7 +433,7 @@ def send_text(number: str, text: str) -> bool:
             # surface for callers that check return False + logs
             logger.error(
                 "Evolution instance socket dead (Connection Closed). "
-                "Set EVOLUTION_INSTANCE_NAME=farsh2 and re-scan QR."
+                "Set EVOLUTION_INSTANCE_NAME=farshops and re-scan QR."
             )
         return False
     return True
@@ -562,7 +580,7 @@ def notify_roles(title: str, body: str = "") -> dict:
     if sent == 0:
         err = (
             "فشل الإرسال: جلسة واتساب غير جاهزة (Connection Closed). "
-            "من شاشة واتساب: تحديث QR وامسح الرمز من جديد للانستانس farsh2."
+            "من شاشة واتساب: تحديث QR وامسح الرمز من جديد للانستانس farshops."
         )
     return {"sent": sent, "total": len(phones), "phones": phones, "error": err}
 
