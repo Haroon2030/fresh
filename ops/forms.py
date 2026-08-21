@@ -134,6 +134,28 @@ class ReturnRequestForm(forms.ModelForm):
 
 
 class TaskForm(forms.ModelForm):
+    TITLE_CHOICES = [
+        ('', 'اختر عنوان المهمة...'),
+        ('زيارة فرع', 'زيارة فرع'),
+        ('متابعة مرتجع', 'متابعة مرتجع'),
+        ('متابعة توريد', 'متابعة توريد'),
+        ('استلام بضاعة', 'استلام بضاعة'),
+        ('جرد فرع', 'جرد فرع'),
+        ('فحص جودة', 'فحص جودة'),
+        ('تحصيل / متابعة مالية', 'تحصيل / متابعة مالية'),
+        ('شكوى عميل', 'شكوى عميل'),
+        ('صيانة / تجهيز', 'صيانة / تجهيز'),
+        ('مهمة أخرى', 'مهمة أخرى'),
+    ]
+
+    title = forms.ChoiceField(
+        choices=TITLE_CHOICES,
+        label='العنوان',
+        widget=forms.Select(attrs={
+            'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors app-select',
+        }),
+    )
+
     class Meta:
         model = Task
         fields = [
@@ -141,10 +163,6 @@ class TaskForm(forms.ModelForm):
             'branch', 'visit_details', 'due_at',
         ]
         widgets = {
-            'title': forms.TextInput(attrs={
-                'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
-                'placeholder': 'عنوان المهمة',
-            }),
             'description': forms.Textarea(attrs={
                 'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors resize-none',
                 'rows': 3,
@@ -178,14 +196,23 @@ class TaskForm(forms.ModelForm):
         )
         self.fields['assigned_to'].required = True
         self.fields['assigned_to'].empty_label = 'اختر الموظف...'
+        self.fields['title'].required = True
         self.fields['description'].required = False
         self.fields['branch'].required = True
         self.fields['visit_details'].required = True
         self.fields['due_at'].required = False
-        self.fields['title'].label = 'العنوان'
         self.fields['description'].label = 'الوصف'
         self.fields['priority'].label = 'الأولوية'
         self.fields['assigned_to'].label = 'تعيين للموظف'
         self.fields['branch'].label = 'موقع الفرع'
         self.fields['visit_details'].label = 'تفاصيل الزيارة'
         self.fields['due_at'].label = 'الموعد'
+
+        # Keep legacy free-text titles selectable when editing
+        current = None
+        if self.is_bound:
+            current = (self.data.get('title') or '').strip()
+        elif getattr(self.instance, 'pk', None):
+            current = (self.instance.title or '').strip()
+        if current and current not in dict(self.TITLE_CHOICES):
+            self.fields['title'].choices = list(self.TITLE_CHOICES) + [(current, current)]
