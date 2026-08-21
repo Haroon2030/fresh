@@ -94,6 +94,7 @@
                 <tr>
                     <th>رقم الطلب</th>
                     <th>المندوب</th>
+                    <th>الفرع</th>
                     <th>الحالة</th>
                     <th>الاسم</th>
                     <th>رقم الصنف</th>
@@ -113,6 +114,7 @@
                 <tr>
                     <td dir="ltr" class="cell-strong">{{ order.order_number }}</td>
                     <td>{{ order.representative.display_name }}</td>
+                    <td>{{ order.branch|default:"—" }}</td>
                     <td>{{ order.get_status_display }}</td>
                     <td class="cell-strong">{{ order.item_name }}</td>
                     <td dir="ltr">{{ order.item_number|default:"—" }}</td>

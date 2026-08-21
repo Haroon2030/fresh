@@ -215,6 +215,7 @@
             <tr>
                 <th>رقم الطلب</th>
                 <th>اسم المندوب</th>
+                <th>الفرع</th>
                 <th>الاسم</th>
                 <th>رقم الصنف</th>
                 <th>الوحدة</th>
@@ -237,6 +238,7 @@
                         <span>{{ order.representative.display_name }}</span>
                     </div>
                 </td>
+                <td>{{ order.branch|default:"—" }}</td>
                 <td>{{ order.item_name }}</td>
                 <td>{% if order.item_number %}{{ order.item_number }}{% else %}—{% endif %}</td>
                 <td>{% if order.unit %}{{ order.unit }}{% else %}—{% endif %}</td>
@@ -261,7 +263,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="10" class="empty-row">لا توجد طلبات.</td>
+                <td colspan="11" class="empty-row">لا توجد طلبات.</td>
             </tr>
             {% endfor %}
             </tbody>
@@ -331,6 +333,18 @@
                         </select>
                     </div>
                     {% endif %}
+                    <div class="flex flex-col gap-sm">
+                        <label class="font-label-md text-label-md text-on-surface" for="supplyBranch">الفرع</label>
+                        <select name="branch" id="supplyBranch" required
+                                class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface app-select">
+                            <option value="">اختر الفرع...</option>
+                            {% for b in branches %}
+                            <option value="{{ b }}" {% if b == default_branch %}selected{% endif %}>{{ b }}</option>
+                            {% empty %}
+                            <option value="" disabled>أضف فروعاً من التهيئة أولاً</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                     <div class="flex flex-col gap-sm">
                         <label class="font-label-md text-label-md text-on-surface" for="expectedDate">التاريخ المتوقع</label>
                         <input type="date" name="expected_date" id="expectedDate"

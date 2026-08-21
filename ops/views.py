@@ -236,6 +236,7 @@ def supply_list(request):
         'orders': page,
         'page_obj': page,
         'representatives': representatives,
+        'branches': Branch.active_names(),
         'status_filter': status,
         'period_filter': period,
         'total_orders': total_orders,
@@ -262,6 +263,11 @@ def supply_create(request):
             return redirect('ops:supply')
 
     expected_raw = (request.POST.get('expected_date') or '').strip() or None
+    branch = (request.POST.get('branch') or '').strip() or Branch.default_name()
+    if not branch:
+        messages.error(request, 'اختر الفرع.')
+        return redirect('ops:supply')
+
     item_names = request.POST.getlist('item_name')
     item_numbers = request.POST.getlist('item_number')
     units = request.POST.getlist('unit')
@@ -287,6 +293,7 @@ def supply_create(request):
             package=(packages[i] if i < len(packages) else '').strip(),
             quantity=quantity,
             notes=(notes_list[i] if i < len(notes_list) else '').strip(),
+            branch=branch,
             expected_date=expected_raw,
             created_by=request.user,
         )

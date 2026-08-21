@@ -21,6 +21,7 @@ class SupplyOrder(models.Model):
     unit = models.CharField(max_length=50, blank=True, verbose_name='الوحدة')
     package = models.CharField(max_length=100, blank=True, verbose_name='العبوة')
     quantity = models.PositiveIntegerField(default=1, verbose_name='الكمية')
+    branch = models.CharField(max_length=150, blank=True, default='', verbose_name='الفرع')
     expected_date = models.DateField(null=True, blank=True, verbose_name='التاريخ المتوقع')
     notes = models.TextField(blank=True, verbose_name='ملاحظات')
     unit_price = models.DecimalField(
