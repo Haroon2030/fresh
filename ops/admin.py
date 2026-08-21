@@ -16,10 +16,10 @@ from .models import (
 
 @admin.register(Branch)
 class BranchAdmin(admin.ModelAdmin):
-    list_display = ('name', 'is_active', 'sort_order', 'updated_at')
-    list_editable = ('is_active', 'sort_order')
+    list_display = ('name', 'is_active', 'is_default', 'sort_order', 'updated_at')
+    list_editable = ('is_active', 'is_default', 'sort_order')
     search_fields = ('name',)
-    list_filter = ('is_active',)
+    list_filter = ('is_active', 'is_default')
 
 
 @admin.register(Supplier)

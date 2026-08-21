@@ -452,6 +452,11 @@ class Branch(models.Model):
 
     name = models.CharField(max_length=150, unique=True, verbose_name='اسم الفرع')
     is_active = models.BooleanField(default=True, verbose_name='نشط')
+    is_default = models.BooleanField(
+        default=False,
+        verbose_name='افتراضي',
+        help_text='يُختار تلقائياً في نماذج المرتجعات والطلبيات والمهام.',
+    )
     sort_order = models.PositiveSmallIntegerField(default=0, verbose_name='الترتيب')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -467,6 +472,33 @@ class Branch(models.Model):
     @classmethod
     def active_names(cls):
         return list(cls.objects.filter(is_active=True).order_by('sort_order', 'name').values_list('name', flat=True))
+
+    @classmethod
+    def default_name(cls):
+        """اسم الفرع الافتراضي النشط من التهيئة (أو أول فرع نشط إن لم يُحدَّد)."""
+        name = (
+            cls.objects.filter(is_active=True, is_default=True)
+            .order_by('sort_order', 'name')
+            .values_list('name', flat=True)
+            .first()
+        )
+        if name:
+            return name
+        return (
+            cls.objects.filter(is_active=True)
+            .order_by('sort_order', 'name')
+            .values_list('name', flat=True)
+            .first()
+            or ''
+        )
+
+    def set_as_default(self):
+        """اجعل هذا الفرع هو الافتراضي الوحيد."""
+        type(self).objects.filter(is_default=True).exclude(pk=self.pk).update(is_default=False)
+        if not self.is_default or not self.is_active:
+            self.is_default = True
+            self.is_active = True
+            self.save(update_fields=['is_default', 'is_active', 'updated_at'])
 
 
 class Supplier(models.Model):

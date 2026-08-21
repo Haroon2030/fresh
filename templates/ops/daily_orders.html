@@ -232,7 +232,7 @@
             </div>
         </div>
         <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
-            <a href="{% url 'ops:daily_order_batch_pdf' batch.seed_pk %}" class="act-btn act-ok">PDF</a>
+            <a href="{% url 'ops:daily_order_batch_pdf' batch.seed_pk %}" class="act-btn act-pdf">PDF</a>
             <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md"
                     data-close-batch="{{ batch.seed_pk }}">إغلاق</button>
         </div>
@@ -281,7 +281,7 @@
                                 class="order-rep-select w-full bg-surface border border-outline-variant rounded-lg py-2.5 pr-3 pl-12 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
                             <option value="">اختر الفرع...</option>
                             {% for b in branches %}
-                            <option value="{{ b }}">{{ b }}</option>
+                            <option value="{{ b }}" {% if b == default_branch %}selected{% endif %}>{{ b }}</option>
                             {% empty %}
                             <option value="" disabled>أضف فروعاً من التهيئة أولاً</option>
                             {% endfor %}

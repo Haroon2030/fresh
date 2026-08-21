@@ -379,6 +379,7 @@ def returns_list(request):
     return render(request, 'ops/returns.html', {
         'batches': qs,
         'representatives': representatives,
+        'branches': Branch.active_names(),
         'q': q,
         'open_batch': open_batch,
         'active_nav': 'returns',
@@ -403,7 +404,7 @@ def return_create(request):
 
     branch = (request.POST.get('branch') or '').strip()
     if not branch:
-        messages.error(request, 'أدخل اسم الفرع.')
+        messages.error(request, 'اختر الفرع.')
         return redirect('ops:returns')
 
     item_names = request.POST.getlist('item_name')
@@ -1289,7 +1290,7 @@ def _normalize_branch_name(raw: str) -> str:
 
 @manager_required
 def branches_setup(request):
-    """تهيئة الفروع — تُستخدم في اختيار موقع الفرع بالمهام."""
+    """تهيئة الفروع — تُستخدم في اختيار موقع الفرع بالمهام والطلبيات والمرتجعات."""
     if request.method == 'POST':
         action = (request.POST.get('action') or '').strip()
         if action == 'add':
@@ -1300,12 +1301,22 @@ def branches_setup(request):
                 messages.error(request, f'الفرع «{name}» موجود مسبقاً.')
             else:
                 last = Branch.objects.order_by('-sort_order').values_list('sort_order', flat=True).first() or 0
-                Branch.objects.create(name=name, sort_order=last + 1, is_active=True)
+                make_default = not Branch.objects.filter(is_default=True).exists()
+                Branch.objects.create(
+                    name=name,
+                    sort_order=last + 1,
+                    is_active=True,
+                    is_default=make_default,
+                )
                 messages.success(request, f'تمت إضافة «{name}».')
         elif action == 'toggle':
             branch = get_object_or_404(Branch, pk=request.POST.get('branch_id'))
             branch.is_active = not branch.is_active
-            branch.save(update_fields=['is_active', 'updated_at'])
+            update_fields = ['is_active', 'updated_at']
+            if not branch.is_active and branch.is_default:
+                branch.is_default = False
+                update_fields.append('is_default')
+            branch.save(update_fields=update_fields)
             state = 'تفعيل' if branch.is_active else 'إيقاف'
             messages.success(request, f'تم {state} «{branch.name}».')
         elif action == 'delete':
@@ -1324,6 +1335,10 @@ def branches_setup(request):
                 branch.name = name
                 branch.save(update_fields=['name', 'updated_at'])
                 messages.success(request, 'تم تحديث اسم الفرع.')
+        elif action == 'set_default':
+            branch = get_object_or_404(Branch, pk=request.POST.get('branch_id'))
+            branch.set_as_default()
+            messages.success(request, f'تم تعيين «{branch.name}» كفرع افتراضي في النماذج.')
         return redirect('ops:branches')
 
     branches = Branch.objects.all().order_by('sort_order', 'name')

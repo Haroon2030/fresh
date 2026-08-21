@@ -7,7 +7,7 @@
     <div>
         <h2 class="font-bold text-[26px] text-black" style="font-family:'Cairo',sans-serif">تهيئة الفروع</h2>
         <p class="text-[14px] text-slate-600 mt-1" style="font-family:'Cairo',sans-serif">
-            قائمة الفروع التي تظهر عند إنشاء مهمة (موقع الفرع).
+            قائمة الفروع في المرتجعات والطلبيات والمهام. عيّن فرعاً افتراضياً ليُختار تلقائياً في النماذج.
         </p>
     </div>
     <span class="text-[12px] font-bold text-slate-500" style="font-family:'Cairo',sans-serif">
@@ -50,10 +50,11 @@
         <table class="user-form-grid w-full">
             <thead>
             <tr>
-                <th style="width:8%">#</th>
+                <th style="width:6%">#</th>
                 <th>اسم الفرع</th>
-                <th style="width:14%">الحالة</th>
-                <th style="width:36%">إجراءات</th>
+                <th style="width:12%">الحالة</th>
+                <th style="width:12%">الافتراضي</th>
+                <th style="width:40%">إجراءات</th>
             </tr>
             </thead>
             <tbody>
@@ -80,7 +81,25 @@
                     {% endif %}
                 </td>
                 <td>
+                    {% if b.is_default %}
+                    <span class="status-chip status-wait">افتراضي</span>
+                    {% else %}
+                    <span class="text-slate-400 text-[12px] font-bold">—</span>
+                    {% endif %}
+                </td>
+                <td>
                     <div class="flex flex-wrap gap-2">
+                        {% if not b.is_default %}
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="set_default">
+                            <input type="hidden" name="branch_id" value="{{ b.pk }}">
+                            <button type="submit" class="act-btn act-view" title="يُختار تلقائياً في النماذج">
+                                <span class="material-symbols-outlined text-[16px] text-inherit">star</span>
+                                افتراضي
+                            </button>
+                        </form>
+                        {% endif %}
                         <form method="post">
                             {% csrf_token %}
                             <input type="hidden" name="action" value="toggle">
@@ -104,7 +123,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="4" class="text-center text-slate-500 py-8 font-bold">لا فروع بعد — أضف أول فرع أعلاه.</td>
+                <td colspan="5" class="text-center text-slate-500 py-8 font-bold">لا فروع بعد — أضف أول فرع أعلاه.</td>
             </tr>
             {% endfor %}
             </tbody>

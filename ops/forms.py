@@ -217,6 +217,10 @@ class TaskForm(forms.ModelForm):
         self.fields['branch'].required = True
         if not branch_names:
             self.fields['branch'].help_text = 'لا فروع نشطة — أضفها من شاشة الفروع أولاً.'
+        elif not self.is_bound and not getattr(self.instance, 'pk', None):
+            default = Branch.default_name()
+            if default:
+                self.fields['branch'].initial = default
 
         self.fields['due_at'].required = False
         self.fields['description'].label = 'الوصف'
