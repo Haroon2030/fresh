@@ -148,6 +148,7 @@ def connection_state() -> dict:
     )
     owner = ""
     fetch_status = ""
+    disc_reason = ""
     # Instance missing → treat as closed so UI shows QR / recreate
     if status == 404:
         state = "close"
@@ -159,12 +160,14 @@ def connection_state() -> dict:
                     inst.get("connectionStatus") or inst.get("status") or ""
                 ).lower()
                 owner = inst.get("ownerJid") or inst.get("owner") or ""
+                disc_reason = str(inst.get("disconnectionReasonCode") or "")
                 break
         state_l = str(state).lower()
-        # Evolution often returns connectionState=connecting while fetchInstances
-        # already has open + ownerJid. Trust the owned open session — otherwise the
-        # UI keeps requesting QR/restart and WhatsApp never stays connected.
-        if fetch_status == "open" and owner:
+        # 401/440 = logged out / replaced — status may still say open with stale owner
+        if disc_reason in ("401", "403", "440", "515"):
+            state = "connecting"
+        elif fetch_status == "open" and owner:
+            # Trust owned open session — connectionState often flickers to connecting
             state = "open"
         elif state_l == "open" and fetch_status == "close":
             state = "close"
@@ -175,11 +178,19 @@ def connection_state() -> dict:
         elif state_l == "open" and not owner and fetch_status != "open":
             state = "close"
 
-    ok = str(state).lower() == "open" and bool(owner)
+    ok = str(state).lower() == "open" and bool(owner) and disc_reason not in (
+        "401",
+        "403",
+        "440",
+        "515",
+    )
     if str(state).lower() == "open" and not owner:
         # open without owner is unreliable — show closed, not endless connecting
         ok = False
         state = "close"
+    if disc_reason in ("401", "403", "440", "515"):
+        ok = False
+        state = "connecting"
 
     return {
         "ok": ok,
@@ -187,6 +198,7 @@ def connection_state() -> dict:
         "state": state,
         "instance": instance,
         "owner": owner,
+        "disc_reason": disc_reason,
         "status_code": status,
         "detail": data,
     }
