@@ -9,23 +9,23 @@
         position: relative;
         overflow: hidden;
         border-radius: 18px;
-        border: 1px solid #bfdbfe;
+        border: 1px solid #d0dcd6;
         background:
-            radial-gradient(1200px 280px at 100% 0%, rgba(59,130,246,0.18), transparent 55%),
-            linear-gradient(135deg, #eff6ff 0%, #ffffff 48%, #f0fdf4 100%);
+            radial-gradient(1100px 280px at 100% 0%, rgba(20,92,76,0.14), transparent 55%),
+            linear-gradient(135deg, #e8eef4 0%, #ffffff 48%, #eef3f0 100%);
         padding: 28px 28px 24px;
     }
     .dash-welcome h1 {
         font-family: 'Cairo', sans-serif;
         font-size: clamp(26px, 3vw, 34px);
         font-weight: 800;
-        color: #0f172a;
+        color: #0f2744;
         line-height: 1.25;
     }
     .dash-welcome p {
         font-family: 'Cairo', sans-serif;
         font-size: 15px;
-        color: #475569;
+        color: #3d524a;
         margin-top: 8px;
         max-width: 42rem;
     }
@@ -36,9 +36,9 @@
         margin-top: 14px;
         padding: 6px 12px;
         border-radius: 999px;
-        background: rgba(255,255,255,0.85);
-        border: 1px solid #dbeafe;
-        color: #1e3a8a;
+        background: rgba(255,255,255,0.9);
+        border: 1px solid #d0dcd6;
+        color: #0f2744;
         font-family: 'Cairo', sans-serif;
         font-size: 13px;
         font-weight: 700;
@@ -48,19 +48,19 @@
         border: 1px solid transparent;
         padding: 18px 18px 16px;
         background: #fff;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        box-shadow: 0 1px 2px rgba(15, 39, 68, 0.04);
         transition: transform .2s ease, box-shadow .2s ease;
         min-height: 118px;
     }
     .kpi-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+        box-shadow: 0 8px 20px rgba(15, 39, 68, 0.08);
     }
     .kpi-card .kpi-label {
         font-family: 'Cairo', sans-serif;
         font-size: 14px;
         font-weight: 700;
-        color: #334155;
+        color: #3d524a;
     }
     .kpi-card .kpi-value {
         font-family: 'Cairo', sans-serif;
@@ -68,14 +68,14 @@
         font-weight: 800;
         line-height: 1.1;
         margin-top: 8px;
-        color: #0f172a;
+        color: #0f2744;
     }
     .kpi-card .kpi-sub {
         font-family: 'Cairo', sans-serif;
         font-size: 12px;
         font-weight: 600;
         margin-top: 8px;
-        color: #64748b;
+        color: #5a6f66;
     }
     .kpi-icon {
         width: 42px;
@@ -86,22 +86,22 @@
     }
     .kpi-amber { background: linear-gradient(160deg,#fffbeb,#fff); border-color:#fcd34d; }
     .kpi-amber .kpi-icon { background:#fef3c7; color:#b45309; }
-    .kpi-sky { background: linear-gradient(160deg,#eff6ff,#fff); border-color:#93c5fd; }
-    .kpi-sky .kpi-icon { background:#dbeafe; color:#1d4ed8; }
-    .kpi-emerald { background: linear-gradient(160deg,#ecfdf5,#fff); border-color:#6ee7b7; }
-    .kpi-emerald .kpi-icon { background:#d1fae5; color:#047857; }
-    .kpi-slate { background: linear-gradient(160deg,#f8fafc,#fff); border-color:#cbd5e1; }
-    .kpi-slate .kpi-icon { background:#e2e8f0; color:#334155; }
+    .kpi-sky { background: linear-gradient(160deg,#e8eef4,#fff); border-color:#b8c9d6; }
+    .kpi-sky .kpi-icon { background:#e8eef4; color:#0f2744; }
+    .kpi-emerald { background: linear-gradient(160deg,#ecf6f2,#fff); border-color:#9dc4b8; }
+    .kpi-emerald .kpi-icon { background:#dce8e3; color:#145c4c; }
+    .kpi-slate { background: linear-gradient(160deg,#f4f7f5,#fff); border-color:#d0dcd6; }
+    .kpi-slate .kpi-icon { background:#eef3f0; color:#3d524a; }
     .chart-panel {
-        border: 1px solid #bfdbfe;
+        border: 1px solid #d0dcd6;
         border-radius: 16px;
         background: #fff;
         overflow: hidden;
     }
     .chart-panel .panel-head {
         padding: 14px 18px;
-        border-bottom: 1px solid #dbeafe;
-        background: #f8fbff;
+        border-bottom: 1px solid #d0dcd6;
+        background: linear-gradient(135deg, #e8eef4, #eef3f0);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -111,7 +111,7 @@
         font-family: 'Cairo', sans-serif;
         font-size: 16px;
         font-weight: 800;
-        color: #0f172a;
+        color: #0f2744;
     }
     .chart-panel .panel-body {
         padding: 16px 18px 20px;
@@ -119,7 +119,7 @@
         position: relative;
     }
     .dash-list {
-        border: 1px solid #bfdbfe;
+        border: 1px solid #d0dcd6;
         border-radius: 16px;
         background: #fff;
         overflow: hidden;
@@ -130,11 +130,11 @@
         justify-content: space-between;
         gap: 12px;
         padding: 12px 16px;
-        border-bottom: 1px solid #eff6ff;
+        border-bottom: 1px solid #eef3f0;
         font-family: 'Cairo', sans-serif;
     }
     .dash-list .row-item:last-child { border-bottom: 0; }
-    .dash-list .row-item:hover { background: #f8fbff; }
+    .dash-list .row-item:hover { background: #f8fbf9; }
     .dash-empty {
         padding: 28px 16px;
         text-align: center;
@@ -364,24 +364,24 @@
                 {
                     label: 'التوريد',
                     data: data.week.supply,
-                    borderColor: '#1d4ed8',
-                    backgroundColor: 'rgba(29,78,216,0.12)',
+                    borderColor: '#0f2744',
+                    backgroundColor: 'rgba(15,39,68,0.12)',
                     fill: true,
                     tension: 0.35,
                     borderWidth: 2.5,
                     pointRadius: 3,
-                    pointBackgroundColor: '#1d4ed8',
+                    pointBackgroundColor: '#0f2744',
                 },
                 {
                     label: 'المرتجعات',
                     data: data.week.returns,
-                    borderColor: '#d97706',
-                    backgroundColor: 'rgba(217,119,6,0.10)',
+                    borderColor: '#145c4c',
+                    backgroundColor: 'rgba(20,92,76,0.12)',
                     fill: true,
                     tension: 0.35,
                     borderWidth: 2.5,
                     pointRadius: 3,
-                    pointBackgroundColor: '#d97706',
+                    pointBackgroundColor: '#145c4c',
                 },
             ],
         },

@@ -154,14 +154,11 @@
 {% endblock %}
 
 {% block modals %}
-<div class="hidden fixed inset-0 z-50 flex items-center justify-center p-md bg-[#1b1b1d]/50 backdrop-blur-sm" id="newUserModal">
-    <div class="bg-white rounded-xl shadow-lg border border-[#bfdbfe] w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div class="px-lg py-md border-b border-[#bfdbfe] flex justify-between items-center bg-[#eff6ff]">
-            <div class="flex items-center gap-sm">
-                <span class="material-symbols-outlined text-[#1d4ed8]">person_add</span>
-                <h3 class="font-bold text-[18px] text-black" style="font-family:'Cairo',sans-serif">تسجيل مستخدم جديد</h3>
-            </div>
-            <button type="button" class="text-slate-500 hover:bg-white p-sm rounded-full"
+<div class="app-modal hidden" id="newUserModal">
+    <div class="app-modal-panel app-modal-panel--lg">
+        <div class="app-modal-head">
+            <h3>تسجيل مستخدم جديد</h3>
+            <button type="button" class="app-modal-close" aria-label="إغلاق"
                     onclick="document.getElementById('newUserModal').classList.add('hidden')">
                 <span class="material-symbols-outlined">close</span>
             </button>

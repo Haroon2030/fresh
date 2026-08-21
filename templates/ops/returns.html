@@ -102,11 +102,11 @@
 {% endblock %}
 
 {% block modals %}
-<div class="hidden fixed inset-0 z-50 flex items-center justify-center p-md bg-[#1b1b1d]/50 backdrop-blur-sm" id="newReturnModal">
-    <div class="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant w-full max-w-6xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div class="px-lg py-md border-b border-outline-variant flex justify-between items-center bg-surface-bright">
-            <h3 class="font-headline-md text-headline-md font-bold text-on-surface">مرتجع جديد</h3>
-            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full"
+<div class="app-modal hidden" id="newReturnModal">
+    <div class="app-modal-panel app-modal-panel--xl">
+        <div class="app-modal-head">
+            <h3>مرتجع جديد</h3>
+            <button type="button" class="app-modal-close" aria-label="إغلاق"
                     onclick="document.getElementById('newReturnModal').classList.add('hidden')">
                 <span class="material-symbols-outlined">close</span>
             </button>
@@ -195,21 +195,21 @@
 </div>
 
 {% for batch in batches %}
-<div class="hidden fixed inset-0 z-50 flex items-center justify-center p-md bg-[#1b1b1d]/50 backdrop-blur-sm batch-detail-modal" id="batchModal-{{ batch.pk }}">
-    <div class="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant w-full max-w-6xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div class="px-lg py-md border-b border-outline-variant flex justify-between items-start gap-md bg-surface-bright">
+<div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.pk }}">
+    <div class="app-modal-panel app-modal-panel--xl">
+        <div class="app-modal-head">
             <div>
-                <h3 class="font-headline-md text-headline-md font-bold text-on-surface">ملف {{ batch.return_number }}</h3>
-                <p class="font-body-md text-body-md text-on-surface-variant mt-1">
+                <h3>ملف {{ batch.return_number }}</h3>
+                <p style="margin:4px 0 0;opacity:.85;font-size:13px;font-family:Cairo,sans-serif">
                     {{ batch.representative.display_name }} · {{ batch.branch }} · {{ batch.created_at|date:"Y/m/d H:i" }}
                 </p>
             </div>
             <div class="flex items-center gap-sm shrink-0">
-                <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="act-btn act-ok">
+                <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="act-btn" style="background:rgba(255,255,255,.18);color:#fff">
                     <span class="material-symbols-outlined text-[16px] text-inherit">download</span>
                     تحميل PDF
                 </a>
-                <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full close-batch-modal"
+                <button type="button" class="app-modal-close close-batch-modal" aria-label="إغلاق"
                         data-close-batch="{{ batch.pk }}">
                     <span class="material-symbols-outlined">close</span>
                 </button>

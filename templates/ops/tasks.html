@@ -53,11 +53,11 @@
   .map-layer-btn.active { background:#0f172a; color:#fff; border-color:#0f172a; }
 </style>
 
-<div class="hidden fixed inset-0 z-50 flex items-center justify-center p-md bg-[#1b1b1d]/50 backdrop-blur-sm" id="newTaskModal">
-    <div class="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant w-full max-w-3xl overflow-hidden flex flex-col max-h-[94vh]">
-        <div class="px-lg py-md border-b border-outline-variant flex justify-between items-center bg-surface-bright">
-            <h3 class="font-headline-md text-headline-md font-bold text-on-surface">مهمة جديدة</h3>
-            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full" id="btnCloseNewTask">
+<div class="app-modal hidden" id="newTaskModal">
+    <div class="app-modal-panel app-modal-panel--lg">
+        <div class="app-modal-head">
+            <h3>مهمة جديدة</h3>
+            <button type="button" class="app-modal-close" aria-label="إغلاق" id="btnCloseNewTask">
                 <span class="material-symbols-outlined">close</span>
             </button>
         </div>

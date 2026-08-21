@@ -118,11 +118,11 @@
 {% endblock %}
 
 {% block modals %}
-<div class="hidden fixed inset-0 z-50 flex items-center justify-center p-md bg-[#1b1b1d]/50 backdrop-blur-sm" id="newItemModal">
-    <div class="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-        <div class="px-lg py-md border-b border-outline-variant flex justify-between items-center bg-surface-bright">
-            <h3 class="font-headline-md text-headline-md font-bold text-on-surface">إضافة صنف</h3>
-            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full"
+<div class="app-modal hidden" id="newItemModal">
+    <div class="app-modal-panel app-modal-panel--md">
+        <div class="app-modal-head">
+            <h3>إضافة صنف</h3>
+            <button type="button" class="app-modal-close" aria-label="إغلاق"
                     onclick="document.getElementById('newItemModal').classList.add('hidden')">
                 <span class="material-symbols-outlined">close</span>
             </button>
@@ -157,10 +157,10 @@
                     </div>
                 </div>
             </div>
-            <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
-                <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md"
+            <div class="app-modal-foot">
+                <button type="button" class="btn-ghost-app"
                         onclick="document.getElementById('newItemModal').classList.add('hidden')">إلغاء</button>
-                <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md">حفظ</button>
+                <button type="submit" class="btn-primary-app">حفظ</button>
             </div>
         </form>
     </div>
