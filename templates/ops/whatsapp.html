@@ -254,9 +254,9 @@
                 showConnected();
             } else {
                 setChip(false, data.state);
-                // keep QR visible while connecting/close
-                if (connectedBox && !connectedBox.classList.contains('hidden') && data.state !== 'open') {
-                    showQrMode();
+                showQrMode();
+                if (!img.src || img.classList.contains('hidden')) {
+                    loadQr();
                 }
             }
         } catch (_) {}
@@ -307,6 +307,11 @@
             } else {
                 msg.textContent = data.error || 'فشل الإرسال';
                 msg.className = 'text-[13px] font-bold mt-2 text-red-600';
+                const err = String(data.error || '');
+                if (err.includes('Closed') || err.includes('جلسة') || err.includes('QR')) {
+                    showQrMode();
+                    loadQr();
+                }
             }
         } catch (e) {
             if (msg) {
@@ -324,7 +329,9 @@
         loadQr();
     }, 25000);
     {% else %}
-    setInterval(pollStatus, 15000);
+    // Verify live status; if session died, fall back to QR
+    pollStatus();
+    setInterval(pollStatus, 10000);
     {% endif %}
 })();
 </script>

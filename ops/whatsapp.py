@@ -141,21 +141,44 @@ def connection_state() -> dict:
         or data.get("state")
         or ("error" if status >= 400 or status == 0 else "unknown")
     )
+    owner = ""
+    fetch_status = ""
     # Instance missing → treat as closed so UI shows QR / recreate
     if status == 404:
         state = "close"
-    elif status != 200 or str(state).lower() not in ("open", "close", "connecting"):
+    else:
         for inst in list_instances():
             name = inst.get("name") or inst.get("instanceName")
             if name == instance:
-                state = inst.get("connectionStatus") or inst.get("status") or state
+                fetch_status = str(
+                    inst.get("connectionStatus") or inst.get("status") or ""
+                ).lower()
+                owner = inst.get("ownerJid") or inst.get("owner") or ""
                 break
+        # Never trust a lone 'open' from fetchInstances if connectionState says close
+        state_l = str(state).lower()
+        if state_l not in ("open", "close", "connecting"):
+            state = fetch_status or state
+        elif state_l == "open" and fetch_status == "close":
+            state = "close"
+        elif state_l == "close":
+            state = "close"
+        # open without ownerJid is often a zombie socket
+        elif state_l == "open" and not owner and fetch_status != "open":
+            state = "close"
+
+    ok = str(state).lower() == "open" and bool(owner or fetch_status == "open")
+    # Extra safety: open + empty owner from both → still show as connecting
+    if str(state).lower() == "open" and not owner:
+        ok = False
+        state = "connecting"
 
     return {
-        "ok": str(state).lower() == "open",
+        "ok": ok,
         "configured": True,
         "state": state,
         "instance": instance,
+        "owner": owner,
         "status_code": status,
         "detail": data,
     }
@@ -509,8 +532,8 @@ def notify_roles(title: str, body: str = "") -> dict:
     err = None
     if sent == 0:
         err = (
-            "فشل الإرسال: جلسة واتساب ميتة (Connection Closed). "
-            "ضع EVOLUTION_INSTANCE_NAME=farsh ثم اقطع الاتصال/حدّث QR وامسح الرمز من جديد."
+            "فشل الإرسال: جلسة واتساب غير جاهزة (Connection Closed). "
+            "من شاشة واتساب: تحديث QR وامسح الرمز من جديد للانستانس farsh."
         )
     return {"sent": sent, "total": len(phones), "phones": phones, "error": err}
 
@@ -555,7 +578,14 @@ def notify_with_pdf(
 
     err = None
     if sent == 0:
-        err = "فشل إرسال واتساب (تحقق من ربط الانستانس وأرقام المستلمين)."
+        # Distinguish empty phones vs dead session
+        if not any(phones):
+            err = "لا توجد أرقام واتساب للمستلمين. احفظ أرقام الأدوار في شاشة واتساب."
+        else:
+            err = (
+                "فشل إرسال واتساب: الجلسة غير مربوطة (Connection Closed). "
+                "افتح /whatsapp/ → تحديث QR وامسح الرمز."
+            )
     return {"sent": sent, "total": len(recipients), "phones": phones, "error": err}
 
 

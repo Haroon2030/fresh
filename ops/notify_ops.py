@@ -139,8 +139,14 @@ def notify_return_batch_saved(batch, *, actor) -> dict:
                 result["error"] = "تعذّر إرسال تنبيه المندوب."
     else:
         result["rep_notified"] = False
-        warn = "المندوب بلا رقم واتساب — أضف رقمه في المستخدم أو جدول الأدوار."
-        result["error"] = f"{result.get('error') + ' | ' if result.get('error') else ''}{warn}".strip(" |")
+        result["rep_warning"] = (
+            "المندوب بلا رقم واتساب — أضف رقمه في ملف المستخدم أو جدول الأدوار في /whatsapp/."
+        )
+        # Don't overwrite a clearer session error with only the phone warning
+        if not result.get("error"):
+            result["error"] = result["rep_warning"]
+        elif "بلا رقم" not in (result.get("error") or ""):
+            result["error"] = f"{result['error']} | {result['rep_warning']}"
 
     return result
 
