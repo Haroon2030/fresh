@@ -1,5 +1,5 @@
-from datetime import timedelta
-from decimal import Decimal
+from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
 import json
 
 from django.conf import settings
@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Avg, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -18,9 +18,11 @@ from .forms import TaskForm
 from .models import (
     Branch,
     CatalogItem,
+    DailyOrder,
     ReturnBatch,
     ReturnRequest,
     SupplyOrder,
+    Supplier,
     Task,
     TaskResponsePhoto,
     WhatsAppRoleContact,
@@ -38,6 +40,7 @@ from .whatsapp import (
     send_test_to_roles,
 )
 from .notify_ops import (
+    schedule_daily_order_approved,
     schedule_return_notify,
     schedule_supply_notify,
     schedule_task_assigned,
@@ -666,6 +669,300 @@ def return_reject(request, pk):
     return _redirect_returns(ret.batch_id)
 
 
+def _daily_order_queryset(user):
+    qs = DailyOrder.objects.select_related('representative', 'created_by')
+    if user.is_representative:
+        qs = qs.filter(representative=user)
+    return qs
+
+
+@login_required
+def daily_orders_list(request):
+    qs = _daily_order_queryset(request.user)
+    q = (request.GET.get('q') or '').strip()
+    date_raw = (request.GET.get('date') or '').strip()
+    today = timezone.localdate()
+    if date_raw:
+        try:
+            order_date = datetime.strptime(date_raw, '%Y-%m-%d').date()
+        except ValueError:
+            order_date = today
+    else:
+        order_date = today
+    qs = qs.filter(order_date=order_date)
+    if q:
+        qs = qs.filter(
+            Q(order_number__icontains=q)
+            | Q(item_name__icontains=q)
+            | Q(item_number__icontains=q)
+            | Q(branch__icontains=q)
+            | Q(supplier__icontains=q)
+            | Q(representative__first_name__icontains=q)
+            | Q(representative__last_name__icontains=q)
+            | Q(representative__username__icontains=q)
+        )
+
+    reps = User.objects.filter(role=User.Role.REPRESENTATIVE, is_active=True)
+    if not reps.exists():
+        representatives = User.objects.filter(is_active=True).order_by('first_name', 'username')
+    else:
+        representatives = reps.order_by('first_name', 'username')
+
+    catalog = list(
+        CatalogItem.objects.order_by('name').values('item_number', 'name')[:500]
+    )
+    return render(request, 'ops/daily_orders.html', {
+        'orders': qs,
+        'q': q,
+        'order_date': order_date,
+        'today': today,
+        'representatives': representatives,
+        'branches': Branch.active_names(),
+        'suppliers': Supplier.active_names(),
+        'catalog': catalog,
+        'catalog_json': json.dumps(catalog, ensure_ascii=False),
+        'active_nav': 'orders',
+    })
+
+
+@login_required
+@require_POST
+def daily_order_create(request):
+    if request.user.is_representative:
+        representative = request.user
+    else:
+        rep_id = request.POST.get('representative')
+        representative = User.objects.filter(pk=rep_id, is_active=True).first()
+        if not representative:
+            messages.error(request, 'اختر المندوب أولاً.')
+            return redirect('ops:daily_orders')
+
+    branch = (request.POST.get('branch') or '').strip()
+    if not branch:
+        messages.error(request, 'اختر الفرع.')
+        return redirect('ops:daily_orders')
+
+    supplier = (request.POST.get('supplier') or '').strip()
+    if not supplier:
+        messages.error(request, 'اختر المورد.')
+        return redirect('ops:daily_orders')
+
+    date_raw = (request.POST.get('order_date') or '').strip()
+    today = timezone.localdate()
+    if date_raw:
+        try:
+            order_date = datetime.strptime(date_raw, '%Y-%m-%d').date()
+        except ValueError:
+            order_date = today
+    else:
+        order_date = today
+
+    item_names = request.POST.getlist('item_name')
+    item_numbers = request.POST.getlist('item_number')
+    quantities = request.POST.getlist('quantity')
+    prices = request.POST.getlist('unit_price')
+
+    created = 0
+    for i, item_name in enumerate(item_names):
+        item_name = (item_name or '').strip()
+        if not item_name:
+            continue
+        qty_raw = quantities[i] if i < len(quantities) else '1'
+        try:
+            quantity = max(1, int(qty_raw or 1))
+        except (TypeError, ValueError):
+            quantity = 1
+        price_raw = prices[i] if i < len(prices) else '0'
+        try:
+            unit_price = Decimal(str(price_raw or '0').strip() or '0')
+        except (InvalidOperation, TypeError, ValueError):
+            messages.error(request, f'سعر غير صالح للصنف «{item_name}».')
+            return redirect('ops:daily_orders')
+        if unit_price < 0:
+            messages.error(request, f'السعر يجب ألا يكون سالباً للصنف «{item_name}».')
+            return redirect('ops:daily_orders')
+        DailyOrder.objects.create(
+            order_date=order_date,
+            item_name=item_name,
+            item_number=(item_numbers[i] if i < len(item_numbers) else '').strip(),
+            quantity=quantity,
+            unit_price=unit_price,
+            representative=representative,
+            branch=branch,
+            supplier=supplier,
+            created_by=request.user,
+        )
+        created += 1
+
+    if not created:
+        messages.error(request, 'أضف صنفاً واحداً على الأقل مع الاسم والسعر.')
+        return redirect('ops:daily_orders')
+
+    messages.success(request, f'تم تسجيل {created} طلبية يومية.')
+    return redirect(f"{reverse('ops:daily_orders')}?date={order_date.isoformat()}")
+
+
+@manager_required
+@require_POST
+def daily_order_delete(request, pk):
+    order = get_object_or_404(DailyOrder, pk=pk)
+    label = order.order_number
+    order_date = order.order_date
+    order.delete()
+    messages.success(request, f'تم حذف الطلبية {label}.')
+    return redirect(f"{reverse('ops:daily_orders')}?date={order_date.isoformat()}")
+
+
+@manager_required
+@require_POST
+def daily_order_approve(request, pk):
+    order = get_object_or_404(
+        DailyOrder,
+        pk=pk,
+        status=DailyOrder.Status.PENDING,
+    )
+    order.status = DailyOrder.Status.APPROVED
+    order.reviewed_by = request.user
+    order.reviewed_at = timezone.now()
+    order.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'updated_at'])
+    messages.success(request, f'تم اعتماد الطلبية {order.order_number}.')
+    schedule_daily_order_approved(order.pk, request.user.pk)
+    supplier = Supplier.objects.filter(name=order.supplier).first()
+    if supplier and supplier.normalized_phone():
+        messages.info(request, 'جاري إرسال إشعار واتساب للمورد في الخلفية.')
+    else:
+        messages.warning(request, 'لا يوجد رقم جوال للمورد — لم يُرسل واتساب.')
+    return redirect(f"{reverse('ops:daily_orders')}?date={order.order_date.isoformat()}")
+
+
+@manager_required
+@require_POST
+def daily_order_reject(request, pk):
+    order = get_object_or_404(
+        DailyOrder,
+        pk=pk,
+        status=DailyOrder.Status.PENDING,
+    )
+    order.status = DailyOrder.Status.REJECTED
+    order.reviewed_by = request.user
+    order.reviewed_at = timezone.now()
+    order.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'updated_at'])
+    messages.success(request, f'تم رفض الطلبية {order.order_number}.')
+    return redirect(f"{reverse('ops:daily_orders')}?date={order.order_date.isoformat()}")
+
+
+def _parse_order_date(raw, fallback):
+    raw = (raw or '').strip()
+    if not raw:
+        return fallback
+    try:
+        return datetime.strptime(raw, '%Y-%m-%d').date()
+    except ValueError:
+        return fallback
+
+
+def _avg_prices_by_item(qs):
+    """Map item_key -> {item_number, item_name, avg_price}."""
+    rows = (
+        qs.values('item_number', 'item_name')
+        .annotate(avg_price=Avg('unit_price'))
+        .order_by('item_name')
+    )
+    result = {}
+    for row in rows:
+        number = (row['item_number'] or '').strip()
+        name = (row['item_name'] or '').strip()
+        key = number if number else name
+        if not key:
+            continue
+        result[key] = {
+            'item_number': number,
+            'item_name': name,
+            'avg_price': row['avg_price'] or Decimal('0'),
+        }
+    return result
+
+
+@login_required
+def price_compare(request):
+    today = timezone.localdate()
+    curr_date = _parse_order_date(request.GET.get('date'), today)
+    prev_date = _parse_order_date(request.GET.get('prev_date'), curr_date - timedelta(days=1))
+
+    branch = (request.GET.get('branch') or '').strip()
+    supplier = (request.GET.get('supplier') or '').strip()
+    rep_id = (request.GET.get('representative') or '').strip()
+
+    base = _daily_order_queryset(request.user)
+    if branch:
+        base = base.filter(branch=branch)
+    if supplier:
+        base = base.filter(supplier=supplier)
+    if rep_id:
+        base = base.filter(representative_id=rep_id)
+
+    prev_map = _avg_prices_by_item(base.filter(order_date=prev_date))
+    curr_map = _avg_prices_by_item(base.filter(order_date=curr_date))
+    keys = sorted(set(prev_map) | set(curr_map), key=lambda k: (
+        (curr_map.get(k) or prev_map.get(k) or {}).get('item_name') or k
+    ))
+
+    rows = []
+    for key in keys:
+        prev = prev_map.get(key)
+        curr = curr_map.get(key)
+        prev_price = prev['avg_price'] if prev else None
+        curr_price = curr['avg_price'] if curr else None
+        item_number = (curr or prev or {}).get('item_number') or ''
+        item_name = (curr or prev or {}).get('item_name') or key
+        diff = None
+        pct = None
+        direction = 'missing'
+        if prev_price is not None and curr_price is not None:
+            diff = curr_price - prev_price
+            if prev_price != 0:
+                pct = (diff / prev_price) * Decimal('100')
+            if diff > 0:
+                direction = 'up'
+            elif diff < 0:
+                direction = 'down'
+            else:
+                direction = 'same'
+        elif curr_price is not None:
+            direction = 'new'
+        elif prev_price is not None:
+            direction = 'gone'
+        rows.append({
+            'item_number': item_number,
+            'item_name': item_name,
+            'prev_price': prev_price,
+            'curr_price': curr_price,
+            'diff': diff,
+            'pct': pct,
+            'direction': direction,
+        })
+
+    reps = User.objects.filter(role=User.Role.REPRESENTATIVE, is_active=True)
+    if not reps.exists():
+        representatives = User.objects.filter(is_active=True).order_by('first_name', 'username')
+    else:
+        representatives = reps.order_by('first_name', 'username')
+
+    return render(request, 'ops/price_compare.html', {
+        'rows': rows,
+        'curr_date': curr_date,
+        'prev_date': prev_date,
+        'today': today,
+        'filter_branch': branch,
+        'filter_supplier': supplier,
+        'filter_rep': rep_id,
+        'branches': Branch.active_names(),
+        'suppliers': Supplier.active_names(),
+        'representatives': representatives,
+        'active_nav': 'price_compare',
+    })
+
+
 @login_required
 def tasks_board(request):
     qs = _task_queryset(request.user).prefetch_related('response_photos')
@@ -916,6 +1213,64 @@ def branches_setup(request):
     return render(request, 'ops/branches.html', {
         'active_nav': 'branches',
         'branches': branches,
+    })
+
+
+def _normalize_supplier_name(raw: str) -> str:
+    return ' '.join((raw or '').strip().split())
+
+
+@manager_required
+def suppliers_setup(request):
+    """تهيئة الموردين — تُستخدم في طلبات الشراء اليومية."""
+    if request.method == 'POST':
+        action = (request.POST.get('action') or '').strip()
+        if action == 'add':
+            name = _normalize_supplier_name(request.POST.get('name'))
+            phone = normalize_whatsapp(request.POST.get('phone') or '')
+            if not name:
+                messages.error(request, 'أدخل اسم المورد.')
+            elif Supplier.objects.filter(name=name).exists():
+                messages.error(request, f'المورد «{name}» موجود مسبقاً.')
+            else:
+                last = Supplier.objects.order_by('-sort_order').values_list('sort_order', flat=True).first() or 0
+                Supplier.objects.create(
+                    name=name,
+                    phone=phone,
+                    sort_order=last + 1,
+                    is_active=True,
+                )
+                messages.success(request, f'تمت إضافة «{name}».')
+        elif action == 'toggle':
+            supplier = get_object_or_404(Supplier, pk=request.POST.get('supplier_id'))
+            supplier.is_active = not supplier.is_active
+            supplier.save(update_fields=['is_active', 'updated_at'])
+            state = 'تفعيل' if supplier.is_active else 'إيقاف'
+            messages.success(request, f'تم {state} «{supplier.name}».')
+        elif action == 'delete':
+            supplier = get_object_or_404(Supplier, pk=request.POST.get('supplier_id'))
+            label = supplier.name
+            supplier.delete()
+            messages.success(request, f'تم حذف «{label}».')
+        elif action == 'rename':
+            supplier = get_object_or_404(Supplier, pk=request.POST.get('supplier_id'))
+            name = _normalize_supplier_name(request.POST.get('name'))
+            phone = normalize_whatsapp(request.POST.get('phone') or '')
+            if not name:
+                messages.error(request, 'أدخل اسم المورد.')
+            elif Supplier.objects.exclude(pk=supplier.pk).filter(name=name).exists():
+                messages.error(request, f'الاسم «{name}» مستخدم لمورد آخر.')
+            else:
+                supplier.name = name
+                supplier.phone = phone
+                supplier.save(update_fields=['name', 'phone', 'updated_at'])
+                messages.success(request, 'تم تحديث بيانات المورد.')
+        return redirect('ops:suppliers')
+
+    suppliers = Supplier.objects.all().order_by('sort_order', 'name')
+    return render(request, 'ops/suppliers.html', {
+        'active_nav': 'suppliers',
+        'suppliers': suppliers,
     })
 
 

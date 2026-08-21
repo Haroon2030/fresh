@@ -469,6 +469,107 @@ class Branch(models.Model):
         return list(cls.objects.filter(is_active=True).order_by('sort_order', 'name').values_list('name', flat=True))
 
 
+class Supplier(models.Model):
+    """الموردون — تُستخدم في طلبات الشراء اليومية."""
+
+    name = models.CharField(max_length=150, unique=True, verbose_name='اسم المورد')
+    phone = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name='رقم الجوال',
+        help_text='صيغة دولية بدون + مثل 9665xxxxxxxx — لإشعار واتساب بعد اعتماد الطلب',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='نشط')
+    sort_order = models.PositiveSmallIntegerField(default=0, verbose_name='الترتيب')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name = 'مورد'
+        verbose_name_plural = 'الموردون'
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def active_names(cls):
+        return list(cls.objects.filter(is_active=True).order_by('sort_order', 'name').values_list('name', flat=True))
+
+    def normalized_phone(self) -> str:
+        from ops.whatsapp import normalize_whatsapp
+        return normalize_whatsapp(self.phone or '')
+
+
+class DailyOrder(models.Model):
+    """تسجيل طلبية يومية (صف واحد لكل صنف)."""
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'قيد الاعتماد'
+        APPROVED = 'approved', 'معتمد'
+        REJECTED = 'rejected', 'مرفوض'
+
+    order_number = models.CharField(max_length=20, unique=True, editable=False)
+    order_date = models.DateField(verbose_name='تاريخ الطلبية')
+    item_number = models.CharField(max_length=100, blank=True, verbose_name='رقم الصنف')
+    item_name = models.CharField(max_length=255, verbose_name='اسم الصنف')
+    quantity = models.PositiveIntegerField(default=1, verbose_name='الكمية')
+    unit_price = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        verbose_name='السعر',
+    )
+    representative = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='daily_orders',
+        verbose_name='المندوب',
+    )
+    branch = models.CharField(max_length=150, verbose_name='الفرع')
+    supplier = models.CharField(max_length=150, blank=True, verbose_name='المورد')
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        verbose_name='الحالة',
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_daily_orders',
+        verbose_name='اعتمد بواسطة',
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name='وقت الاعتماد')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='created_daily_orders',
+        verbose_name='أنشئ بواسطة',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-order_date', '-created_at']
+        verbose_name = 'طلبية يومية'
+        verbose_name_plural = 'الطلبيات اليومية'
+
+    def __str__(self):
+        return f'{self.order_number} — {self.item_name}'
+
+    def save(self, *args, **kwargs):
+        if not self.order_date:
+            from django.utils import timezone
+            self.order_date = timezone.localdate()
+        if not self.order_number:
+            last = DailyOrder.objects.aggregate(Max('id'))['id__max'] or 0
+            self.order_number = f'#DAY-{last + 1:04d}'
+        super().save(*args, **kwargs)
+
+
 class WhatsAppRoleContact(models.Model):
     """رقم واتساب مرتبط بدور معيّن لاستلام الإشعارات."""
 

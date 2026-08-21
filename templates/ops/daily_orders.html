@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+
+{% block title %}الطلبيات اليومية - عمليات الفرش{% endblock %}
+
+{% block header_search %}
+<form method="get" class="relative w-full flex gap-2 items-center">
+    <input type="date" name="date" value="{{ order_date|date:'Y-m-d' }}"
+           class="bg-surface-container-low border border-outline-variant rounded-full py-2 px-3 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+           onchange="this.form.submit()">
+    <div class="relative flex-1">
+        <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+        <input name="q" value="{{ q }}" class="w-full bg-surface-container-low border border-outline-variant rounded-full py-2 pr-10 pl-4 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" placeholder="بحث: صنف، مندوب، فرع، مورد..." type="text">
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    .order-rep-select {
+        appearance: none;
+        -webkit-appearance: none;
+        background-image:
+            linear-gradient(45deg, transparent 50%, #1d4ed8 50%),
+            linear-gradient(135deg, #1d4ed8 50%, transparent 50%);
+        background-position: 18px calc(50% - 2px), 23px calc(50% - 2px);
+        background-size: 5px 5px, 5px 5px;
+        background-repeat: no-repeat;
+        padding-left: 2.75rem;
+    }
+    .excel-grid .cell-input,
+    .excel-grid .cell-select {
+        width: 100%;
+        border: 0;
+        outline: none;
+        background: transparent;
+        padding: 8px 6px;
+        font: inherit;
+        text-align: right;
+    }
+    .excel-grid .cell-input:focus,
+    .excel-grid .cell-select:focus {
+        background: #eff6ff;
+    }
+    .excel-grid .row-num {
+        text-align: center;
+        color: #64748b;
+        font-weight: 700;
+        padding: 6px !important;
+    }
+    .excel-grid .cell-action {
+        text-align: center;
+        padding: 4px !important;
+    }
+    .excel-grid .row-actions {
+        display: inline-flex;
+        gap: 4px;
+    }
+    .excel-grid .remove-row {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 8px;
+        border-radius: 6px;
+        border: 1px solid #fda4af;
+        background: #fff1f2;
+        color: #be123c;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row md:items-center justify-between mb-lg gap-md">
+    <div>
+        <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">الطلبيات اليومية</h2>
+        <p class="text-on-surface-variant font-body-md text-body-md mt-xs">
+            تسجيل طلبيات يوم
+            <b>{{ order_date|date:"Y/m/d" }}</b>
+            {% if order_date == today %}(اليوم){% endif %}.
+        </p>
+    </div>
+    <div class="flex flex-col sm:flex-row gap-sm w-full md:w-auto">
+        <a href="{% url 'ops:price_compare' %}" class="px-4 py-2 border border-outline-variant rounded-lg font-label-md text-label-md flex items-center gap-1 justify-center">
+            <span class="material-symbols-outlined text-[18px]">compare_arrows</span>
+            مقارنة الأسعار
+        </a>
+        <button type="button" class="btn-primary-app"
+                onclick="document.getElementById('newOrderModal').classList.remove('hidden')">
+            <span class="material-symbols-outlined">add</span>
+            طلبية جديدة
+        </button>
+    </div>
+</div>
+
+<div class="app-table-frame w-full max-w-full">
+    <div class="app-toolbar">
+        <span class="font-label-md text-label-md font-bold text-on-surface flex items-center gap-sm">
+            <span class="material-symbols-outlined">receipt_long</span>
+            سجل الطلبيات ({{ orders|length }})
+        </span>
+    </div>
+    <div class="app-table-sheet overflow-x-auto bg-white">
+        <table class="excel-grid app-data-grid w-full">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>رقم الطلبية</th>
+                <th>التاريخ</th>
+                <th>رقم الصنف</th>
+                <th>اسم الصنف</th>
+                <th>الكمية</th>
+                <th>السعر</th>
+                <th>المندوب</th>
+                <th>الفرع</th>
+                <th>المورد</th>
+                <th>الحالة</th>
+                {% if user.is_manager %}<th>إجراء</th>{% endif %}
+            </tr>
+            </thead>
+            <tbody>
+            {% for order in orders %}
+            <tr>
+                <td class="row-num cell-center">{{ forloop.counter }}</td>
+                <td class="cell-strong" dir="ltr">{{ order.order_number }}</td>
+                <td>{{ order.order_date|date:"Y/m/d" }}</td>
+                <td dir="ltr">{{ order.item_number|default:"—" }}</td>
+                <td class="cell-strong">{{ order.item_name }}</td>
+                <td class="cell-center">{{ order.quantity }}</td>
+                <td class="cell-center cell-strong" dir="ltr">{{ order.unit_price }}</td>
+                <td>{{ order.representative.display_name }}</td>
+                <td>{{ order.branch }}</td>
+                <td>{{ order.supplier|default:"—" }}</td>
+                <td class="cell-center">
+                    {% if order.status == 'approved' %}
+                    <span class="status-chip status-ok">معتمد</span>
+                    {% elif order.status == 'rejected' %}
+                    <span class="status-chip status-bad">مرفوض</span>
+                    {% else %}
+                    <span class="status-chip status-pending">قيد الاعتماد</span>
+                    {% endif %}
+                </td>
+                {% if user.is_manager %}
+                <td class="cell-center">
+                    <div class="flex flex-wrap gap-1 justify-center">
+                        {% if order.status == 'pending' %}
+                        <form method="post" action="{% url 'ops:daily_order_approve' order.pk %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-ok" title="اعتماد وإرسال واتساب للمورد">اعتماد</button>
+                        </form>
+                        <form method="post" action="{% url 'ops:daily_order_reject' order.pk %}" class="inline"
+                              onsubmit="return confirm('رفض الطلبية {{ order.order_number }}؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-bad" title="رفض">رفض</button>
+                        </form>
+                        {% endif %}
+                        <form method="post" action="{% url 'ops:daily_order_delete' order.pk %}" class="inline"
+                              onsubmit="return confirm('حذف الطلبية {{ order.order_number }}؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-bad" title="حذف">
+                                <span class="material-symbols-outlined text-[16px] text-inherit">delete</span>
+                            </button>
+                        </form>
+                    </div>
+                </td>
+                {% endif %}
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="{% if user.is_manager %}12{% else %}11{% endif %}" class="empty-row">
+                    لا طلبيات لهذا اليوم — اضغط «طلبية جديدة» للتسجيل.
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="app-modal hidden" id="newOrderModal">
+    <div class="app-modal-panel app-modal-panel--lg">
+        <div class="app-modal-head">
+            <h3>طلبية يومية جديدة</h3>
+            <button type="button" class="app-modal-close" aria-label="إغلاق"
+                    onclick="document.getElementById('newOrderModal').classList.add('hidden')">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <form method="post" action="{% url 'ops:daily_order_create' %}" class="flex flex-col overflow-hidden" id="orderMultiForm">
+            {% csrf_token %}
+            <div class="p-lg overflow-y-auto flex flex-col gap-md">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
+                    {% if user.is_representative %}
+                    <input type="hidden" name="representative" value="{{ user.pk }}">
+                    <div class="flex flex-col gap-sm">
+                        <label class="font-label-md text-label-md text-on-surface">المندوب</label>
+                        <div class="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-3 font-body-md text-body-md">
+                            {{ user.display_name }}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="flex flex-col gap-sm">
+                        <label class="font-label-md text-label-md text-on-surface" for="orderRep">المندوب</label>
+                        <select name="representative" id="orderRep" required
+                                class="order-rep-select w-full bg-surface border border-outline-variant rounded-lg py-2.5 pr-3 pl-12 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
+                            <option value="">اختر المندوب...</option>
+                            {% for rep in representatives %}
+                            <option value="{{ rep.pk }}">{{ rep.display_name }}</option>
+                            {% empty %}
+                            <option value="" disabled>لا يوجد مناديب</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    <div class="flex flex-col gap-sm">
+                        <label class="font-label-md text-label-md text-on-surface" for="orderBranch">الفرع</label>
+                        <select name="branch" id="orderBranch" required
+                                class="order-rep-select w-full bg-surface border border-outline-variant rounded-lg py-2.5 pr-3 pl-12 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
+                            <option value="">اختر الفرع...</option>
+                            {% for b in branches %}
+                            <option value="{{ b }}">{{ b }}</option>
+                            {% empty %}
+                            <option value="" disabled>أضف فروعاً من التهيئة أولاً</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-sm">
+                        <label class="font-label-md text-label-md text-on-surface" for="orderSupplier">المورد</label>
+                        <select name="supplier" id="orderSupplier" required
+                                class="order-rep-select w-full bg-surface border border-outline-variant rounded-lg py-2.5 pr-3 pl-12 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
+                            <option value="">اختر المورد...</option>
+                            {% for s in suppliers %}
+                            <option value="{{ s }}">{{ s }}</option>
+                            {% empty %}
+                            <option value="" disabled>أضف موردين من التهيئة أولاً</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-sm">
+                        <label class="font-label-md text-label-md text-on-surface" for="orderDate">التاريخ</label>
+                        <input type="date" name="order_date" id="orderDate" value="{{ order_date|date:'Y-m-d' }}"
+                               class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between gap-sm">
+                    <span class="font-label-md text-label-md font-bold text-on-surface">أصناف الطلبية</span>
+                    <button type="button" id="addOrderRow"
+                            class="flex items-center gap-xs px-md py-2 rounded-lg font-label-md text-label-md text-white bg-blue-600 border border-blue-600 hover:bg-blue-700">
+                        <span class="material-symbols-outlined text-[18px] text-white">add</span>
+                        إضافة صف
+                    </button>
+                </div>
+
+                <div class="excel-sheet overflow-x-auto border border-[#b4b4b4] rounded-sm bg-white shadow-sm">
+                    <table class="excel-grid w-full text-right border-collapse">
+                        <thead>
+                        <tr>
+                            <th style="width:44px">#</th>
+                            <th>رقم الصنف</th>
+                            <th>اسم الصنف</th>
+                            <th style="width:90px">الكمية</th>
+                            <th style="width:100px">السعر</th>
+                            <th style="width:90px">إجراء</th>
+                        </tr>
+                        </thead>
+                        <tbody id="orderRows"></tbody>
+                    </table>
+                </div>
+                <p class="text-xs text-on-surface-variant font-bold m-0">أضف عدة صفوف ثم احفظ دفعة واحدة. السعر مطلوب لكل صف.</p>
+            </div>
+            <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
+                <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md"
+                        onclick="document.getElementById('newOrderModal').classList.add('hidden')">إلغاء</button>
+                <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md">حفظ</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    const tbody = document.getElementById('orderRows');
+    const addBtn = document.getElementById('addOrderRow');
+    if (!tbody || !addBtn) return;
+
+    let catalog = [];
+    try { catalog = JSON.parse('{{ catalog_json|escapejs }}') || []; } catch (e) { catalog = []; }
+
+    function renumber() {
+        tbody.querySelectorAll('tr').forEach((tr, i) => {
+            const num = tr.querySelector('[data-row-num]');
+            if (num) num.textContent = String(i + 1);
+        });
+    }
+
+    function fillFromCatalog(tr, byNumber) {
+        const numInput = tr.querySelector('input[name="item_number"]');
+        const nameInput = tr.querySelector('input[name="item_name"]');
+        if (!numInput || !nameInput || !catalog.length) return;
+        const key = byNumber ? (numInput.value || '').trim() : (nameInput.value || '').trim();
+        if (!key) return;
+        const hit = catalog.find((c) =>
+            byNumber
+                ? String(c.item_number) === key
+                : String(c.name) === key || String(c.name).includes(key)
+        );
+        if (!hit) return;
+        if (byNumber) nameInput.value = hit.name || nameInput.value;
+        else numInput.value = hit.item_number || numInput.value;
+    }
+
+    function addRow() {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="row-num" data-row-num></td>
+            <td><input class="cell-input" name="item_number" type="text" list="catalogNumbers" placeholder="رقم الصنف" dir="ltr"></td>
+            <td><input class="cell-input" name="item_name" type="text" list="catalogNames" required placeholder="اسم الصنف"></td>
+            <td><input class="cell-input" name="quantity" type="number" min="1" value="1" required></td>
+            <td><input class="cell-input" name="unit_price" type="number" min="0" step="0.01" value="0" required placeholder="السعر" dir="ltr"></td>
+            <td class="cell-action">
+                <div class="row-actions">
+                    <button type="button" class="remove-row" title="حذف الصف">حذف</button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        renumber();
+        const num = tr.querySelector('input[name="item_number"]');
+        const name = tr.querySelector('input[name="item_name"]');
+        num?.addEventListener('change', () => fillFromCatalog(tr, true));
+        num?.addEventListener('blur', () => fillFromCatalog(tr, true));
+        name?.addEventListener('change', () => fillFromCatalog(tr, false));
+        if (num) num.focus();
+    }
+
+    addBtn.addEventListener('click', addRow);
+    tbody.addEventListener('click', (e) => {
+        const btn = e.target.closest('.remove-row');
+        if (!btn) return;
+        if (tbody.querySelectorAll('tr').length <= 1) return;
+        btn.closest('tr').remove();
+        renumber();
+    });
+    tbody.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        const cell = e.target.closest('td');
+        if (!cell) return;
+        e.preventDefault();
+        const tr = cell.parentElement;
+        const idx = Array.from(tr.children).indexOf(cell);
+        const nextRow = tr.nextElementSibling;
+        if (nextRow) {
+            const next = nextRow.children[idx]?.querySelector('input');
+            if (next) next.focus();
+        } else {
+            addRow();
+        }
+    });
+
+    addRow();
+})();
+</script>
+<datalist id="catalogNumbers">
+{% for c in catalog %}<option value="{{ c.item_number }}"></option>{% endfor %}
+</datalist>
+<datalist id="catalogNames">
+{% for c in catalog %}<option value="{{ c.name }}"></option>{% endfor %}
+</datalist>
+{% endblock %}

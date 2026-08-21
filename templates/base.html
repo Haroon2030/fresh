@@ -1011,6 +1011,14 @@
             <span class="material-symbols-outlined shrink-0 {% if active_nav == 'returns' %}filled-icon{% endif %}">assignment_return</span>
             <span class="nav-label">المرتجعات</span>
         </a>
+        <a class="nav-link {% if active_nav == 'orders' %}is-active{% endif %}" href="{% url 'ops:daily_orders' %}" title="الطلبيات اليومية">
+            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'orders' %}filled-icon{% endif %}">receipt_long</span>
+            <span class="nav-label">الطلبيات اليومية</span>
+        </a>
+        <a class="nav-link {% if active_nav == 'price_compare' %}is-active{% endif %}" href="{% url 'ops:price_compare' %}" title="مقارنة الأسعار">
+            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'price_compare' %}filled-icon{% endif %}">compare_arrows</span>
+            <span class="nav-label">مقارنة الأسعار</span>
+        </a>
         <a class="nav-link {% if active_nav == 'tasks' %}is-active{% endif %}" href="{% url 'ops:tasks' %}" title="المهام">
             <span class="material-symbols-outlined shrink-0 {% if active_nav == 'tasks' %}filled-icon{% endif %}">checklist</span>
             <span class="nav-label">المهام</span>
@@ -1018,7 +1026,7 @@
 
         <div class="nav-section-label">التهيئة</div>
         <div class="nav-group" id="navSetupGroup" data-nav-group="setup">
-            <button type="button" class="nav-group-toggle{% if active_nav == 'items' or active_nav == 'branches' or active_nav == 'users' or active_nav == 'whatsapp' or active_nav == 'settings' %} is-active{% endif %}"
+            <button type="button" class="nav-group-toggle{% if active_nav == 'items' or active_nav == 'branches' or active_nav == 'suppliers' or active_nav == 'users' or active_nav == 'whatsapp' or active_nav == 'settings' %} is-active{% endif %}"
                     id="navSetupToggle"
                     aria-expanded="false"
                     aria-controls="navSetupSubmenu"
@@ -1036,6 +1044,10 @@
                 <a class="nav-link {% if active_nav == 'branches' %}is-active{% endif %}" href="{% url 'ops:branches' %}" title="الفروع">
                     <span class="material-symbols-outlined shrink-0 {% if active_nav == 'branches' %}filled-icon{% endif %}">store</span>
                     <span class="nav-label">الفروع</span>
+                </a>
+                <a class="nav-link {% if active_nav == 'suppliers' %}is-active{% endif %}" href="{% url 'ops:suppliers' %}" title="الموردون">
+                    <span class="material-symbols-outlined shrink-0 {% if active_nav == 'suppliers' %}filled-icon{% endif %}">local_shipping</span>
+                    <span class="nav-label">الموردون</span>
                 </a>
                 <a class="nav-link {% if active_nav == 'users' %}is-active{% endif %}" href="{% url 'accounts:users' %}" title="المستخدمون">
                     <span class="material-symbols-outlined shrink-0 {% if active_nav == 'users' %}filled-icon{% endif %}">group</span>
@@ -1075,15 +1087,23 @@
         <span class="material-symbols-outlined">shopping_cart</span>
         <span class="text-[10px] font-bold">التوريد</span>
     </a>
-    <a href="{% url 'ops:returns' %}" class="flex flex-col items-center gap-1 px-3 py-1 {% if active_nav == 'returns' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+    <a href="{% url 'ops:returns' %}" class="flex flex-col items-center gap-1 px-2 py-1 {% if active_nav == 'returns' %}text-primary{% else %}text-on-surface-variant{% endif %}">
         <span class="material-symbols-outlined">assignment_return</span>
         <span class="text-[10px] font-bold">المرتجعات</span>
     </a>
-    <a href="{% url 'ops:tasks' %}" class="flex flex-col items-center gap-1 px-3 py-1 {% if active_nav == 'tasks' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+    <a href="{% url 'ops:daily_orders' %}" class="flex flex-col items-center gap-1 px-2 py-1 {% if active_nav == 'orders' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+        <span class="material-symbols-outlined">receipt_long</span>
+        <span class="text-[10px] font-bold">الطلبيات</span>
+    </a>
+    <a href="{% url 'ops:price_compare' %}" class="flex flex-col items-center gap-1 px-2 py-1 {% if active_nav == 'price_compare' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+        <span class="material-symbols-outlined">compare_arrows</span>
+        <span class="text-[10px] font-bold">الأسعار</span>
+    </a>
+    <a href="{% url 'ops:tasks' %}" class="flex flex-col items-center gap-1 px-2 py-1 {% if active_nav == 'tasks' %}text-primary{% else %}text-on-surface-variant{% endif %}">
         <span class="material-symbols-outlined">checklist</span>
         <span class="text-[10px] font-bold">المهام</span>
     </a>
-    <a href="{% url 'ops:items' %}" class="flex flex-col items-center gap-1 px-3 py-1 {% if active_nav == 'items' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+    <a href="{% url 'ops:items' %}" class="flex flex-col items-center gap-1 px-2 py-1 {% if active_nav == 'items' %}text-primary{% else %}text-on-surface-variant{% endif %}">
         <span class="material-symbols-outlined">inventory_2</span>
         <span class="text-[10px] font-bold">الأصناف</span>
     </a>

@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}مقارنة الأسعار - عمليات الفرش{% endblock %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row md:items-center justify-between mb-lg gap-md">
+    <div>
+        <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">مقارنة أسعار الشراء</h2>
+        <p class="text-on-surface-variant font-body-md text-body-md mt-xs">
+            مقارنة متوسط أسعار الأصناف بين
+            <b>{{ prev_date|date:"Y/m/d" }}</b>
+            و
+            <b>{{ curr_date|date:"Y/m/d" }}</b>
+            من طلبات الشراء اليومية.
+        </p>
+    </div>
+</div>
+
+<form method="get" class="app-table-frame mb-lg overflow-hidden">
+    <div class="app-toolbar !mb-0 rounded-none border-0 border-b border-[#dbeafe]">
+        <span class="font-label-md text-label-md font-bold text-on-surface flex items-center gap-sm">
+            <span class="material-symbols-outlined">filter_alt</span>
+            الفلاتر
+        </span>
+    </div>
+    <div class="p-lg bg-white grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-md items-end">
+        <div class="flex flex-col gap-sm">
+            <label class="font-label-md text-label-md">الفترة السابقة</label>
+            <input type="date" name="prev_date" value="{{ prev_date|date:'Y-m-d' }}"
+                   class="w-full border border-outline-variant rounded-lg py-2.5 px-3 font-body-md text-body-md">
+        </div>
+        <div class="flex flex-col gap-sm">
+            <label class="font-label-md text-label-md">الفترة الحالية</label>
+            <input type="date" name="date" value="{{ curr_date|date:'Y-m-d' }}"
+                   class="w-full border border-outline-variant rounded-lg py-2.5 px-3 font-body-md text-body-md">
+        </div>
+        <div class="flex flex-col gap-sm">
+            <label class="font-label-md text-label-md">الفرع</label>
+            <select name="branch" class="w-full border border-outline-variant rounded-lg py-2.5 px-3 font-body-md text-body-md">
+                <option value="">الكل</option>
+                {% for b in branches %}
+                <option value="{{ b }}" {% if filter_branch == b %}selected{% endif %}>{{ b }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="flex flex-col gap-sm">
+            <label class="font-label-md text-label-md">المندوب</label>
+            <select name="representative" class="w-full border border-outline-variant rounded-lg py-2.5 px-3 font-body-md text-body-md">
+                <option value="">الكل</option>
+                {% for rep in representatives %}
+                <option value="{{ rep.pk }}" {% if filter_rep == rep.pk|stringformat:'s' %}selected{% endif %}>{{ rep.display_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="flex flex-col gap-sm">
+            <label class="font-label-md text-label-md">المورد</label>
+            <select name="supplier" class="w-full border border-outline-variant rounded-lg py-2.5 px-3 font-body-md text-body-md">
+                <option value="">الكل</option>
+                {% for s in suppliers %}
+                <option value="{{ s }}" {% if filter_supplier == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="sm:col-span-2 lg:col-span-5 flex gap-sm justify-end">
+            <a href="{% url 'ops:price_compare' %}" class="px-4 py-2 border border-outline-variant rounded-lg font-label-md text-label-md">إعادة ضبط</a>
+            <button type="submit" class="btn-primary-app">
+                <span class="material-symbols-outlined text-[18px]">compare_arrows</span>
+                مقارنة
+            </button>
+        </div>
+    </div>
+</form>
+
+<div class="app-table-frame w-full max-w-full">
+    <div class="app-toolbar">
+        <span class="font-label-md text-label-md font-bold text-on-surface flex items-center gap-sm">
+            <span class="material-symbols-outlined">price_change</span>
+            نتائج المقارنة ({{ rows|length }})
+        </span>
+    </div>
+    <div class="app-table-sheet overflow-x-auto bg-white">
+        <table class="excel-grid app-data-grid w-full">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>رقم الصنف</th>
+                <th>اسم الصنف</th>
+                <th>سعر الفترة السابقة</th>
+                <th>سعر الفترة الحالية</th>
+                <th>الفرق</th>
+                <th>نسبة التغير</th>
+                <th>الحالة</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in rows %}
+            <tr>
+                <td class="cell-center">{{ forloop.counter }}</td>
+                <td dir="ltr">{{ row.item_number|default:"—" }}</td>
+                <td class="cell-strong">{{ row.item_name }}</td>
+                <td class="cell-center" dir="ltr">{% if row.prev_price != None %}{{ row.prev_price|floatformat:2 }}{% else %}—{% endif %}</td>
+                <td class="cell-center" dir="ltr">{% if row.curr_price != None %}{{ row.curr_price|floatformat:2 }}{% else %}—{% endif %}</td>
+                <td class="cell-center cell-strong" dir="ltr">
+                    {% if row.diff != None %}
+                        {% if row.direction == 'up' %}+{% endif %}{{ row.diff|floatformat:2 }}
+                    {% else %}—{% endif %}
+                </td>
+                <td class="cell-center" dir="ltr">
+                    {% if row.pct != None %}{{ row.pct|floatformat:1 }}%{% else %}—{% endif %}
+                </td>
+                <td class="cell-center">
+                    {% if row.direction == 'up' %}
+                    <span class="status-chip status-bad">ارتفاع</span>
+                    {% elif row.direction == 'down' %}
+                    <span class="status-chip status-ok">انخفاض</span>
+                    {% elif row.direction == 'same' %}
+                    <span class="status-chip status-wait">ثابت</span>
+                    {% elif row.direction == 'new' %}
+                    <span class="status-chip status-wait">جديد</span>
+                    {% elif row.direction == 'gone' %}
+                    <span class="status-chip status-pending">غير موجود اليوم</span>
+                    {% else %}
+                    <span class="status-chip status-wait">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" class="empty-row">لا بيانات للمقارنة في هذين اليومين — سجّل طلبيات بأسعار أولاً.</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

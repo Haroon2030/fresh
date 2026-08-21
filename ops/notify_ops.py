@@ -376,3 +376,61 @@ def schedule_task_review_result(task_id: int, approved: bool) -> None:
         notify_user(task.assigned_to, title, body)
 
     _run_in_background(f"task-review-{task_id}", _run)
+
+
+def schedule_daily_order_approved(order_id: int, actor_id: int) -> None:
+    """Notify supplier via WhatsApp after a daily purchase order is approved."""
+
+    def _run():
+        from ops.models import DailyOrder, Supplier
+        from ops.whatsapp import send_text
+
+        User = get_user_model()
+        order = (
+            DailyOrder.objects.select_related("representative", "reviewed_by")
+            .filter(pk=order_id)
+            .first()
+        )
+        actor = User.objects.filter(pk=actor_id).first()
+        if not order or not actor:
+            return
+
+        supplier = Supplier.objects.filter(name=order.supplier).first()
+        phone = supplier.normalized_phone() if supplier else ""
+        if not phone:
+            logger.info(
+                "No supplier WhatsApp for daily order %s (supplier=%s)",
+                order.order_number,
+                order.supplier,
+            )
+            return
+
+        msg = "\n".join(
+            [
+                "════════════════════",
+                "عمليات الفرش | طلب شراء معتمد",
+                "════════════════════",
+                f"رقم الطلبية: {order.order_number}",
+                f"التاريخ: {order.order_date}",
+                f"الفرع: {order.branch}",
+                f"المندوب: {order.representative.display_name}",
+                "────────────────────",
+                f"الصنف: {order.item_name}",
+                f"رقم الصنف: {order.item_number or '—'}",
+                f"الكمية: {order.quantity}",
+                f"السعر: {order.unit_price}",
+                "────────────────────",
+                f"اعتمد بواسطة: {actor.display_name}",
+                f"وقت الاعتماد: {_now_str()}",
+                "════════════════════",
+            ]
+        )
+        ok = send_text(phone, msg)
+        if not ok:
+            logger.warning(
+                "Failed WhatsApp to supplier %s for order %s",
+                phone,
+                order.order_number,
+            )
+
+    _run_in_background(f"daily-order-approved-{order_id}", _run)

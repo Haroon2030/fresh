@@ -1,6 +1,16 @@
 from django.contrib import admin
 
-from .models import Branch, CatalogItem, ReturnRequest, SupplyOrder, Task, TaskResponsePhoto, WhatsAppRoleContact
+from .models import (
+    Branch,
+    CatalogItem,
+    DailyOrder,
+    ReturnRequest,
+    SupplyOrder,
+    Supplier,
+    Task,
+    TaskResponsePhoto,
+    WhatsAppRoleContact,
+)
 
 
 @admin.register(Branch)
@@ -9,6 +19,27 @@ class BranchAdmin(admin.ModelAdmin):
     list_editable = ('is_active', 'sort_order')
     search_fields = ('name',)
     list_filter = ('is_active',)
+
+
+@admin.register(Supplier)
+class SupplierAdmin(admin.ModelAdmin):
+    list_display = ('name', 'phone', 'is_active', 'sort_order', 'updated_at')
+    list_editable = ('phone', 'is_active', 'sort_order')
+    search_fields = ('name', 'phone')
+    list_filter = ('is_active',)
+
+
+@admin.register(DailyOrder)
+class DailyOrderAdmin(admin.ModelAdmin):
+    list_display = (
+        'order_number', 'order_date', 'item_name', 'item_number',
+        'quantity', 'unit_price', 'representative', 'branch', 'supplier',
+        'status', 'created_at',
+    )
+    list_filter = ('order_date', 'status', 'branch', 'supplier')
+    search_fields = ('order_number', 'item_name', 'item_number', 'branch', 'supplier')
+    readonly_fields = ('order_number',)
+    raw_id_fields = ('representative', 'created_by', 'reviewed_by')
 
 
 @admin.register(CatalogItem)
