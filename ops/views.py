@@ -29,7 +29,7 @@ from .whatsapp import (
     resolve_instance_name,
     send_test_to_roles,
 )
-from .notify_ops import notify_return_batch_saved, notify_supply_orders_saved
+from .notify_ops import schedule_return_notify, schedule_supply_notify
 
 User = get_user_model()
 
@@ -277,15 +277,12 @@ def supply_create(request):
             messages.success(request, f'تم إنشاء الطلب {created[0].order_number} بنجاح.')
         else:
             messages.success(request, f'تم إنشاء {len(created)} طلبات شراء بنجاح.')
-        wa = notify_supply_orders_saved(
-            created,
-            actor=request.user,
-            representative=representative,
+        schedule_supply_notify(
+            [o.pk for o in created],
+            request.user.pk,
+            representative.pk,
         )
-        if wa.get('sent'):
-            messages.info(request, f'تم إرسال واتساب+PDF إلى {wa["sent"]} مستلم.')
-        elif wa.get('error'):
-            messages.warning(request, f'واتساب: {wa["error"]}')
+        messages.info(request, 'جاري إرسال إشعار واتساب في الخلفية.')
     else:
         messages.error(request, 'أضف صفاً واحداً على الأقل مع الاسم.')
     return redirect('ops:supply')
@@ -447,14 +444,9 @@ def return_create(request):
     batch.ensure_public_token()
     if not batch.public_token:
         batch.save(update_fields=['public_token'])
-    wa = notify_return_batch_saved(batch, actor=request.user, request=request)
-    if wa.get('sent'):
-        extra = ''
-        if wa.get('rep_notified'):
-            extra = ' (شمل تنبيه المندوب للمتابعة والتعميد)'
-        messages.info(request, f'تم إرسال واتساب مع ملف PDF إلى {wa["sent"]} مستلم{extra}.')
-    elif wa.get('error'):
-        messages.warning(request, f'واتساب: {wa["error"]}')
+    # Never block the HTTP worker on Evolution — hanging sendMedia kills Gunicorn (500)
+    schedule_return_notify(batch.pk, request.user.pk)
+    messages.info(request, 'جاري إرسال إشعار واتساب (مع رابط PDF) في الخلفية.')
     return _redirect_returns(batch.pk)
 
 

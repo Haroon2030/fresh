@@ -447,7 +447,7 @@ def send_text(number: str, text: str) -> bool:
         f"/message/sendText/{instance}",
         method="POST",
         json_body={"number": phone, "text": text},
-        timeout=60,
+        timeout=15,
     )
     if status >= 400 or status == 0:
         msg = str(data)
@@ -472,9 +472,8 @@ def send_document(
     """
     Send a PDF via Evolution /message/sendMedia.
 
-    Prefer multipart file upload, then raw base64.
-    Do NOT prefer bare public URLs — WhatsApp often shows a document bubble
-    that never downloads when the URL path has no .pdf extension or returns HTML.
+    Prefer public URL (fast for Evolution), then raw base64.
+    Avoid long multipart hangs — they kill Gunicorn workers (worker timeout).
     """
     import base64
     import re as _re
@@ -488,7 +487,6 @@ def send_document(
     if not instance:
         return False
 
-    # WhatsApp needs a clean ASCII name ending with .pdf
     raw_name = (filename or "document.pdf").replace('"', "").replace("#", "")
     raw_name = _re.sub(r"[^\w.\-]+", "_", raw_name, flags=_re.UNICODE).strip("._") or "document"
     if not raw_name.lower().endswith(".pdf"):
@@ -496,52 +494,37 @@ def send_document(
     filename = raw_name
     caption = (caption or "")[:900]
 
-    # Ensure media URL ends with .pdf for Evolution mime lookup / in-app open
     url_media = ""
     if media_url and str(media_url).startswith(("http://", "https://")):
         url_media = str(media_url)
         if not url_media.lower().endswith(".pdf"):
             url_media = url_media.rstrip("/") + "/document.pdf"
 
-    verify = getattr(settings, "EVOLUTION_VERIFY_SSL", True)
-    if not verify:
-        import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    # Keep each attempt short so the request/thread cannot stall past Gunicorn timeout
+    send_timeout = 18
 
-    api_base = settings.EVOLUTION_SERVER_URL.rstrip("/")
-    endpoint = f"{api_base}/message/sendMedia/{instance}"
-    headers = {"apikey": settings.EVOLUTION_API_KEY}
+    # 1) Public URL ending with .pdf (Evolution downloads; our HTTP returns quickly)
+    if url_media:
+        status, data = _api(
+            f"/message/sendMedia/{instance}",
+            method="POST",
+            json_body={
+                "number": phone,
+                "mediatype": "document",
+                "mimetype": "application/pdf",
+                "media": url_media,
+                "fileName": filename,
+                "caption": caption,
+            },
+            timeout=send_timeout,
+        )
+        if status and status < 400:
+            return True
+        logger.warning("Evolution sendMedia url failed (%s): %s", status, str(data)[:400])
+        if "connection closed" in str(data).lower():
+            return False
 
-    # 1) Multipart file upload — most reliable for openable PDFs
-    if pdf_bytes:
-        try:
-            response = requests.post(
-                endpoint,
-                headers=headers,
-                data={
-                    "number": phone,
-                    "mediatype": "document",
-                    "mimetype": "application/pdf",
-                    "fileName": filename,
-                    "caption": caption,
-                },
-                files={"file": (filename, pdf_bytes, "application/pdf")},
-                timeout=(15, 90),
-                verify=verify,
-            )
-            if response.status_code < 400:
-                return True
-            logger.warning(
-                "Evolution sendMedia multipart failed (%s): %s",
-                response.status_code,
-                (response.text or "")[:400],
-            )
-            if "connection closed" in (response.text or "").lower():
-                return False
-        except requests.RequestException:
-            logger.exception("Evolution sendMedia multipart error")
-
-    # 2) Raw base64 (no data: prefix — this Evolution build rejects data URIs)
+    # 2) Raw base64 (no data: URI — rejected by this Evolution build)
     if pdf_bytes:
         b64 = base64.b64encode(pdf_bytes).decode("ascii")
         status, data = _api(
@@ -555,33 +538,11 @@ def send_document(
                 "fileName": filename,
                 "caption": caption,
             },
-            timeout=90,
+            timeout=send_timeout,
         )
         if status and status < 400:
             return True
-        last_err = str(data)[:500]
-        logger.warning("Evolution sendMedia base64 failed (%s): %s", status, last_err)
-        if "connection closed" in last_err.lower():
-            return False
-
-    # 3) Last resort: public URL that ends with .pdf
-    if url_media:
-        status, data = _api(
-            f"/message/sendMedia/{instance}",
-            method="POST",
-            json_body={
-                "number": phone,
-                "mediatype": "document",
-                "mimetype": "application/pdf",
-                "media": url_media,
-                "fileName": filename,
-                "caption": caption,
-            },
-            timeout=90,
-        )
-        if status and status < 400:
-            return True
-        logger.warning("Evolution sendMedia url failed (%s): %s", status, str(data)[:500])
+        logger.warning("Evolution sendMedia base64 failed (%s): %s", status, str(data)[:400])
 
     return False
 
@@ -726,17 +687,20 @@ def notify_with_pdf(
         if dest:
             text = f"{message}\nإلى: {dest}"
         short_caption = f"المرفق الرسمي: {filename}"
-        # Send PDF first (URL preferred), then the details text
-        ok_pdf = send_document(
-            phone,
-            pdf_bytes or b"",
-            filename=filename,
-            caption=short_caption,
-            media_url=media_url,
-        )
-        ok_text = send_text(phone, text)
-        if ok_text or ok_pdf:
-            sent += 1
+        try:
+            # Text first (fast) so the download link always arrives even if PDF stalls
+            ok_text = send_text(phone, text)
+            ok_pdf = send_document(
+                phone,
+                pdf_bytes or b"",
+                filename=filename,
+                caption=short_caption,
+                media_url=media_url,
+            )
+            if ok_text or ok_pdf:
+                sent += 1
+        except Exception:
+            logger.exception("WhatsApp notify failed for %s", phone)
 
     err = None
     if sent == 0:

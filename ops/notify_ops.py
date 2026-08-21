@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import logging
+import threading
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.db import close_old_connections
 from django.urls import reverse
 from django.utils import timezone
 
@@ -15,7 +18,7 @@ from ops.whatsapp import (
     send_document,
     send_text,
 )
-from ops.models import WhatsAppRoleContact
+from ops.models import ReturnBatch, WhatsAppRoleContact
 
 
 def _user_phone(user) -> str:
@@ -29,6 +32,57 @@ def _role_contact_phone(role: str) -> str:
     return normalize_whatsapp(contact.phone) if contact else ""
 
 logger = logging.getLogger(__name__)
+
+
+def _run_in_background(label: str, fn, *args, **kwargs) -> None:
+    """Fire-and-forget so HTTP workers never wait on Evolution."""
+
+    def _job():
+        close_old_connections()
+        try:
+            fn(*args, **kwargs)
+        except Exception:
+            logger.exception("Background WhatsApp job failed: %s", label)
+        finally:
+            close_old_connections()
+
+    threading.Thread(target=_job, name=f"wa-{label}", daemon=True).start()
+
+
+def schedule_return_notify(batch_id: int, actor_id: int) -> None:
+    def _run():
+        User = get_user_model()
+        batch = (
+            ReturnBatch.objects.select_related("representative", "created_by")
+            .prefetch_related("items")
+            .filter(pk=batch_id)
+            .first()
+        )
+        actor = User.objects.filter(pk=actor_id).first()
+        if not batch or not actor:
+            return
+        notify_return_batch_saved(batch, actor=actor, request=None)
+
+    _run_in_background(f"return-{batch_id}", _run)
+
+
+def schedule_supply_notify(order_ids: list[int], actor_id: int, representative_id: int) -> None:
+    def _run():
+        from ops.models import SupplyOrder
+
+        User = get_user_model()
+        orders = list(
+            SupplyOrder.objects.select_related("representative", "created_by")
+            .filter(pk__in=order_ids)
+            .order_by("pk")
+        )
+        actor = User.objects.filter(pk=actor_id).first()
+        representative = User.objects.filter(pk=representative_id).first()
+        if not orders or not actor or not representative:
+            return
+        notify_supply_orders_saved(orders, actor=actor, representative=representative)
+
+    _run_in_background(f"supply-{order_ids[:1]}", _run)
 
 
 def _now_str() -> str:
@@ -145,16 +199,19 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
     rep = batch.representative
     rep_phone = _user_phone(rep) or _role_contact_phone("representative")
     if rep_phone:
-        # Prefer PDF attachment first, then text with download link
-        ok_pdf = send_document(
-            rep_phone,
-            pdf_bytes,
-            filename=filename,
-            caption=f"ملف مرتجع {batch.return_number} — للتحميل والمراجعة",
-            media_url=pdf_url,
-        )
-        ok_text = send_text(rep_phone, rep_msg)
-        ok = ok_text or ok_pdf
+        try:
+            ok_text = send_text(rep_phone, rep_msg)
+            ok_pdf = send_document(
+                rep_phone,
+                pdf_bytes,
+                filename=filename,
+                caption=f"ملف مرتجع {batch.return_number} — للتحميل والمراجعة",
+                media_url=pdf_url,
+            )
+            ok = ok_text or ok_pdf
+        except Exception:
+            logger.exception("Rep WhatsApp notify failed for return %s", batch.pk)
+            ok = False
         if ok:
             result["sent"] = result.get("sent", 0) + 1
             result["total"] = result.get("total", 0) + 1
