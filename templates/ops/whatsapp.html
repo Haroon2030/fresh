@@ -54,7 +54,13 @@
         box-shadow: 0 6px 18px rgba(37,99,235,.07);
         display: flex;
         flex-direction: column;
-        min-height: 100%;
+        min-height: 0;
+        height: auto;
+        align-self: start;
+    }
+    .wa-panels-grid > .wa-panel {
+        height: 100%;
+        align-self: stretch;
     }
     .wa-panel-head {
         display: flex;
@@ -76,7 +82,7 @@
         gap: 8px;
     }
     .wa-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-    .wa-body { padding: 20px; flex: 1; }
+    .wa-body { padding: 20px; flex: 0 0 auto; }
     .wa-steps {
         display: grid;
         gap: 8px;
@@ -256,6 +262,70 @@
         background: linear-gradient(90deg, #059669, #34d399);
         border-radius: inherit;
     }
+    .wa-rules {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        padding: 12px 14px !important;
+    }
+    @media (max-width: 700px) {
+        .wa-rules { grid-template-columns: 1fr; }
+    }
+    .wa-rule-col {
+        border-radius: 10px;
+        padding: 10px 12px;
+        border: 1px solid #e2e8f0;
+    }
+    .wa-rule-col.do {
+        background: #ecfdf5;
+        border-color: #86efac;
+    }
+    .wa-rule-col.dont {
+        background: #fff1f2;
+        border-color: #fda4af;
+    }
+    .wa-rule-col h4 {
+        margin: 0 0 8px;
+        font-size: 12px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .wa-rule-col.do h4 { color: #047857; }
+    .wa-rule-col.dont h4 { color: #be123c; }
+    .wa-rule-col ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 6px;
+    }
+    .wa-rule-col li {
+        display: flex;
+        gap: 6px;
+        align-items: flex-start;
+        font-size: 12px;
+        font-weight: 600;
+        color: #334155;
+        line-height: 1.4;
+    }
+    .wa-rule-col li .material-symbols-outlined {
+        font-size: 16px;
+        flex-shrink: 0;
+        margin-top: 0;
+    }
+    .wa-rule-col.do li .material-symbols-outlined { color: #059669; }
+    .wa-rule-col.dont li .material-symbols-outlined { color: #e11d48; }
+    .wa-panel.wa-panel-compact {
+        max-width: 100%;
+    }
+    .wa-panel.wa-panel-compact .wa-panel-head {
+        padding: 10px 14px;
+    }
+    .wa-panel.wa-panel-compact .wa-panel-head h3 {
+        font-size: 14px;
+    }
 </style>
 {% endblock %}
 
@@ -305,7 +375,7 @@
         </div>
     </section>
 
-    <div class="grid grid-cols-1 xl:grid-cols-5 gap-lg items-stretch">
+    <div class="wa-panels-grid grid grid-cols-1 xl:grid-cols-5 gap-lg items-stretch">
 
         {# —— Connection / QR —— #}
         <section class="wa-panel xl:col-span-3">
@@ -508,17 +578,55 @@ EVOLUTION_VERIFY_SSL=False</div>
         </section>
     </div>
 
-    <section class="wa-panel">
+    <section class="wa-panel wa-panel-compact">
         <div class="wa-panel-head">
             <h3>
-                <span class="material-symbols-outlined text-[22px]">rule</span>
+                <span class="material-symbols-outlined text-[20px]">shield</span>
                 قواعد استقرار الجلسة
             </h3>
+            <span class="text-[11px] font-extrabold text-slate-500">لتفادي فصل واتساب (401)</span>
         </div>
-        <div class="wa-body grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div class="wa-step"><span class="n">!</span><span>امسح QR مرة واحدة فقط واترك الصفحة بعد الاتصال.</span></div>
-            <div class="wa-step"><span class="n">!</span><span>لا تربط نفس الرقم على أكثر من انستانس Evolution.</span></div>
-            <div class="wa-step"><span class="n">!</span><span>لا تحذف الجهاز من الجوال إلا عند إعادة الربط عمداً.</span></div>
+        <div class="wa-body wa-rules">
+            <div class="wa-rule-col do">
+                <h4>
+                    <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                    افعل
+                </h4>
+                <ul>
+                    <li>
+                        <span class="material-symbols-outlined">done</span>
+                        <span>امسح QR مرة واحدة فقط، ثم اترك الصفحة بعد ظهور «متصل».</span>
+                    </li>
+                    <li>
+                        <span class="material-symbols-outlined">done</span>
+                        <span>استخدم انستانس واحد فقط: <b dir="ltr">{{ instance_name|default:"farshops" }}</b>.</span>
+                    </li>
+                    <li>
+                        <span class="material-symbols-outlined">done</span>
+                        <span>احذف أي جهاز Evolution قديم من الجوال قبل المسح الجديد.</span>
+                    </li>
+                </ul>
+            </div>
+            <div class="wa-rule-col dont">
+                <h4>
+                    <span class="material-symbols-outlined text-[18px]">cancel</span>
+                    لا تفعل
+                </h4>
+                <ul>
+                    <li>
+                        <span class="material-symbols-outlined">close</span>
+                        <span>لا تضغط «تحديث QR» أو «إعادة إنشاء» وأنت متصل.</span>
+                    </li>
+                    <li>
+                        <span class="material-symbols-outlined">close</span>
+                        <span>لا تربط نفس الرقم على أكثر من انستانس Evolution.</span>
+                    </li>
+                    <li>
+                        <span class="material-symbols-outlined">close</span>
+                        <span>لا تحذف الجهاز من الجوال إلا عند إعادة الربط عمداً.</span>
+                    </li>
+                </ul>
+            </div>
         </div>
     </section>
 </div>
