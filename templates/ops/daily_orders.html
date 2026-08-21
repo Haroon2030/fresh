@@ -142,10 +142,7 @@
                 </td>
                 <td class="cell-center">
                     <div class="flex flex-wrap gap-1 justify-center">
-                        <a href="{% url 'ops:daily_order_batch_pdf' order.pk %}" class="act-btn act-ok" title="تحميل PDF">
-                            <span class="material-symbols-outlined text-[16px] text-inherit">picture_as_pdf</span>
-                            PDF
-                        </a>
+                        <a href="{% url 'ops:daily_order_batch_pdf' order.pk %}" class="act-btn act-ok" title="تحميل ملف PDF">PDF</a>
                         {% if user.is_manager %}
                         {% if order.status == 'pending' %}
                         <form method="post" action="{% url 'ops:daily_order_approve' order.pk %}" class="inline"
@@ -162,9 +159,7 @@
                         <form method="post" action="{% url 'ops:daily_order_delete' order.pk %}" class="inline"
                               onsubmit="return confirm('حذف الطلبية {{ order.order_number }}؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-bad" title="حذف">
-                                <span class="material-symbols-outlined text-[16px] text-inherit">delete</span>
-                            </button>
+                            <button type="submit" class="act-btn act-bad" title="حذف">حذف</button>
                         </form>
                         {% endif %}
                     </div>

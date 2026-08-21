@@ -74,18 +74,12 @@
                 <td class="cell-center cell-strong">{{ batch.items.all|length }}</td>
                 <td class="cell-action" onclick="event.stopPropagation()">
                     <div class="flex flex-wrap gap-1 justify-center">
-                        <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="act-btn act-ok" title="تحميل PDF">
-                            <span class="material-symbols-outlined text-[16px] text-inherit">picture_as_pdf</span>
-                            PDF
-                        </a>
+                        <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="act-btn act-ok" title="تحميل ملف PDF">PDF</a>
                         <button type="button" class="act-btn act-ok" data-open-batch="{{ batch.pk }}">عرض الأصناف</button>
                         <form method="post" action="{% url 'ops:return_batch_delete' batch.pk %}" class="inline"
                               onsubmit="return confirm('حذف المرتجع {{ batch.return_number }} وجميع أصنافه؟ لا يمكن التراجع.');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-bad" title="حذف المرتجع">
-                                <span class="material-symbols-outlined text-[16px] text-inherit">delete</span>
-                                حذف
-                            </button>
+                            <button type="submit" class="act-btn act-bad" title="حذف المرتجع">حذف</button>
                         </form>
                     </div>
                 </td>
@@ -396,6 +390,15 @@
     .excel-grid {
         font-family: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
         font-size: 13px;
+    }
+    .excel-grid .material-symbols-outlined {
+        font-family: 'Material Symbols Outlined' !important;
+        font-size: 16px !important;
+        line-height: 1 !important;
+        width: auto !important;
+        height: auto !important;
+        overflow: visible !important;
+        visibility: visible !important;
     }
     .excel-grid th,
     .excel-grid td {
