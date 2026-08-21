@@ -78,7 +78,7 @@
                 <td class="cell-center" onclick="event.stopPropagation()">
                     <div class="flex flex-wrap gap-1 justify-center">
                         <button type="button" class="act-btn act-view" data-open-batch="{{ batch.seed_pk }}">عرض</button>
-                        {% if user.is_manager or batch.created_by_id == user.id %}
+                        {% if user.is_manager or batch.created_by.id == user.id %}
                         <form method="post" action="{% url 'ops:distribution_variance_delete' batch.seed_pk %}" class="inline"
                               onsubmit="return confirm('حذف ملف {{ batch.batch_number }}؟');">
                             {% csrf_token %}
