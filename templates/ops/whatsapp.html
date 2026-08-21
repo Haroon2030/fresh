@@ -412,7 +412,7 @@
                         <div class="min-w-0 flex-1">
                             <p class="font-extrabold text-[15px] text-rose-900 m-0">زر الربط مخفي لأن مفتاح API ناقص</p>
                             <p class="text-[13px] text-rose-800 mt-1 mb-2 font-semibold">
-                                ضع المتغيرات على خدمة <b>التطبيق (Django)</b> في Dokploy — وليس حاوية Evolution — ثم Redeploy:
+                                في Dokploy احذف علامات التنصيص <b>"</b> من المفتاح، احفظ، ثم <b>Redeploy</b>:
                             </p>
                             <pre class="wa-code m-0">EVOLUTION_SERVER_URL=http://72.61.107.230:8081
 EVOLUTION_API_KEY=HARO@2030
@@ -420,7 +420,8 @@ EVOLUTION_INSTANCE_NAME=farshops
 EVOLUTION_NOTIFY_ENABLED=True
 EVOLUTION_VERIFY_SSL=False</pre>
                             <p class="text-[12px] text-rose-700 mt-2 mb-0 font-bold">
-                                إن بقي المفتاح ناقصاً بعد النشر: أعد إنشاء الحاوية (Rebuild) وتأكد أن الاسم حرفياً EVOLUTION_API_KEY.
+                                خطأ شائع: كتابة EVOLUTION_API_KEY="HARO@2030" بعلامات اقتباس — اكتبها بدون " ".
+                                تشخيص: المتغير في البيئة={% if api_key_env_set %}موجود{% else %}غير موجود{% endif %} · طول القيمة={{ api_key_len }}
                             </p>
                             <div class="mt-3">
                                 <div class="wa-check">

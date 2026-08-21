@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 import json
+import os
 
 from django.conf import settings
 from django.contrib import messages
@@ -1314,6 +1315,8 @@ def whatsapp_hub(request):
     state = connection_state()
     notify_phones = collect_notify_phones()
     notify_roles_filled = sum(1 for r in notify_rows if r['filled'])
+    api_key = getattr(settings, 'EVOLUTION_API_KEY', '') or ''
+    api_key_env_set = any(k.upper() == 'EVOLUTION_API_KEY' for k in os.environ)
     return render(request, 'ops/whatsapp.html', {
         'active_nav': 'whatsapp',
         'notify_rows': notify_rows,
@@ -1321,7 +1324,9 @@ def whatsapp_hub(request):
         'wa_state': state,
         'instance_name': state.get('instance') or resolve_instance_name() or getattr(settings, 'EVOLUTION_INSTANCE_NAME', ''),
         'server_url': getattr(settings, 'EVOLUTION_SERVER_URL', ''),
-        'has_api_key': bool(getattr(settings, 'EVOLUTION_API_KEY', '')),
+        'has_api_key': bool(api_key),
+        'api_key_env_set': api_key_env_set,
+        'api_key_len': len(api_key),
         'notify_enabled': getattr(settings, 'EVOLUTION_NOTIFY_ENABLED', False),
         'notify_phones_count': len(notify_phones),
         'notify_phones': notify_phones,

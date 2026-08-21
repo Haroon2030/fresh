@@ -18,13 +18,24 @@ def env_list(name: str, default: str = "") -> list[str]:
 
 
 def env_str(name: str, default: str = "") -> str:
-    """Read env value; strip whitespace and surrounding quotes (Dokploy/@ safe)."""
+    """Read env value; strip whitespace, BOM, and surrounding quotes (Dokploy-safe)."""
     raw = os.environ.get(name)
     if raw is None:
+        # Case-insensitive fallback (some panels alter casing)
+        target = name.lower()
+        for key, value in os.environ.items():
+            if key.lower() == target:
+                raw = value
+                break
+    if raw is None:
         return default
-    val = str(raw).strip()
-    if len(val) >= 2 and val[0] == val[-1] and val[0] in ('"', "'"):
+    val = str(raw).replace("\ufeff", "").strip()
+    # Strip matching quotes: "…" or '…' or “…” 
+    if len(val) >= 2 and val[0] in ('"', "'", "“", "”", "‘", "’") and val[-1] in ('"', "'", "“", "”", "‘", "’"):
         val = val[1:-1].strip()
+    # Ignore placeholder bullets copied from UI
+    if val.replace("•", "").strip() == "":
+        return default
     return val
 
 
