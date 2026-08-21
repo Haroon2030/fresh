@@ -9,7 +9,7 @@
            onchange="this.form.submit()">
     <div class="relative flex-1">
         <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
-        <input name="q" value="{{ q }}" class="w-full bg-surface-container-low border border-outline-variant rounded-full py-2 pr-10 pl-4 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" placeholder="بحث: صنف، فرع..." type="text">
+        <input name="q" value="{{ q }}" class="w-full bg-surface-container-low border border-outline-variant rounded-full py-2 pr-10 pl-4 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" placeholder="بحث: ملف، صنف، فرع..." type="text">
     </div>
 </form>
 {% endblock %}
@@ -19,16 +19,16 @@
     <div>
         <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">توزيع التوريد اليومي</h2>
         <p class="text-on-surface-variant font-body-md text-body-md mt-xs">
-            توزيع يوم
+            ملفات توزيع يوم
             <b>{{ dist_date|date:"Y/m/d" }}</b>
             {% if dist_date == today %}(اليوم){% endif %}
-            — بعد الحفظ يُرسل إشعار لواتساب المحاسب والعمليات والمستلم.
+            — اضغط الملف لعرض الأصناف.
         </p>
     </div>
     <button type="button" class="btn-primary-app"
             onclick="document.getElementById('newDistModal').classList.remove('hidden')">
         <span class="material-symbols-outlined">add</span>
-        توزيع جديد
+        ملف توزيع جديد
     </button>
 </div>
 
@@ -36,7 +36,7 @@
     <div class="app-toolbar">
         <span class="font-label-md text-label-md font-bold text-on-surface flex items-center gap-sm">
             <span class="material-symbols-outlined">local_shipping</span>
-            سجلات التوزيع ({{ rows|length }})
+            ملفات التوزيع ({{ batches|length }})
         </span>
     </div>
     <div class="app-table-sheet overflow-x-auto bg-white">
@@ -44,37 +44,35 @@
             <thead>
             <tr>
                 <th>#</th>
-                <th>اسم الصنف</th>
-                <th>اسم الفرع</th>
-                <th>الكمية الموزعة</th>
+                <th>رقم الملف</th>
+                <th>الفروع</th>
+                <th>الأصناف</th>
+                <th>بواسطة</th>
                 <th>إجراء</th>
             </tr>
             </thead>
             <tbody>
-            {% for row in rows %}
-            <tr>
+            {% for batch in batches %}
+            <tr class="batch-row" data-open-batch="{{ batch.seed_pk }}" style="cursor:pointer">
                 <td class="row-num cell-center">{{ forloop.counter }}</td>
-                <td class="cell-strong">
-                    {{ row.item_name }}
-                    {% if row.item_number %}
-                    <span class="text-on-surface-variant text-xs font-bold block" dir="ltr">{{ row.item_number }}</span>
-                    {% endif %}
-                </td>
-                <td>{{ row.branch }}</td>
-                <td class="cell-center cell-strong">{{ row.quantity }}</td>
-                <td class="cell-center">
-                    <form method="post" action="{% url 'ops:daily_distribution_delete' row.pk %}" class="inline"
-                          onsubmit="return confirm('حذف توزيع «{{ row.item_name }}»؟');">
-                        {% csrf_token %}
-                        <button type="submit" class="act-btn act-delete">حذف</button>
-                    </form>
+                <td class="cell-strong" dir="ltr">{{ batch.batch_number }}</td>
+                <td>{{ batch.branches_label|default:"—" }}</td>
+                <td class="cell-center cell-strong">{{ batch.items_count }}</td>
+                <td>{{ batch.created_by.display_name }}</td>
+                <td class="cell-center" onclick="event.stopPropagation()">
+                    <div class="flex flex-wrap gap-1 justify-center">
+                        <button type="button" class="act-btn act-view" data-open-batch="{{ batch.seed_pk }}">عرض</button>
+                        <form method="post" action="{% url 'ops:daily_distribution_delete' batch.seed_pk %}" class="inline"
+                              onsubmit="return confirm('حذف ملف {{ batch.batch_number }} وجميع أصنافه؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-delete">حذف</button>
+                        </form>
+                    </div>
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="5" class="empty-row">
-                    لا توزيع لهذا اليوم — اضغط «توزيع جديد».
-                </td>
+                <td colspan="6" class="empty-row">لا ملفات لهذا اليوم — اضغط «ملف توزيع جديد».</td>
             </tr>
             {% endfor %}
             </tbody>
@@ -84,10 +82,61 @@
 {% endblock %}
 
 {% block modals %}
+{% for batch in batches %}
+<div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.seed_pk }}">
+    <div class="app-modal-panel app-modal-panel--xl">
+        <div class="app-modal-head">
+            <div>
+                <h3>أصناف الملف {{ batch.batch_number }}</h3>
+                <p class="text-xs text-on-surface-variant font-bold m-0 mt-1">
+                    {{ batch.created_by.display_name }} · {{ batch.distribution_date|date:"Y/m/d" }} · {{ batch.items_count }} صنف
+                </p>
+            </div>
+            <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch="{{ batch.seed_pk }}">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="p-lg overflow-y-auto">
+            <div class="app-table-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+                <table class="excel-grid app-data-grid w-full">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>اسم الصنف</th>
+                        <th>اسم الفرع</th>
+                        <th>الكمية الموزعة</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in batch.items %}
+                    <tr>
+                        <td class="cell-center">{{ forloop.counter }}</td>
+                        <td class="cell-strong">
+                            {{ row.item_name }}
+                            {% if row.item_number %}<span class="text-xs text-on-surface-variant block" dir="ltr">{{ row.item_number }}</span>{% endif %}
+                        </td>
+                        <td>{{ row.branch }}</td>
+                        <td class="cell-center cell-strong">{{ row.quantity }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="empty-row">لا أصناف.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
+            <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md"
+                    data-close-batch="{{ batch.seed_pk }}">إغلاق</button>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
 <div class="app-modal hidden" id="newDistModal">
     <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
-            <h3>توزيع توريد يومي</h3>
+            <h3>ملف توزيع توريد يومي</h3>
             <button type="button" class="app-modal-close" aria-label="إغلاق"
                     onclick="document.getElementById('newDistModal').classList.add('hidden')">
                 <span class="material-symbols-outlined">close</span>
@@ -103,7 +152,7 @@
                 </div>
 
                 <div class="flex items-center justify-between gap-sm">
-                    <span class="font-label-md text-label-md font-bold text-on-surface">أصناف التوزيع</span>
+                    <span class="font-label-md text-label-md font-bold text-on-surface">أصناف الملف</span>
                     <button type="button" id="addDistRow"
                             class="flex items-center gap-xs px-md py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface hover:bg-surface-container-low transition-colors">
                         <span class="material-symbols-outlined text-[18px]">add</span>
@@ -127,14 +176,14 @@
                     </table>
                 </div>
                 <p class="font-body-md text-body-md text-on-surface-variant text-xs m-0">
-                    بعد الحفظ تُرسل رسالة واتساب تلقائياً إلى المحاسب ومدير العمليات والمستلم.
+                    كل حفظ = ملف واحد. بعد الحفظ تُرسل رسالة للمحاسب والعمليات والمستلم.
                 </p>
             </div>
             <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
                 <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md"
                         onclick="document.getElementById('newDistModal').classList.add('hidden')">إلغاء</button>
                 <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:bg-primary/90">
-                    حفظ التوزيع
+                    حفظ الملف
                 </button>
             </div>
         </form>
@@ -193,6 +242,40 @@
     });
 
     addRow();
+})();
+</script>
+<script>
+(function () {
+    function openBatch(id) {
+        const modal = document.getElementById('batchModal-' + id);
+        if (modal) modal.classList.remove('hidden');
+    }
+    function closeBatch(id) {
+        const modal = document.getElementById('batchModal-' + id);
+        if (modal) modal.classList.add('hidden');
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('open')) {
+            url.searchParams.delete('open');
+            window.history.replaceState({}, '', url.pathname + url.search);
+        }
+    }
+    document.addEventListener('click', (e) => {
+        const openBtn = e.target.closest('[data-open-batch]');
+        if (openBtn) {
+            openBatch(openBtn.getAttribute('data-open-batch'));
+            return;
+        }
+        const closeBtn = e.target.closest('[data-close-batch]');
+        if (closeBtn) {
+            closeBatch(closeBtn.getAttribute('data-close-batch'));
+            return;
+        }
+        if (e.target.classList.contains('batch-detail-modal')) {
+            e.target.classList.add('hidden');
+        }
+    });
+    const openId = '{{ open_batch|default:""|escapejs }}';
+    if (openId) openBatch(openId);
 })();
 </script>
 <datalist id="catalogNumbers">

@@ -635,8 +635,14 @@ class DailyOrder(models.Model):
 
 
 class DailySupplyDistribution(models.Model):
-    """توزيع توريد يومي — صنف + فرع + كمية موزّعة."""
+    """توزيع توريد يومي — صنف + فرع + كمية موزّعة (داخل ملف توزيع)."""
 
+    batch_number = models.CharField(
+        max_length=20,
+        blank=True,
+        db_index=True,
+        verbose_name='رقم الملف',
+    )
     distribution_date = models.DateField(verbose_name='تاريخ التوزيع', db_index=True)
     item_name = models.CharField(max_length=255, verbose_name='اسم الصنف')
     item_number = models.CharField(max_length=100, blank=True, verbose_name='رقم الصنف')
@@ -679,6 +685,12 @@ class DistributionVariance(models.Model):
         AUTHORIZED = 'authorized', 'معتمد'
         REJECTED = 'rejected', 'مرفوض'
 
+    batch_number = models.CharField(
+        max_length=20,
+        blank=True,
+        db_index=True,
+        verbose_name='رقم الملف',
+    )
     record_date = models.DateField(verbose_name='التاريخ', db_index=True)
     variance_type = models.CharField(
         max_length=20,

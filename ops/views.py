@@ -489,17 +489,40 @@ def daily_distribution_list(request):
             Q(item_name__icontains=q)
             | Q(item_number__icontains=q)
             | Q(branch__icontains=q)
+            | Q(batch_number__icontains=q)
             | Q(notes__icontains=q)
         )
+
+    batches_map = {}
+    for row in qs.order_by('-created_at', 'pk'):
+        key = row.batch_number or f'single-{row.pk}'
+        if key not in batches_map:
+            batches_map[key] = {
+                'batch_number': row.batch_number or f'#DIST-{row.pk:04d}',
+                'seed_pk': row.pk,
+                'distribution_date': row.distribution_date,
+                'created_by': row.created_by,
+                'created_at': row.created_at,
+                'items': [],
+            }
+        batches_map[key]['items'].append(row)
+    batches = list(batches_map.values())
+    for b in batches:
+        b['items_count'] = len(b['items'])
+        branches = sorted({i.branch for i in b['items'] if i.branch})
+        b['branches_label'] = '، '.join(branches[:3]) + ('…' if len(branches) > 3 else '')
+    batches.sort(key=lambda x: x['created_at'], reverse=True)
 
     catalog = list(
         CatalogItem.objects.order_by('name').values('item_number', 'name')[:500]
     )
+    open_batch = (request.GET.get('open') or '').strip()
     return render(request, 'ops/daily_distribution.html', {
-        'rows': qs.order_by('-created_at', 'pk'),
+        'batches': batches,
         'q': q,
         'dist_date': dist_date,
         'today': today,
+        'open_batch': open_batch,
         'branches': Branch.active_names(),
         'catalog': catalog,
         'catalog_json': json.dumps(catalog, ensure_ascii=False),
@@ -527,6 +550,22 @@ def daily_distribution_create(request):
     notes_list = request.POST.getlist('notes')
     default_branch = Branch.default_name()
 
+    last_batch = (
+        DailySupplyDistribution.objects.exclude(batch_number='')
+        .order_by('-id')
+        .values_list('batch_number', flat=True)
+        .first()
+    )
+    batch_seq = 1
+    if last_batch and str(last_batch).startswith('#DIST-'):
+        try:
+            batch_seq = int(str(last_batch).replace('#DIST-', '')) + 1
+        except ValueError:
+            batch_seq = (DailySupplyDistribution.objects.aggregate(Max('id'))['id__max'] or 0) + 1
+    else:
+        batch_seq = (DailySupplyDistribution.objects.aggregate(Max('id'))['id__max'] or 0) + 1
+    batch_number = f'#DIST-{batch_seq:04d}'
+
     created_ids = []
     for i, item_name in enumerate(item_names):
         item_name = (item_name or '').strip()
@@ -542,6 +581,7 @@ def daily_distribution_create(request):
         except (TypeError, ValueError):
             quantity = 1
         row = DailySupplyDistribution.objects.create(
+            batch_number=batch_number,
             distribution_date=dist_date,
             item_name=item_name,
             item_number=(item_numbers[i] if i < len(item_numbers) else '').strip(),
@@ -559,19 +599,26 @@ def daily_distribution_create(request):
     schedule_daily_distribution_notify(created_ids, request.user.pk)
     messages.success(
         request,
-        f'تم حفظ توزيع {len(created_ids)} صنف وإرسال إشعار للمحاسب والعمليات والمستلم.',
+        f'تم حفظ ملف التوزيع {batch_number} بـ {len(created_ids)} صنف وإرسال إشعار للمحاسب والعمليات والمستلم.',
     )
-    return redirect(f"{reverse('ops:daily_distribution')}?date={dist_date.isoformat()}")
+    return redirect(
+        f"{reverse('ops:daily_distribution')}?date={dist_date.isoformat()}&open={created_ids[0]}"
+    )
 
 
 @login_required
 @require_POST
 def daily_distribution_delete(request, pk):
-    row = get_object_or_404(DailySupplyDistribution, pk=pk)
-    dist_date = row.distribution_date
-    label = row.item_name
-    row.delete()
-    messages.success(request, f'تم حذف توزيع «{label}».')
+    seed = get_object_or_404(DailySupplyDistribution, pk=pk)
+    dist_date = seed.distribution_date
+    if seed.batch_number:
+        label = seed.batch_number
+        count, _ = DailySupplyDistribution.objects.filter(batch_number=seed.batch_number).delete()
+    else:
+        label = seed.item_name
+        seed.delete()
+        count = 1
+    messages.success(request, f'تم حذف ملف التوزيع {label} ({count} صنف).')
     return redirect(f"{reverse('ops:daily_distribution')}?date={dist_date.isoformat()}")
 
 
@@ -600,18 +647,54 @@ def distribution_variance_list(request):
             | Q(item_number__icontains=q)
             | Q(branch__icontains=q)
             | Q(supplier__icontains=q)
+            | Q(batch_number__icontains=q)
             | Q(notes__icontains=q)
         )
+
+    batches_map = {}
+    for row in qs.order_by('-created_at', 'pk'):
+        key = row.batch_number or f'single-{row.pk}'
+        if key not in batches_map:
+            batches_map[key] = {
+                'batch_number': row.batch_number or f'#VAR-{row.pk:04d}',
+                'seed_pk': row.pk,
+                'record_date': row.record_date,
+                'created_by': row.created_by,
+                'created_at': row.created_at,
+                'items': [],
+                'statuses': set(),
+            }
+        batches_map[key]['items'].append(row)
+        batches_map[key]['statuses'].add(row.status)
+    batches = []
+    for b in batches_map.values():
+        statuses = b['statuses']
+        if statuses == {DistributionVariance.Status.PENDING}:
+            b['display_status'] = 'pending'
+        elif statuses == {DistributionVariance.Status.AUTHORIZED}:
+            b['display_status'] = 'authorized'
+        elif statuses == {DistributionVariance.Status.REJECTED}:
+            b['display_status'] = 'rejected'
+        else:
+            b['display_status'] = 'mixed'
+        b['items_count'] = len(b['items'])
+        b['pending_count'] = sum(
+            1 for i in b['items'] if i.status == DistributionVariance.Status.PENDING
+        )
+        batches.append(b)
+    batches.sort(key=lambda x: x['created_at'], reverse=True)
 
     catalog = list(
         CatalogItem.objects.order_by('name').values('item_number', 'name')[:500]
     )
+    open_batch = (request.GET.get('open') or '').strip()
     return render(request, 'ops/distribution_variance.html', {
-        'rows': qs.order_by('-created_at', 'pk'),
+        'batches': batches,
         'q': q,
         'record_date': record_date,
         'today': today,
         'type_filter': type_filter,
+        'open_batch': open_batch,
         'branches': Branch.active_names(),
         'suppliers': Supplier.active_names(),
         'catalog': catalog,
@@ -642,7 +725,23 @@ def distribution_variance_create(request):
     notes_list = request.POST.getlist('notes')
     default_branch = Branch.default_name()
 
-    created = 0
+    last_batch = (
+        DistributionVariance.objects.exclude(batch_number='')
+        .order_by('-id')
+        .values_list('batch_number', flat=True)
+        .first()
+    )
+    batch_seq = 1
+    if last_batch and str(last_batch).startswith('#VAR-'):
+        try:
+            batch_seq = int(str(last_batch).replace('#VAR-', '')) + 1
+        except ValueError:
+            batch_seq = (DistributionVariance.objects.aggregate(Max('id'))['id__max'] or 0) + 1
+    else:
+        batch_seq = (DistributionVariance.objects.aggregate(Max('id'))['id__max'] or 0) + 1
+    batch_number = f'#VAR-{batch_seq:04d}'
+
+    created_ids = []
     for i, item_name in enumerate(item_names):
         item_name = (item_name or '').strip()
         if not item_name:
@@ -664,7 +763,8 @@ def distribution_variance_create(request):
             quantity = max(1, int(qty_raw or 1))
         except (TypeError, ValueError):
             quantity = 1
-        DistributionVariance.objects.create(
+        row = DistributionVariance.objects.create(
+            batch_number=batch_number,
             record_date=record_date,
             variance_type=vtype,
             item_name=item_name,
@@ -675,16 +775,17 @@ def distribution_variance_create(request):
             notes=(notes_list[i] if i < len(notes_list) else '').strip(),
             created_by=request.user,
         )
-        created += 1
+        created_ids.append(row.pk)
 
-    if not created:
+    if not created_ids:
         messages.error(request, 'أضف صنفاً واحداً على الأقل.')
     else:
         messages.success(
             request,
-            f'تم تسجيل {created} سجل نقص/زيادة — بانتظار تعميد المستلم لإشعار المورد.',
+            f'تم حفظ ملف {batch_number} بـ {len(created_ids)} سجل — بانتظار تعميد المستلم.',
         )
-    return redirect(f"{reverse('ops:distribution_variance')}?date={record_date.isoformat()}")
+    open_q = f'&open={created_ids[0]}' if created_ids else ''
+    return redirect(f"{reverse('ops:distribution_variance')}?date={record_date.isoformat()}{open_q}")
 
 
 @login_required
@@ -696,7 +797,9 @@ def distribution_variance_authorize(request, pk):
         return redirect('ops:distribution_variance')
     if row.status != DistributionVariance.Status.PENDING:
         messages.error(request, 'تم اتخاذ قرار مسبقاً على هذا السجل.')
-        return redirect(f"{reverse('ops:distribution_variance')}?date={row.record_date.isoformat()}")
+        return redirect(
+            f"{reverse('ops:distribution_variance')}?date={row.record_date.isoformat()}&open={row.pk}"
+        )
 
     row.status = DistributionVariance.Status.AUTHORIZED
     row.authorized_by = request.user
@@ -707,7 +810,17 @@ def distribution_variance_authorize(request, pk):
         request,
         f'تم تعميد «{row.item_name}» ({row.get_variance_type_display()}) وإرسال إشعار للمورد.',
     )
-    return redirect(f"{reverse('ops:distribution_variance')}?date={row.record_date.isoformat()}")
+    seed = row
+    if row.batch_number:
+        seed = (
+            DistributionVariance.objects.filter(batch_number=row.batch_number)
+            .order_by('pk')
+            .first()
+            or row
+        )
+    return redirect(
+        f"{reverse('ops:distribution_variance')}?date={row.record_date.isoformat()}&open={seed.pk}"
+    )
 
 
 @login_required
@@ -719,27 +832,44 @@ def distribution_variance_reject(request, pk):
         return redirect('ops:distribution_variance')
     if row.status != DistributionVariance.Status.PENDING:
         messages.error(request, 'تم اتخاذ قرار مسبقاً على هذا السجل.')
-        return redirect(f"{reverse('ops:distribution_variance')}?date={row.record_date.isoformat()}")
+        return redirect(
+            f"{reverse('ops:distribution_variance')}?date={row.record_date.isoformat()}&open={row.pk}"
+        )
 
     row.status = DistributionVariance.Status.REJECTED
     row.authorized_by = request.user
     row.authorized_at = timezone.now()
     row.save(update_fields=['status', 'authorized_by', 'authorized_at', 'updated_at'])
     messages.success(request, f'تم رفض سجل «{row.item_name}».')
-    return redirect(f"{reverse('ops:distribution_variance')}?date={row.record_date.isoformat()}")
+    seed = row
+    if row.batch_number:
+        seed = (
+            DistributionVariance.objects.filter(batch_number=row.batch_number)
+            .order_by('pk')
+            .first()
+            or row
+        )
+    return redirect(
+        f"{reverse('ops:distribution_variance')}?date={row.record_date.isoformat()}&open={seed.pk}"
+    )
 
 
 @login_required
 @require_POST
 def distribution_variance_delete(request, pk):
-    row = get_object_or_404(DistributionVariance, pk=pk)
-    if not (request.user.is_manager or row.created_by_id == request.user.id):
+    seed = get_object_or_404(DistributionVariance, pk=pk)
+    if not (request.user.is_manager or seed.created_by_id == request.user.id):
         messages.error(request, 'لا يمكنك حذف هذا السجل.')
         return redirect('ops:distribution_variance')
-    record_date = row.record_date
-    label = row.item_name
-    row.delete()
-    messages.success(request, f'تم حذف سجل «{label}».')
+    record_date = seed.record_date
+    if seed.batch_number:
+        label = seed.batch_number
+        count, _ = DistributionVariance.objects.filter(batch_number=seed.batch_number).delete()
+    else:
+        label = seed.item_name
+        seed.delete()
+        count = 1
+    messages.success(request, f'تم حذف ملف {label} ({count} سجل).')
     return redirect(f"{reverse('ops:distribution_variance')}?date={record_date.isoformat()}")
 
 

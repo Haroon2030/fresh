@@ -88,22 +88,22 @@ class TaskResponsePhotoAdmin(admin.ModelAdmin):
 @admin.register(DailySupplyDistribution)
 class DailySupplyDistributionAdmin(admin.ModelAdmin):
     list_display = (
-        'distribution_date', 'item_name', 'item_number', 'branch',
+        'batch_number', 'distribution_date', 'item_name', 'item_number', 'branch',
         'quantity', 'created_by', 'created_at',
     )
     list_filter = ('distribution_date', 'branch')
-    search_fields = ('item_name', 'item_number', 'branch', 'notes')
+    search_fields = ('batch_number', 'item_name', 'item_number', 'branch', 'notes')
     raw_id_fields = ('created_by',)
 
 
 @admin.register(DistributionVariance)
 class DistributionVarianceAdmin(admin.ModelAdmin):
     list_display = (
-        'record_date', 'variance_type', 'item_name', 'branch', 'quantity',
+        'batch_number', 'record_date', 'variance_type', 'item_name', 'branch', 'quantity',
         'supplier', 'status', 'authorized_by', 'created_at',
     )
     list_filter = ('variance_type', 'status', 'record_date', 'branch')
-    search_fields = ('item_name', 'item_number', 'branch', 'supplier', 'notes')
+    search_fields = ('batch_number', 'item_name', 'item_number', 'branch', 'supplier', 'notes')
     raw_id_fields = ('created_by', 'authorized_by')
 
 
