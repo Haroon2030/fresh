@@ -444,6 +444,63 @@ def schedule_return_authorized(item_id: int, actor_id: int) -> None:
     _run_in_background(f"return-authorize-{item_id}", _run)
 
 
+def schedule_daily_distribution_notify(row_ids: list[int], actor_id: int) -> None:
+    """After saving daily supply distribution → notify accountant, ops, receiver."""
+
+    def _run():
+        from ops.models import DailySupplyDistribution
+        from ops.whatsapp import notify_roles
+
+        User = get_user_model()
+        actor = User.objects.filter(pk=actor_id).first()
+        rows = list(
+            DailySupplyDistribution.objects.select_related("created_by")
+            .filter(pk__in=row_ids)
+            .order_by("pk")
+        )
+        if not rows or not actor:
+            return
+
+        dist_date = rows[0].distribution_date.strftime("%Y/%m/%d")
+        lines = [
+            f"  • {r.item_name} | {r.branch} | كمية {r.quantity}"
+            for r in rows[:20]
+        ]
+        if len(rows) > 20:
+            lines.append(f"  … و{len(rows) - 20} أصناف أخرى")
+
+        body = "\n".join(
+            [
+                "════════════════════",
+                "عمليات الفرش | توزيع توريد يومي",
+                "════════════════════",
+                f"التاريخ: {dist_date}",
+                f"عدد الأصناف: {len(rows)}",
+                f"بواسطة: {_actor_line(actor)}",
+                f"الوقت: {_now_str()}",
+                "────────────────────",
+                "التفاصيل:",
+                *lines,
+                "────────────────────",
+                "المستلمون: المحاسب · العمليات · المستلم",
+                "════════════════════",
+            ]
+        )
+        result = notify_roles(
+            "توزيع توريد يومي — للمحاسب والعمليات والمستلم",
+            body,
+            roles=User.RETURN_AUTHORIZE_NOTIFY_ROLES,
+        )
+        if result.get("error"):
+            logger.warning(
+                "Daily distribution notify failed for %s: %s",
+                row_ids,
+                result.get("error"),
+            )
+
+    _run_in_background(f"dist-{row_ids[:1]}", _run)
+
+
 def schedule_daily_order_approved(order_id: int, actor_id: int) -> None:
     """Send purchase-order PDF to supplier via WhatsApp after approval (like returns)."""
 

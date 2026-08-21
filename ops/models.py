@@ -634,6 +634,39 @@ class DailyOrder(models.Model):
             self.public_token = secrets.token_urlsafe(24)
 
 
+class DailySupplyDistribution(models.Model):
+    """توزيع توريد يومي — صنف + فرع + كمية موزّعة."""
+
+    distribution_date = models.DateField(verbose_name='تاريخ التوزيع', db_index=True)
+    item_name = models.CharField(max_length=255, verbose_name='اسم الصنف')
+    item_number = models.CharField(max_length=100, blank=True, verbose_name='رقم الصنف')
+    branch = models.CharField(max_length=150, verbose_name='اسم الفرع')
+    quantity = models.PositiveIntegerField(default=1, verbose_name='الكمية الموزعة')
+    notes = models.CharField(max_length=255, blank=True, verbose_name='ملاحظات')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='created_distributions',
+        verbose_name='أنشئ بواسطة',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-distribution_date', '-created_at']
+        verbose_name = 'توزيع توريد يومي'
+        verbose_name_plural = 'توزيع التوريد اليومي'
+
+    def __str__(self):
+        return f'{self.item_name} → {self.branch} × {self.quantity}'
+
+    def save(self, *args, **kwargs):
+        if not self.distribution_date:
+            from django.utils import timezone
+            self.distribution_date = timezone.localdate()
+        super().save(*args, **kwargs)
+
+
 class EvolutionConfig(models.Model):
     """إعدادات Evolution المحفوظة في قاعدة البيانات (بديل عند فشل متغيرات Dokploy)."""
 

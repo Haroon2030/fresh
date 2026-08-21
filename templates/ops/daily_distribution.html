@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}توزيع التوريد اليومي - عمليات الفرش{% endblock %}
+
+{% block header_search %}
+<form method="get" class="relative w-full flex gap-2 items-center">
+    <input type="date" name="date" value="{{ dist_date|date:'Y-m-d' }}"
+           class="bg-surface-container-low border border-outline-variant rounded-full py-2 px-3 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+           onchange="this.form.submit()">
+    <div class="relative flex-1">
+        <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+        <input name="q" value="{{ q }}" class="w-full bg-surface-container-low border border-outline-variant rounded-full py-2 pr-10 pl-4 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" placeholder="بحث: صنف، فرع..." type="text">
+    </div>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row md:items-center justify-between mb-lg gap-md">
+    <div>
+        <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">توزيع التوريد اليومي</h2>
+        <p class="text-on-surface-variant font-body-md text-body-md mt-xs">
+            توزيع يوم
+            <b>{{ dist_date|date:"Y/m/d" }}</b>
+            {% if dist_date == today %}(اليوم){% endif %}
+            — بعد الحفظ يُرسل إشعار لواتساب المحاسب والعمليات والمستلم.
+        </p>
+    </div>
+    <button type="button" class="btn-primary-app"
+            onclick="document.getElementById('newDistModal').classList.remove('hidden')">
+        <span class="material-symbols-outlined">add</span>
+        توزيع جديد
+    </button>
+</div>
+
+<div class="app-table-frame w-full max-w-full">
+    <div class="app-toolbar">
+        <span class="font-label-md text-label-md font-bold text-on-surface flex items-center gap-sm">
+            <span class="material-symbols-outlined">local_shipping</span>
+            سجلات التوزيع ({{ rows|length }})
+        </span>
+    </div>
+    <div class="app-table-sheet overflow-x-auto bg-white">
+        <table class="excel-grid app-data-grid w-full">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>اسم الصنف</th>
+                <th>اسم الفرع</th>
+                <th>الكمية الموزعة</th>
+                <th>إجراء</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in rows %}
+            <tr>
+                <td class="row-num cell-center">{{ forloop.counter }}</td>
+                <td class="cell-strong">
+                    {{ row.item_name }}
+                    {% if row.item_number %}
+                    <span class="text-on-surface-variant text-xs font-bold block" dir="ltr">{{ row.item_number }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ row.branch }}</td>
+                <td class="cell-center cell-strong">{{ row.quantity }}</td>
+                <td class="cell-center">
+                    <form method="post" action="{% url 'ops:daily_distribution_delete' row.pk %}" class="inline"
+                          onsubmit="return confirm('حذف توزيع «{{ row.item_name }}»؟');">
+                        {% csrf_token %}
+                        <button type="submit" class="act-btn act-delete">حذف</button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="empty-row">
+                    لا توزيع لهذا اليوم — اضغط «توزيع جديد».
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="app-modal hidden" id="newDistModal">
+    <div class="app-modal-panel app-modal-panel--xl">
+        <div class="app-modal-head">
+            <h3>توزيع توريد يومي</h3>
+            <button type="button" class="app-modal-close" aria-label="إغلاق"
+                    onclick="document.getElementById('newDistModal').classList.add('hidden')">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <form method="post" action="{% url 'ops:daily_distribution_create' %}" class="flex flex-col overflow-hidden" id="distMultiForm">
+            {% csrf_token %}
+            <div class="app-modal-body flex flex-col gap-md">
+                <div class="flex flex-col gap-sm max-w-xs">
+                    <label class="font-label-md text-label-md text-on-surface" for="distDate">تاريخ التوزيع</label>
+                    <input type="date" name="distribution_date" id="distDate" value="{{ dist_date|date:'Y-m-d' }}" required
+                           class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
+                </div>
+
+                <div class="flex items-center justify-between gap-sm">
+                    <span class="font-label-md text-label-md font-bold text-on-surface">أصناف التوزيع</span>
+                    <button type="button" id="addDistRow"
+                            class="flex items-center gap-xs px-md py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface hover:bg-surface-container-low transition-colors">
+                        <span class="material-symbols-outlined text-[18px]">add</span>
+                        إضافة صف
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto border border-outline-variant rounded-xl">
+                    <table class="w-full text-right border-collapse min-w-[800px]">
+                        <thead class="bg-surface-container-low">
+                        <tr>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-10">#</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">اسم الصنف</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">رقم الصنف</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">اسم الفرع</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-28">الكمية الموزعة</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-14"></th>
+                        </tr>
+                        </thead>
+                        <tbody id="distRows" class="divide-y divide-outline-variant"></tbody>
+                    </table>
+                </div>
+                <p class="font-body-md text-body-md text-on-surface-variant text-xs m-0">
+                    بعد الحفظ تُرسل رسالة واتساب تلقائياً إلى المحاسب ومدير العمليات والمستلم.
+                </p>
+            </div>
+            <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
+                <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md"
+                        onclick="document.getElementById('newDistModal').classList.add('hidden')">إلغاء</button>
+                <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:bg-primary/90">
+                    حفظ التوزيع
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const tbody = document.getElementById('distRows');
+    const addBtn = document.getElementById('addDistRow');
+    if (!tbody || !addBtn) return;
+
+    const inputClass = 'w-full bg-surface border border-outline-variant rounded-lg py-2 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface';
+    const branchOptions = `{% for b in branches %}<option value="{{ b|escapejs }}" {% if b == default_branch %}selected{% endif %}>{{ b|escapejs }}</option>{% endfor %}`;
+
+    function renumber() {
+        tbody.querySelectorAll('tr').forEach((tr, i) => {
+            const num = tr.querySelector('[data-row-num]');
+            if (num) num.textContent = String(i + 1);
+        });
+    }
+
+    function addRow() {
+        const tr = document.createElement('tr');
+        tr.className = 'bg-surface-container-lowest';
+        tr.innerHTML = `
+            <td class="p-2 text-on-surface-variant font-label-md text-label-md text-center" data-row-num></td>
+            <td class="p-2"><input name="item_name" type="text" required list="catalogNames" placeholder="اسم الصنف" class="${inputClass}"></td>
+            <td class="p-2"><input name="item_number" type="text" list="catalogNumbers" placeholder="رقم الصنف" class="${inputClass}" dir="ltr"></td>
+            <td class="p-2">
+                <select name="branch" required class="${inputClass} app-select">
+                    <option value="">اختر الفرع...</option>
+                    ${branchOptions}
+                </select>
+            </td>
+            <td class="p-2"><input name="quantity" type="number" min="1" value="1" required class="${inputClass}"></td>
+            <td class="p-2 text-center">
+                <button type="button" class="text-error hover:bg-error-container p-1 rounded-full remove-row" title="حذف الصف">
+                    <span class="material-symbols-outlined text-[20px]">delete</span>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        renumber();
+    }
+
+    addBtn.addEventListener('click', addRow);
+    tbody.addEventListener('click', (e) => {
+        const btn = e.target.closest('.remove-row');
+        if (!btn) return;
+        if (tbody.querySelectorAll('tr').length <= 1) return;
+        btn.closest('tr').remove();
+        renumber();
+    });
+
+    addRow();
+})();
+</script>
+<datalist id="catalogNumbers">
+{% for c in catalog %}<option value="{{ c.item_number }}"></option>{% endfor %}
+</datalist>
+<datalist id="catalogNames">
+{% for c in catalog %}<option value="{{ c.name }}"></option>{% endfor %}
+</datalist>
+{% endblock %}

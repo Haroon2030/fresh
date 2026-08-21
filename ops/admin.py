@@ -4,6 +4,7 @@ from .models import (
     Branch,
     CatalogItem,
     DailyOrder,
+    DailySupplyDistribution,
     EvolutionConfig,
     ReturnRequest,
     SupplyOrder,
@@ -81,6 +82,17 @@ class TaskAdmin(admin.ModelAdmin):
 class TaskResponsePhotoAdmin(admin.ModelAdmin):
     list_display = ('id', 'task', 'uploaded_at')
     raw_id_fields = ('task',)
+
+
+@admin.register(DailySupplyDistribution)
+class DailySupplyDistributionAdmin(admin.ModelAdmin):
+    list_display = (
+        'distribution_date', 'item_name', 'item_number', 'branch',
+        'quantity', 'created_by', 'created_at',
+    )
+    list_filter = ('distribution_date', 'branch')
+    search_fields = ('item_name', 'item_number', 'branch', 'notes')
+    raw_id_fields = ('created_by',)
 
 
 @admin.register(EvolutionConfig)

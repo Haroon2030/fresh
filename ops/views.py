@@ -20,6 +20,7 @@ from .models import (
     Branch,
     CatalogItem,
     DailyOrder,
+    DailySupplyDistribution,
     ReturnBatch,
     ReturnRequest,
     SupplyOrder,
@@ -41,6 +42,7 @@ from .whatsapp import (
     send_test_to_roles,
 )
 from .notify_ops import (
+    schedule_daily_distribution_notify,
     schedule_daily_order_approved,
     schedule_return_authorized,
     schedule_return_notify,
@@ -462,6 +464,113 @@ def supply_batch_pdf(request, pk):
     except Exception:
         return HttpResponse('تعذّر إنشاء الملف', status=500)
     return _pdf_http_response(pdf_bytes, filename)
+
+
+@login_required
+def daily_distribution_list(request):
+    q = (request.GET.get('q') or '').strip()
+    date_raw = (request.GET.get('date') or '').strip()
+    today = timezone.localdate()
+    if date_raw:
+        try:
+            dist_date = datetime.strptime(date_raw, '%Y-%m-%d').date()
+        except ValueError:
+            dist_date = today
+    else:
+        dist_date = today
+
+    qs = DailySupplyDistribution.objects.select_related('created_by').filter(
+        distribution_date=dist_date,
+    )
+    if q:
+        qs = qs.filter(
+            Q(item_name__icontains=q)
+            | Q(item_number__icontains=q)
+            | Q(branch__icontains=q)
+            | Q(notes__icontains=q)
+        )
+
+    catalog = list(
+        CatalogItem.objects.order_by('name').values('item_number', 'name')[:500]
+    )
+    return render(request, 'ops/daily_distribution.html', {
+        'rows': qs.order_by('-created_at', 'pk'),
+        'q': q,
+        'dist_date': dist_date,
+        'today': today,
+        'branches': Branch.active_names(),
+        'catalog': catalog,
+        'catalog_json': json.dumps(catalog, ensure_ascii=False),
+        'active_nav': 'distribution',
+    })
+
+
+@login_required
+@require_POST
+def daily_distribution_create(request):
+    date_raw = (request.POST.get('distribution_date') or '').strip()
+    today = timezone.localdate()
+    if date_raw:
+        try:
+            dist_date = datetime.strptime(date_raw, '%Y-%m-%d').date()
+        except ValueError:
+            dist_date = today
+    else:
+        dist_date = today
+
+    item_names = request.POST.getlist('item_name')
+    item_numbers = request.POST.getlist('item_number')
+    branches = request.POST.getlist('branch')
+    quantities = request.POST.getlist('quantity')
+    notes_list = request.POST.getlist('notes')
+    default_branch = Branch.default_name()
+
+    created_ids = []
+    for i, item_name in enumerate(item_names):
+        item_name = (item_name or '').strip()
+        if not item_name:
+            continue
+        branch = (branches[i] if i < len(branches) else '').strip() or default_branch
+        if not branch:
+            messages.error(request, f'اختر الفرع للصنف «{item_name}».')
+            return redirect(f"{reverse('ops:daily_distribution')}?date={dist_date.isoformat()}")
+        qty_raw = quantities[i] if i < len(quantities) else '1'
+        try:
+            quantity = max(1, int(qty_raw or 1))
+        except (TypeError, ValueError):
+            quantity = 1
+        row = DailySupplyDistribution.objects.create(
+            distribution_date=dist_date,
+            item_name=item_name,
+            item_number=(item_numbers[i] if i < len(item_numbers) else '').strip(),
+            branch=branch,
+            quantity=quantity,
+            notes=(notes_list[i] if i < len(notes_list) else '').strip(),
+            created_by=request.user,
+        )
+        created_ids.append(row.pk)
+
+    if not created_ids:
+        messages.error(request, 'أضف صنفاً واحداً على الأقل مع الكمية والفرع.')
+        return redirect(f"{reverse('ops:daily_distribution')}?date={dist_date.isoformat()}")
+
+    schedule_daily_distribution_notify(created_ids, request.user.pk)
+    messages.success(
+        request,
+        f'تم حفظ توزيع {len(created_ids)} صنف وإرسال إشعار للمحاسب والعمليات والمستلم.',
+    )
+    return redirect(f"{reverse('ops:daily_distribution')}?date={dist_date.isoformat()}")
+
+
+@login_required
+@require_POST
+def daily_distribution_delete(request, pk):
+    row = get_object_or_404(DailySupplyDistribution, pk=pk)
+    dist_date = row.distribution_date
+    label = row.item_name
+    row.delete()
+    messages.success(request, f'تم حذف توزيع «{label}».')
+    return redirect(f"{reverse('ops:daily_distribution')}?date={dist_date.isoformat()}")
 
 
 @login_required
