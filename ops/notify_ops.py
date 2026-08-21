@@ -267,6 +267,7 @@ def notify_supply_orders_saved(orders: list, *, actor, representative) -> dict:
             f"العدد: {len(orders)}",
             f"المندوب: {representative.display_name} | {role_label(representative)}",
             f"الفرع: {orders[0].branch or '—'}",
+            f"المورد: {getattr(orders[0], 'supplier', '') or '—'}",
             f"المرسل: {_actor_line(actor)}",
             f"وقت الحفظ: {_now_str()}",
             "────────────────────",

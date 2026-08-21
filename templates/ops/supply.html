@@ -137,8 +137,8 @@
         <div class="stat-card-grid" aria-hidden="true"></div>
         <div class="flex justify-between items-start z-10">
             <div>
-                <span class="stat-label">إجمالي الطلبات</span>
-                <p class="stat-hint mt-1">TOTAL_ORDERS</p>
+                <span class="stat-label">إجمالي الملفات</span>
+                <p class="stat-hint mt-1">TOTAL_FILES</p>
             </div>
             <span class="stat-icon">
                 <span class="material-symbols-outlined text-inherit">shopping_bag</span>
@@ -146,7 +146,7 @@
         </div>
         <div class="z-10 mt-auto">
             <span class="stat-value">{{ total_orders }}</span>
-            <span class="stat-sub">جميع الطلبات في النظام</span>
+            <span class="stat-sub">جميع ملفات التوريد</span>
         </div>
     </div>
     <div class="stat-card stat-card-amber relative overflow-hidden rounded-xl p-md flex flex-col gap-sm border">
@@ -162,7 +162,7 @@
         </div>
         <div class="z-10 mt-auto">
             <span class="stat-value">{{ pending_count }}</span>
-            <span class="stat-sub">يحتاجون للمراجعة</span>
+            <span class="stat-sub">ملفات تحتاج للمراجعة</span>
         </div>
     </div>
     <div class="stat-card stat-card-slate relative overflow-hidden rounded-xl p-md flex flex-col gap-sm border">
@@ -210,60 +210,78 @@
         </form>
     </div>
     <div class="app-table-sheet overflow-x-auto">
-        <table class="excel-grid app-data-grid">
+        <table class="excel-grid app-data-grid w-full">
             <thead>
             <tr>
-                <th>رقم الطلب</th>
+                <th>#</th>
+                <th>رقم الملف</th>
                 <th>اسم المندوب</th>
                 <th>الفرع</th>
-                <th>الاسم</th>
-                <th>رقم الصنف</th>
-                <th>الوحدة</th>
-                <th>العبوة</th>
-                <th>الكمية</th>
+                <th>المورد</th>
                 <th>التاريخ</th>
                 <th>الحالة</th>
+                <th>الأصناف</th>
                 <th>إجراء</th>
             </tr>
             </thead>
             <tbody>
-            {% for order in orders %}
-            <tr>
-                <td class="cell-strong">{{ order.order_number }}</td>
+            {% for batch in batches %}
+            <tr class="batch-row {% if batch.display_status != 'pending' %}row-done{% endif %}"
+                data-open-batch="{{ batch.seed_pk }}" style="cursor:pointer">
+                <td class="row-num cell-center">{{ forloop.counter }}</td>
+                <td class="cell-strong" dir="ltr">{{ batch.batch_number }}</td>
                 <td>
                     <div class="flex items-center gap-sm">
                         <div class="w-8 h-8 rounded-full bg-[#dbeafe] text-[#1e3a8a] flex items-center justify-center font-bold text-xs">
-                            {{ order.representative.initials }}
+                            {{ batch.representative.initials }}
                         </div>
-                        <span>{{ order.representative.display_name }}</span>
+                        <span class="cell-strong">{{ batch.representative.display_name }}</span>
                     </div>
                 </td>
-                <td>{{ order.branch|default:"—" }}</td>
-                <td>{{ order.item_name }}</td>
-                <td>{% if order.item_number %}{{ order.item_number }}{% else %}—{% endif %}</td>
-                <td>{% if order.unit %}{{ order.unit }}{% else %}—{% endif %}</td>
-                <td>{% if order.package %}{{ order.package }}{% else %}—{% endif %}</td>
-                <td class="cell-center cell-strong">{{ order.quantity }}</td>
-                <td>{{ order.created_at|date:"Y/m/d" }}</td>
+                <td>{{ batch.branch|default:"—" }}</td>
+                <td>{{ batch.supplier|default:"—" }}</td>
+                <td>{{ batch.created_at|date:"Y/m/d" }}</td>
                 <td class="cell-center">
-                    {% if order.status == 'completed' %}
+                    {% if batch.display_status == 'completed' %}
                     <span class="status-chip status-ok">مكتمل</span>
-                    {% elif order.status == 'pending' %}
-                    <span class="status-chip status-pending">قيد الانتظار</span>
-                    {% else %}
+                    {% elif batch.display_status == 'rejected' %}
                     <span class="status-chip status-bad">مرفوض</span>
+                    {% elif batch.display_status == 'mixed' %}
+                    <span class="status-chip status-wait">متعدد</span>
+                    {% else %}
+                    <span class="status-chip status-pending">قيد الانتظار</span>
                     {% endif %}
                 </td>
-                <td class="cell-center">
-                    <a href="{% url 'ops:supply_detail' order.pk %}" class="act-btn act-ok" title="عرض">
-                        <span class="material-symbols-outlined text-[16px] text-inherit">visibility</span>
-                        عرض
-                    </a>
+                <td class="cell-center cell-strong">{{ batch.items_count }}</td>
+                <td class="cell-center" onclick="event.stopPropagation()">
+                    <div class="flex flex-wrap gap-1 justify-center">
+                        <a href="{% url 'ops:supply_batch_pdf' batch.seed_pk %}" class="act-btn act-pdf" title="تحميل PDF">PDF</a>
+                        <button type="button" class="act-btn act-view" data-open-batch="{{ batch.seed_pk }}">عرض</button>
+                        {% if user.is_manager %}
+                        {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
+                        <form method="post" action="{% url 'ops:supply_complete' batch.seed_pk %}" class="inline"
+                              onsubmit="return confirm('إكمال ملف التوريد؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-approve">إكمال</button>
+                        </form>
+                        <form method="post" action="{% url 'ops:supply_reject' batch.seed_pk %}" class="inline"
+                              onsubmit="return confirm('رفض ملف التوريد؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-reject">رفض</button>
+                        </form>
+                        {% endif %}
+                        <form method="post" action="{% url 'ops:supply_batch_delete' batch.seed_pk %}" class="inline"
+                              onsubmit="return confirm('حذف ملف {{ batch.batch_number }} وجميع أصنافه؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-delete">حذف</button>
+                        </form>
+                        {% endif %}
+                    </div>
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="11" class="empty-row">لا توجد طلبات.</td>
+                <td colspan="9" class="empty-row">لا توجد ملفات توريد.</td>
             </tr>
             {% endfor %}
             </tbody>
@@ -304,6 +322,75 @@
 {% endblock %}
 
 {% block modals %}
+{% for batch in batches %}
+<div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.seed_pk }}">
+    <div class="app-modal-panel app-modal-panel--xl">
+        <div class="app-modal-head">
+            <div>
+                <h3>أصناف الملف {{ batch.batch_number }}</h3>
+                <p class="text-xs text-on-surface-variant font-bold m-0 mt-1">
+                    {{ batch.representative.display_name }} · {{ batch.branch|default:"—" }} · {{ batch.supplier|default:"—" }} · {{ batch.created_at|date:"Y/m/d" }}
+                </p>
+            </div>
+            <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch="{{ batch.seed_pk }}">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="p-lg overflow-y-auto">
+            <div class="app-table-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+                <table class="excel-grid app-data-grid w-full">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>رقم الطلب</th>
+                        <th>الاسم</th>
+                        <th>رقم الصنف</th>
+                        <th>الوحدة</th>
+                        <th>العبوة</th>
+                        <th>الكمية</th>
+                        <th>متوقع</th>
+                        <th>الحالة</th>
+                        <th>ملاحظات</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for order in batch.items %}
+                    <tr>
+                        <td class="cell-center">{{ forloop.counter }}</td>
+                        <td dir="ltr">{{ order.order_number }}</td>
+                        <td class="cell-strong">{{ order.item_name }}</td>
+                        <td dir="ltr">{{ order.item_number|default:"—" }}</td>
+                        <td>{{ order.unit|default:"—" }}</td>
+                        <td>{{ order.package|default:"—" }}</td>
+                        <td class="cell-center cell-strong">{{ order.quantity }}</td>
+                        <td>{% if order.expected_date %}{{ order.expected_date|date:"Y/m/d" }}{% else %}—{% endif %}</td>
+                        <td class="cell-center">
+                            {% if order.status == 'completed' %}
+                            <span class="status-chip status-ok">مكتمل</span>
+                            {% elif order.status == 'rejected' %}
+                            <span class="status-chip status-bad">مرفوض</span>
+                            {% else %}
+                            <span class="status-chip status-pending">قيد الانتظار</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ order.notes|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="10" class="empty-row">لا أصناف.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex flex-wrap justify-end gap-sm">
+            <a href="{% url 'ops:supply_batch_pdf' batch.seed_pk %}" class="act-btn act-pdf">PDF</a>
+            <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md"
+                    data-close-batch="{{ batch.seed_pk }}">إغلاق</button>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
 <div class="app-modal hidden" id="newSupplyModal">
     <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
@@ -346,6 +433,18 @@
                         </select>
                     </div>
                     <div class="flex flex-col gap-sm">
+                        <label class="font-label-md text-label-md text-on-surface" for="supplySupplier">المورد</label>
+                        <select name="supplier" id="supplySupplier" required
+                                class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface app-select">
+                            <option value="">اختر المورد...</option>
+                            {% for s in suppliers %}
+                            <option value="{{ s }}">{{ s }}</option>
+                            {% empty %}
+                            <option value="" disabled>أضف موردين من التهيئة أولاً</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-sm">
                         <label class="font-label-md text-label-md text-on-surface" for="expectedDate">التاريخ المتوقع</label>
                         <input type="date" name="expected_date" id="expectedDate"
                                class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface">
@@ -378,7 +477,7 @@
                         <tbody id="supplyRows" class="divide-y divide-outline-variant"></tbody>
                     </table>
                 </div>
-                <p class="font-body-md text-body-md text-on-surface-variant text-xs">يمكنك إضافة أكثر من صف ثم حفظها دفعة واحدة.</p>
+                <p class="font-body-md text-body-md text-on-surface-variant text-xs">كل الحفظ يُنشئ ملفاً واحداً يحتوي كل الأصناف.</p>
             </div>
             <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
                 <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-low transition-colors"
@@ -386,7 +485,7 @@
                     إلغاء
                 </button>
                 <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:bg-primary/90 transition-colors">
-                    حفظ الطلبات
+                    حفظ الملف
                 </button>
             </div>
         </form>
@@ -441,6 +540,40 @@
     });
 
     addRow();
+})();
+</script>
+<script>
+(function () {
+    function openBatch(id) {
+        const modal = document.getElementById('batchModal-' + id);
+        if (modal) modal.classList.remove('hidden');
+    }
+    function closeBatch(id) {
+        const modal = document.getElementById('batchModal-' + id);
+        if (modal) modal.classList.add('hidden');
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('open')) {
+            url.searchParams.delete('open');
+            window.history.replaceState({}, '', url.pathname + url.search);
+        }
+    }
+    document.addEventListener('click', (e) => {
+        const openBtn = e.target.closest('[data-open-batch]');
+        if (openBtn) {
+            openBatch(openBtn.getAttribute('data-open-batch'));
+            return;
+        }
+        const closeBtn = e.target.closest('[data-close-batch]');
+        if (closeBtn) {
+            closeBatch(closeBtn.getAttribute('data-close-batch'));
+            return;
+        }
+        if (e.target.classList.contains('batch-detail-modal')) {
+            e.target.classList.add('hidden');
+        }
+    });
+    const openId = '{{ open_batch|default:""|escapejs }}';
+    if (openId) openBatch(openId);
 })();
 </script>
 {% endblock %}

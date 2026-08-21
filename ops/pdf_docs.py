@@ -391,7 +391,8 @@ def build_supply_orders_pdf(orders: list, *, actor) -> tuple[bytes, str]:
     created = timezone.localtime(first.created_at).strftime("%Y-%m-%d %H:%M")
     rep = first.representative
     nums = [o.order_number for o in orders]
-    ref = nums[0] if len(nums) == 1 else f"{nums[0]} … {nums[-1]}"
+    batch_ref = getattr(first, "batch_number", "") or ""
+    ref = batch_ref or (nums[0] if len(nums) == 1 else f"{nums[0]} … {nums[-1]}")
     status_label = first.get_status_display() if len(orders) == 1 else "مجموعة طلبات"
 
     story: list = []
@@ -414,6 +415,8 @@ def build_supply_orders_pdf(orders: list, *, actor) -> tuple[bytes, str]:
                 ("أرقام الطلبات", "، ".join(nums)),
                 ("طالب التوريد", f"{actor.display_name} — {role_label(actor)}"),
                 ("المندوب", f"{rep.display_name} — {role_label(rep)}"),
+                ("الفرع", getattr(first, "branch", "") or "—"),
+                ("المورد", getattr(first, "supplier", "") or "—"),
             ],
             styles,
         )

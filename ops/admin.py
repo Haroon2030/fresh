@@ -52,11 +52,11 @@ class CatalogItemAdmin(admin.ModelAdmin):
 @admin.register(SupplyOrder)
 class SupplyOrderAdmin(admin.ModelAdmin):
     list_display = (
-        'order_number', 'representative', 'branch', 'item_name', 'item_number',
-        'quantity', 'status', 'created_at',
+        'order_number', 'batch_number', 'representative', 'branch', 'supplier',
+        'item_name', 'item_number', 'quantity', 'status', 'created_at',
     )
-    list_filter = ('status', 'branch')
-    search_fields = ('order_number', 'item_name', 'item_number', 'branch')
+    list_filter = ('status', 'branch', 'supplier')
+    search_fields = ('order_number', 'batch_number', 'item_name', 'item_number', 'branch', 'supplier')
 
 
 @admin.register(ReturnRequest)

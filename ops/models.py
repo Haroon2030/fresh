@@ -10,6 +10,12 @@ class SupplyOrder(models.Model):
         REJECTED = 'rejected', 'مرفوض'
 
     order_number = models.CharField(max_length=20, unique=True, editable=False)
+    batch_number = models.CharField(
+        max_length=20,
+        blank=True,
+        db_index=True,
+        verbose_name='رقم الملف',
+    )
     representative = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -22,6 +28,7 @@ class SupplyOrder(models.Model):
     package = models.CharField(max_length=100, blank=True, verbose_name='العبوة')
     quantity = models.PositiveIntegerField(default=1, verbose_name='الكمية')
     branch = models.CharField(max_length=150, blank=True, default='', verbose_name='الفرع')
+    supplier = models.CharField(max_length=150, blank=True, default='', verbose_name='المورد')
     expected_date = models.DateField(null=True, blank=True, verbose_name='التاريخ المتوقع')
     notes = models.TextField(blank=True, verbose_name='ملاحظات')
     unit_price = models.DecimalField(

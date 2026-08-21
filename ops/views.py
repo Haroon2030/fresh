@@ -192,18 +192,63 @@ def _task_queryset(user):
     return qs
 
 
+def _supply_batch_orders(seed: SupplyOrder):
+    if seed.batch_number:
+        return (
+            SupplyOrder.objects.filter(batch_number=seed.batch_number)
+            .select_related('representative', 'created_by', 'reviewed_by')
+            .order_by('pk')
+        )
+    return SupplyOrder.objects.filter(pk=seed.pk).select_related(
+        'representative', 'created_by', 'reviewed_by'
+    )
+
+
+def _group_supply_batches(qs):
+    batches_map = {}
+    for order in qs.select_related('representative').order_by('-created_at', 'pk'):
+        key = order.batch_number or f'single-{order.pk}'
+        if key not in batches_map:
+            batches_map[key] = {
+                'key': key,
+                'batch_number': order.batch_number or order.order_number,
+                'seed_pk': order.pk,
+                'branch': order.branch,
+                'supplier': order.supplier,
+                'representative': order.representative,
+                'created_at': order.created_at,
+                'expected_date': order.expected_date,
+                'items': [],
+                'statuses': set(),
+            }
+        batches_map[key]['items'].append(order)
+        batches_map[key]['statuses'].add(order.status)
+
+    batches = []
+    for b in batches_map.values():
+        statuses = b['statuses']
+        if statuses == {SupplyOrder.Status.PENDING}:
+            b['display_status'] = 'pending'
+        elif statuses == {SupplyOrder.Status.COMPLETED}:
+            b['display_status'] = 'completed'
+        elif statuses == {SupplyOrder.Status.REJECTED}:
+            b['display_status'] = 'rejected'
+        else:
+            b['display_status'] = 'mixed'
+        b['items_count'] = len(b['items'])
+        batches.append(b)
+    batches.sort(key=lambda x: x['created_at'], reverse=True)
+    return batches
+
+
 @login_required
 def supply_list(request):
     from django.contrib.auth import get_user_model
     User = get_user_model()
 
     qs = _supply_queryset(request.user)
-
     status = request.GET.get('status', '')
     period = request.GET.get('period', 'all')
-
-    if status in dict(SupplyOrder.Status.choices):
-        qs = qs.filter(status=status)
 
     now = timezone.now()
     if period == 'week':
@@ -214,16 +259,20 @@ def supply_list(request):
         qs = qs.filter(created_at__gte=now - timedelta(days=90))
 
     all_qs = _supply_queryset(request.user)
-    total_orders = all_qs.count()
-    pending_count = all_qs.filter(status=SupplyOrder.Status.PENDING).count()
-    completed = all_qs.filter(status=SupplyOrder.Status.COMPLETED)
+    all_batches = _group_supply_batches(all_qs)
+    total_orders = len(all_batches)
+    pending_count = sum(1 for b in all_batches if b['display_status'] == 'pending')
     spent = Decimal('0')
-    for order in completed:
+    for order in all_qs.filter(status=SupplyOrder.Status.COMPLETED):
         spent += order.total_amount
     budget_cap = Decimal('65000')
     budget_pct = min(100, int((spent / budget_cap) * 100)) if budget_cap else 0
 
-    paginator = Paginator(qs, 10)
+    batches = _group_supply_batches(qs)
+    if status in dict(SupplyOrder.Status.choices):
+        batches = [b for b in batches if b['display_status'] == status]
+
+    paginator = Paginator(batches, 10)
     page = paginator.get_page(request.GET.get('page'))
 
     reps = User.objects.filter(role=User.Role.REPRESENTATIVE, is_active=True)
@@ -232,17 +281,21 @@ def supply_list(request):
     else:
         representatives = reps.order_by('first_name', 'username')
 
+    open_batch = (request.GET.get('open') or '').strip()
+
     return render(request, 'ops/supply.html', {
-        'orders': page,
+        'batches': page,
         'page_obj': page,
         'representatives': representatives,
         'branches': Branch.active_names(),
+        'suppliers': Supplier.active_names(),
         'status_filter': status,
         'period_filter': period,
         'total_orders': total_orders,
         'pending_count': pending_count,
         'budget_spent': spent,
         'budget_pct': budget_pct,
+        'open_batch': open_batch,
         'active_nav': 'supply',
     })
 
@@ -268,12 +321,33 @@ def supply_create(request):
         messages.error(request, 'اختر الفرع.')
         return redirect('ops:supply')
 
+    supplier = (request.POST.get('supplier') or '').strip()
+    if not supplier:
+        messages.error(request, 'اختر المورد.')
+        return redirect('ops:supply')
+
     item_names = request.POST.getlist('item_name')
     item_numbers = request.POST.getlist('item_number')
     units = request.POST.getlist('unit')
     packages = request.POST.getlist('package')
     quantities = request.POST.getlist('quantity')
     notes_list = request.POST.getlist('notes')
+
+    last_batch = (
+        SupplyOrder.objects.exclude(batch_number='')
+        .order_by('-id')
+        .values_list('batch_number', flat=True)
+        .first()
+    )
+    batch_seq = 1
+    if last_batch and str(last_batch).startswith('#SUPB-'):
+        try:
+            batch_seq = int(str(last_batch).replace('#SUPB-', '')) + 1
+        except ValueError:
+            batch_seq = (SupplyOrder.objects.aggregate(Max('id'))['id__max'] or 0) + 1
+    else:
+        batch_seq = (SupplyOrder.objects.aggregate(Max('id'))['id__max'] or 0) + 1
+    batch_number = f'#SUPB-{batch_seq:04d}'
 
     created = []
     for i, item_name in enumerate(item_names):
@@ -286,6 +360,7 @@ def supply_create(request):
         except (TypeError, ValueError):
             quantity = 1
         order = SupplyOrder(
+            batch_number=batch_number,
             representative=representative,
             item_name=item_name,
             item_number=(item_numbers[i] if i < len(item_numbers) else '').strip(),
@@ -294,6 +369,7 @@ def supply_create(request):
             quantity=quantity,
             notes=(notes_list[i] if i < len(notes_list) else '').strip(),
             branch=branch,
+            supplier=supplier,
             expected_date=expected_raw,
             created_by=request.user,
         )
@@ -301,41 +377,43 @@ def supply_create(request):
         created.append(order)
 
     if created:
-        if len(created) == 1:
-            messages.success(request, f'تم إنشاء الطلب {created[0].order_number} بنجاح.')
-        else:
-            messages.success(request, f'تم إنشاء {len(created)} طلبات شراء بنجاح.')
+        messages.success(
+            request,
+            f'تم إنشاء ملف توريد {batch_number} بـ {len(created)} صنف.',
+        )
         schedule_supply_notify(
             [o.pk for o in created],
             request.user.pk,
             representative.pk,
         )
         messages.info(request, 'جاري إرسال إشعار واتساب في الخلفية.')
-    else:
-        messages.error(request, 'أضف صفاً واحداً على الأقل مع الاسم.')
+        return redirect(f"{reverse('ops:supply')}?open={created[0].pk}")
+    messages.error(request, 'أضف صفاً واحداً على الأقل مع الاسم.')
     return redirect('ops:supply')
 
 
 @login_required
 def supply_detail(request, pk):
     order = get_object_or_404(_supply_queryset(request.user), pk=pk)
-    return render(request, 'ops/supply_detail.html', {
-        'order': order,
-        'active_nav': 'supply',
-    })
+    return redirect(f"{reverse('ops:supply')}?open={order.pk}")
 
 
 @manager_required
 @require_POST
 def supply_complete(request, pk):
-    order = get_object_or_404(SupplyOrder, pk=pk, status=SupplyOrder.Status.PENDING)
-    order.status = SupplyOrder.Status.COMPLETED
-    order.reviewed_by = request.user
-    order.save(update_fields=['status', 'reviewed_by', 'updated_at'])
-    messages.success(request, f'تم إكمال الطلب {order.order_number}.')
+    seed = get_object_or_404(_supply_queryset(request.user), pk=pk)
+    qs = _supply_batch_orders(seed).filter(status=SupplyOrder.Status.PENDING)
+    count = qs.count()
+    if not count:
+        messages.error(request, 'لا أصناف قيد الانتظار في هذا الملف.')
+        return redirect('ops:supply')
+    qs.update(status=SupplyOrder.Status.COMPLETED, reviewed_by=request.user, updated_at=timezone.now())
+    ref = seed.batch_number or seed.order_number
+    messages.success(request, f'تم إكمال ملف التوريد {ref} ({count} صنف).')
     notify_roles(
         'اكتمال توريد',
-        f'{order.order_number} — {order.item_name}\n'
+        f'{ref}\n'
+        f'الأصناف: {count}\n'
         f'بواسطة: {request.user.display_name}',
     )
     return redirect('ops:supply')
@@ -344,17 +422,46 @@ def supply_complete(request, pk):
 @manager_required
 @require_POST
 def supply_reject(request, pk):
-    order = get_object_or_404(SupplyOrder, pk=pk, status=SupplyOrder.Status.PENDING)
-    order.status = SupplyOrder.Status.REJECTED
-    order.reviewed_by = request.user
-    order.save(update_fields=['status', 'reviewed_by', 'updated_at'])
-    messages.success(request, f'تم رفض الطلب {order.order_number}.')
+    seed = get_object_or_404(_supply_queryset(request.user), pk=pk)
+    qs = _supply_batch_orders(seed).filter(status=SupplyOrder.Status.PENDING)
+    count = qs.count()
+    if not count:
+        messages.error(request, 'لا أصناف قيد الانتظار في هذا الملف.')
+        return redirect('ops:supply')
+    qs.update(status=SupplyOrder.Status.REJECTED, reviewed_by=request.user, updated_at=timezone.now())
+    ref = seed.batch_number or seed.order_number
+    messages.success(request, f'تم رفض ملف التوريد {ref} ({count} صنف).')
     notify_roles(
         'رفض توريد',
-        f'{order.order_number} — {order.item_name}\n'
+        f'{ref}\n'
+        f'الأصناف: {count}\n'
         f'بواسطة: {request.user.display_name}',
     )
     return redirect('ops:supply')
+
+
+@manager_required
+@require_POST
+def supply_batch_delete(request, pk):
+    seed = get_object_or_404(_supply_queryset(request.user), pk=pk)
+    ref = seed.batch_number or seed.order_number
+    count, _ = _supply_batch_orders(seed).delete()
+    messages.success(request, f'تم حذف ملف التوريد {ref} ({count} صنف).')
+    return redirect('ops:supply')
+
+
+@login_required
+def supply_batch_pdf(request, pk):
+    seed = get_object_or_404(_supply_queryset(request.user), pk=pk)
+    orders = list(_supply_batch_orders(seed))
+    if not orders:
+        return HttpResponse('غير موجود', status=404)
+    try:
+        from .pdf_docs import build_supply_orders_pdf
+        pdf_bytes, filename = build_supply_orders_pdf(orders, actor=request.user)
+    except Exception:
+        return HttpResponse('تعذّر إنشاء الملف', status=500)
+    return _pdf_http_response(pdf_bytes, filename)
 
 
 @login_required
