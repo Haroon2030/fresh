@@ -510,6 +510,18 @@ class DailyOrder(models.Model):
         REJECTED = 'rejected', 'مرفوض'
 
     order_number = models.CharField(max_length=20, unique=True, editable=False)
+    batch_number = models.CharField(
+        max_length=20,
+        blank=True,
+        db_index=True,
+        verbose_name='رقم الملف',
+    )
+    public_token = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        verbose_name='رمز تحميل PDF',
+    )
     order_date = models.DateField(verbose_name='تاريخ الطلبية')
     item_number = models.CharField(max_length=100, blank=True, verbose_name='رقم الصنف')
     item_name = models.CharField(max_length=255, verbose_name='اسم الصنف')
@@ -567,7 +579,15 @@ class DailyOrder(models.Model):
         if not self.order_number:
             last = DailyOrder.objects.aggregate(Max('id'))['id__max'] or 0
             self.order_number = f'#DAY-{last + 1:04d}'
+        if not self.public_token:
+            import secrets
+            self.public_token = secrets.token_urlsafe(24)
         super().save(*args, **kwargs)
+
+    def ensure_public_token(self):
+        if not self.public_token:
+            import secrets
+            self.public_token = secrets.token_urlsafe(24)
 
 
 class EvolutionConfig(models.Model):

@@ -448,3 +448,75 @@ def build_supply_orders_pdf(orders: list, *, actor) -> tuple[bytes, str]:
     if len(nums) > 1:
         filename = f"purchase_order_batch_{len(nums)}.pdf"
     return _build(story, title=f"أمر توريد {ref}"), filename
+
+
+def build_daily_orders_pdf(orders: list, *, actor=None) -> tuple[bytes, str]:
+    """PDF لملف طلبية يومية (صنف أو أكثر) — بنفس أسلوب المرتجعات."""
+    styles = _styles()
+    if not orders:
+        raise ValueError("لا توجد طلبيات")
+    first = orders[0]
+    created = timezone.localtime(first.created_at).strftime("%Y-%m-%d %H:%M")
+    rep = first.representative
+    actor = actor or first.reviewed_by or first.created_by
+    batch_ref = first.batch_number or first.order_number
+    status_label = (
+        first.get_status_display()
+        if len({o.status for o in orders}) == 1
+        else "متعدد"
+    )
+
+    story: list = []
+    story.extend(_letterhead(styles, org_line="إدارة المشتريات — الطلبيات اليومية"))
+    story.extend(
+        _doc_heading(
+            styles,
+            title="طلب شراء يومي",
+            subtitle="مستند رسمي للمورد بعد الاعتماد",
+            ref=batch_ref,
+            dated=created,
+        )
+    )
+    story.append(
+        _meta_grid(
+            [
+                ("رقم الملف", batch_ref),
+                ("تاريخ الطلبية", first.order_date.isoformat()),
+                ("الفرع", first.branch or "—"),
+                ("المورد", first.supplier or "—"),
+                ("المندوب", f"{rep.display_name} — {role_label(rep)}"),
+                ("المعتمد / المرسل", f"{actor.display_name} — {role_label(actor)}" if actor else "—"),
+                ("عدد الأصناف", str(len(orders))),
+                ("الحالة", status_label),
+            ],
+            styles,
+        )
+    )
+    story.append(Spacer(1, 0.3 * cm))
+    story.append(Paragraph(_ar("بيان الأصناف"), styles["h"]))
+    headers = ["الإجمالي", "السعر", "الكمية", "رقم الصنف", "اسم الصنف", "طلب", "#"]
+    rows = []
+    for i, o in enumerate(orders, 1):
+        total = o.quantity * o.unit_price
+        rows.append(
+            [
+                f"{total:.2f}",
+                f"{o.unit_price:.2f}",
+                str(o.quantity),
+                o.item_number or "—",
+                o.item_name,
+                o.order_number,
+                str(i),
+            ]
+        )
+    story.append(_data_table(headers, rows, styles))
+    story.extend(
+        _footer_note(
+            styles,
+            "صادر آلياً من نظام عمليات الفرش بعد اعتماد الطلبية — يُرسل للمورد عبر واتساب.",
+        )
+    )
+    story.extend(_signatures(styles, "توقيع المندوب", "اعتماد المشتريات"))
+    safe_ref = str(batch_ref).replace("#", "").replace("/", "-")
+    filename = f"daily_order_{safe_ref}.pdf"
+    return _build(story, title=f"طلبية {batch_ref}"), filename

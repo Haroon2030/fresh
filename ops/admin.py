@@ -33,12 +33,12 @@ class SupplierAdmin(admin.ModelAdmin):
 @admin.register(DailyOrder)
 class DailyOrderAdmin(admin.ModelAdmin):
     list_display = (
-        'order_number', 'order_date', 'item_name', 'item_number',
+        'order_number', 'batch_number', 'order_date', 'item_name', 'item_number',
         'quantity', 'unit_price', 'representative', 'branch', 'supplier',
         'status', 'created_at',
     )
     list_filter = ('order_date', 'status', 'branch', 'supplier')
-    search_fields = ('order_number', 'item_name', 'item_number', 'branch', 'supplier')
+    search_fields = ('order_number', 'batch_number', 'item_name', 'item_number', 'branch', 'supplier')
     readonly_fields = ('order_number',)
     raw_id_fields = ('representative', 'created_by', 'reviewed_by')
 

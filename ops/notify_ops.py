@@ -10,7 +10,7 @@ from django.db import close_old_connections
 from django.urls import reverse
 from django.utils import timezone
 
-from ops.pdf_docs import build_return_batch_pdf, build_supply_orders_pdf, role_label
+from ops.pdf_docs import build_daily_orders_pdf, build_return_batch_pdf, build_supply_orders_pdf, role_label
 from ops.whatsapp import (
     collect_recipient_entries,
     notify_with_pdf,
@@ -379,58 +379,134 @@ def schedule_task_review_result(task_id: int, approved: bool) -> None:
 
 
 def schedule_daily_order_approved(order_id: int, actor_id: int) -> None:
-    """Notify supplier via WhatsApp after a daily purchase order is approved."""
+    """Send purchase-order PDF to supplier via WhatsApp after approval (like returns)."""
 
     def _run():
         from ops.models import DailyOrder, Supplier
-        from ops.whatsapp import send_text
 
         User = get_user_model()
-        order = (
-            DailyOrder.objects.select_related("representative", "reviewed_by")
+        seed = (
+            DailyOrder.objects.select_related("representative", "reviewed_by", "created_by")
             .filter(pk=order_id)
             .first()
         )
         actor = User.objects.filter(pk=actor_id).first()
-        if not order or not actor:
+        if not seed or not actor:
             return
 
-        supplier = Supplier.objects.filter(name=order.supplier).first()
-        phone = supplier.normalized_phone() if supplier else ""
-        if not phone:
-            logger.info(
-                "No supplier WhatsApp for daily order %s (supplier=%s)",
-                order.order_number,
-                order.supplier,
+        if seed.batch_number:
+            orders = list(
+                DailyOrder.objects.select_related("representative", "reviewed_by", "created_by")
+                .filter(batch_number=seed.batch_number)
+                .order_by("pk")
             )
+        else:
+            orders = [seed]
+
+        # Prefer approved lines in the file; fall back to all
+        approved = [o for o in orders if o.status == DailyOrder.Status.APPROVED]
+        orders = approved or orders
+
+        for o in orders:
+            o.ensure_public_token()
+            if not o.public_token:
+                o.save(update_fields=["public_token"])
+        # Keep one shared token across the batch for a stable public URL
+        token = orders[0].public_token
+        if seed.batch_number and token:
+            DailyOrder.objects.filter(batch_number=seed.batch_number).exclude(
+                public_token=token
+            ).update(public_token=token)
+
+        try:
+            pdf_bytes, filename = build_daily_orders_pdf(orders, actor=actor)
+        except Exception:
+            logger.exception("PDF build failed for daily order %s", seed.order_number)
             return
+
+        pdf_url = _daily_order_pdf_url(token)
+        batch_ref = seed.batch_number or seed.order_number
+        item_lines = [
+            f"  {i}. {o.item_name} × {o.quantity} — السعر {o.unit_price}"
+            for i, o in enumerate(orders[:12], 1)
+        ]
+        if len(orders) > 12:
+            item_lines.append(f"  … و{len(orders) - 12} أصناف أخرى")
 
         msg = "\n".join(
             [
                 "════════════════════",
                 "عمليات الفرش | طلب شراء معتمد",
                 "════════════════════",
-                f"رقم الطلبية: {order.order_number}",
-                f"التاريخ: {order.order_date}",
-                f"الفرع: {order.branch}",
-                f"المندوب: {order.representative.display_name}",
-                "────────────────────",
-                f"الصنف: {order.item_name}",
-                f"رقم الصنف: {order.item_number or '—'}",
-                f"الكمية: {order.quantity}",
-                f"السعر: {order.unit_price}",
-                "────────────────────",
-                f"اعتمد بواسطة: {actor.display_name}",
+                f"رقم الملف: {batch_ref}",
+                f"التاريخ: {seed.order_date}",
+                f"الفرع: {seed.branch}",
+                f"المورد: {seed.supplier or '—'}",
+                f"المندوب: {seed.representative.display_name}",
+                f"الأصناف: {len(orders)}",
+                f"اعتمد بواسطة: {_actor_line(actor)}",
                 f"وقت الاعتماد: {_now_str()}",
+                "────────────────────",
+                "ملخص الأصناف:",
+                *(item_lines or ["  —"]),
+                "────────────────────",
+                "📄 ملف PDF للتحميل:",
+                pdf_url,
                 "════════════════════",
             ]
         )
-        ok = send_text(phone, msg)
-        if not ok:
+
+        supplier = Supplier.objects.filter(name=seed.supplier).first()
+        phone = supplier.normalized_phone() if supplier else ""
+        recipients = []
+        if phone:
+            recipients.append(
+                {
+                    "phone": phone,
+                    "label": f"مورد — {seed.supplier}",
+                    "role": "supplier",
+                    "message": msg,
+                }
+            )
+        else:
+            logger.info(
+                "No supplier WhatsApp for daily order batch %s (supplier=%s)",
+                batch_ref,
+                seed.supplier,
+            )
+
+        # Also notify ops roles (same pattern as returns staff list)
+        for entry in collect_recipient_entries(include_roles=True):
+            recipients.append({**entry, "message": msg})
+
+        if not recipients:
+            return
+
+        result = notify_with_pdf(
+            message=msg,
+            pdf_bytes=pdf_bytes,
+            filename=filename,
+            recipients=recipients,
+            media_url=pdf_url,
+        )
+        if result.get("error"):
             logger.warning(
-                "Failed WhatsApp to supplier %s for order %s",
-                phone,
-                order.order_number,
+                "Daily order PDF WhatsApp issue for %s: %s",
+                batch_ref,
+                result.get("error"),
             )
 
     _run_in_background(f"daily-order-approved-{order_id}", _run)
+
+
+def _daily_order_pdf_url(token: str, request=None) -> str:
+    path = reverse(
+        "ops:daily_order_pdf_public_file",
+        kwargs={"token": token},
+    )
+    base = (getattr(settings, "PUBLIC_BASE_URL", "") or "").rstrip("/")
+    if base:
+        return f"{base}{path}"
+    if request is not None:
+        return request.build_absolute_uri(path)
+    return path

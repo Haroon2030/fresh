@@ -104,6 +104,7 @@
             <tr>
                 <th>#</th>
                 <th>رقم الطلبية</th>
+                <th>الملف</th>
                 <th>التاريخ</th>
                 <th>رقم الصنف</th>
                 <th>اسم الصنف</th>
@@ -113,7 +114,7 @@
                 <th>الفرع</th>
                 <th>المورد</th>
                 <th>الحالة</th>
-                {% if user.is_manager %}<th>إجراء</th>{% endif %}
+                <th>إجراء</th>
             </tr>
             </thead>
             <tbody>
@@ -121,6 +122,7 @@
             <tr>
                 <td class="row-num cell-center">{{ forloop.counter }}</td>
                 <td class="cell-strong" dir="ltr">{{ order.order_number }}</td>
+                <td dir="ltr">{{ order.batch_number|default:"—" }}</td>
                 <td>{{ order.order_date|date:"Y/m/d" }}</td>
                 <td dir="ltr">{{ order.item_number|default:"—" }}</td>
                 <td class="cell-strong">{{ order.item_name }}</td>
@@ -138,16 +140,21 @@
                     <span class="status-chip status-pending">قيد الاعتماد</span>
                     {% endif %}
                 </td>
-                {% if user.is_manager %}
                 <td class="cell-center">
                     <div class="flex flex-wrap gap-1 justify-center">
+                        <a href="{% url 'ops:daily_order_batch_pdf' order.pk %}" class="act-btn act-ok" title="تحميل PDF">
+                            <span class="material-symbols-outlined text-[16px] text-inherit">picture_as_pdf</span>
+                            PDF
+                        </a>
+                        {% if user.is_manager %}
                         {% if order.status == 'pending' %}
-                        <form method="post" action="{% url 'ops:daily_order_approve' order.pk %}" class="inline">
+                        <form method="post" action="{% url 'ops:daily_order_approve' order.pk %}" class="inline"
+                              onsubmit="return confirm('اعتماد الملف وإرسال PDF للمورد؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-ok" title="اعتماد وإرسال واتساب للمورد">اعتماد</button>
+                            <button type="submit" class="act-btn act-ok" title="اعتماد وإرسال PDF">اعتماد</button>
                         </form>
                         <form method="post" action="{% url 'ops:daily_order_reject' order.pk %}" class="inline"
-                              onsubmit="return confirm('رفض الطلبية {{ order.order_number }}؟');">
+                              onsubmit="return confirm('رفض ملف الطلبية؟');">
                             {% csrf_token %}
                             <button type="submit" class="act-btn act-bad" title="رفض">رفض</button>
                         </form>
@@ -159,13 +166,13 @@
                                 <span class="material-symbols-outlined text-[16px] text-inherit">delete</span>
                             </button>
                         </form>
+                        {% endif %}
                     </div>
                 </td>
-                {% endif %}
             </tr>
             {% empty %}
             <tr>
-                <td colspan="{% if user.is_manager %}12{% else %}11{% endif %}" class="empty-row">
+                <td colspan="13" class="empty-row">
                     لا طلبيات لهذا اليوم — اضغط «طلبية جديدة» للتسجيل.
                 </td>
             </tr>

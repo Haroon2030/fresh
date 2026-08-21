@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Avg, Q
+from django.db.models import Avg, Max, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -28,7 +28,7 @@ from .models import (
     TaskResponsePhoto,
     WhatsAppRoleContact,
 )
-from .pdf_docs import build_return_batch_pdf
+from .pdf_docs import build_daily_orders_pdf, build_return_batch_pdf
 from .whatsapp import (
     collect_notify_phones,
     connection_state,
@@ -763,6 +763,24 @@ def daily_order_create(request):
     quantities = request.POST.getlist('quantity')
     prices = request.POST.getlist('unit_price')
 
+    import secrets
+    last_batch = (
+        DailyOrder.objects.exclude(batch_number='')
+        .order_by('-id')
+        .values_list('batch_number', flat=True)
+        .first()
+    )
+    batch_seq = 1
+    if last_batch and last_batch.startswith('#DAYB-'):
+        try:
+            batch_seq = int(last_batch.replace('#DAYB-', '')) + 1
+        except ValueError:
+            batch_seq = (DailyOrder.objects.aggregate(Max('id'))['id__max'] or 0) + 1
+    else:
+        batch_seq = (DailyOrder.objects.aggregate(Max('id'))['id__max'] or 0) + 1
+    batch_number = f'#DAYB-{batch_seq:04d}'
+    public_token = secrets.token_urlsafe(24)
+
     created = 0
     for i, item_name in enumerate(item_names):
         item_name = (item_name or '').strip()
@@ -784,6 +802,8 @@ def daily_order_create(request):
             return redirect('ops:daily_orders')
         DailyOrder.objects.create(
             order_date=order_date,
+            batch_number=batch_number,
+            public_token=public_token,
             item_name=item_name,
             item_number=(item_numbers[i] if i < len(item_numbers) else '').strip(),
             quantity=quantity,
@@ -799,7 +819,7 @@ def daily_order_create(request):
         messages.error(request, 'أضف صنفاً واحداً على الأقل مع الاسم والسعر.')
         return redirect('ops:daily_orders')
 
-    messages.success(request, f'تم تسجيل {created} طلبية يومية.')
+    messages.success(request, f'تم تسجيل ملف طلبية {batch_number} بـ {created} صنف.')
     return redirect(f"{reverse('ops:daily_orders')}?date={order_date.isoformat()}")
 
 
@@ -817,39 +837,91 @@ def daily_order_delete(request, pk):
 @manager_required
 @require_POST
 def daily_order_approve(request, pk):
-    order = get_object_or_404(
-        DailyOrder,
-        pk=pk,
-        status=DailyOrder.Status.PENDING,
+    seed = get_object_or_404(DailyOrder, pk=pk, status=DailyOrder.Status.PENDING)
+    qs = DailyOrder.objects.filter(status=DailyOrder.Status.PENDING)
+    if seed.batch_number:
+        qs = qs.filter(batch_number=seed.batch_number)
+    else:
+        qs = qs.filter(pk=seed.pk)
+
+    now = timezone.now()
+    count = qs.update(
+        status=DailyOrder.Status.APPROVED,
+        reviewed_by=request.user,
+        reviewed_at=now,
+        updated_at=now,
     )
-    order.status = DailyOrder.Status.APPROVED
-    order.reviewed_by = request.user
-    order.reviewed_at = timezone.now()
-    order.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'updated_at'])
-    messages.success(request, f'تم اعتماد الطلبية {order.order_number}.')
-    schedule_daily_order_approved(order.pk, request.user.pk)
-    supplier = Supplier.objects.filter(name=order.supplier).first()
+    seed.refresh_from_db()
+    ref = seed.batch_number or seed.order_number
+    messages.success(request, f'تم اعتماد ملف الطلبية {ref} ({count} صنف).')
+    schedule_daily_order_approved(seed.pk, request.user.pk)
+    supplier = Supplier.objects.filter(name=seed.supplier).first()
     if supplier and supplier.normalized_phone():
-        messages.info(request, 'جاري إرسال إشعار واتساب للمورد في الخلفية.')
+        messages.info(request, 'جاري إرسال ملف PDF للمورد عبر واتساب في الخلفية.')
     else:
         messages.warning(request, 'لا يوجد رقم جوال للمورد — لم يُرسل واتساب.')
-    return redirect(f"{reverse('ops:daily_orders')}?date={order.order_date.isoformat()}")
+    return redirect(f"{reverse('ops:daily_orders')}?date={seed.order_date.isoformat()}")
 
 
 @manager_required
 @require_POST
 def daily_order_reject(request, pk):
-    order = get_object_or_404(
-        DailyOrder,
-        pk=pk,
-        status=DailyOrder.Status.PENDING,
+    seed = get_object_or_404(DailyOrder, pk=pk, status=DailyOrder.Status.PENDING)
+    qs = DailyOrder.objects.filter(status=DailyOrder.Status.PENDING)
+    if seed.batch_number:
+        qs = qs.filter(batch_number=seed.batch_number)
+    else:
+        qs = qs.filter(pk=seed.pk)
+    now = timezone.now()
+    count = qs.update(
+        status=DailyOrder.Status.REJECTED,
+        reviewed_by=request.user,
+        reviewed_at=now,
+        updated_at=now,
     )
-    order.status = DailyOrder.Status.REJECTED
-    order.reviewed_by = request.user
-    order.reviewed_at = timezone.now()
-    order.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'updated_at'])
-    messages.success(request, f'تم رفض الطلبية {order.order_number}.')
-    return redirect(f"{reverse('ops:daily_orders')}?date={order.order_date.isoformat()}")
+    ref = seed.batch_number or seed.order_number
+    messages.success(request, f'تم رفض ملف الطلبية {ref} ({count} صنف).')
+    return redirect(f"{reverse('ops:daily_orders')}?date={seed.order_date.isoformat()}")
+
+
+@login_required
+def daily_order_batch_pdf(request, pk):
+    seed = get_object_or_404(_daily_order_queryset(request.user), pk=pk)
+    if seed.batch_number:
+        orders = list(
+            _daily_order_queryset(request.user)
+            .filter(batch_number=seed.batch_number)
+            .order_by('pk')
+        )
+    else:
+        orders = [seed]
+    try:
+        pdf_bytes, filename = build_daily_orders_pdf(orders, actor=request.user)
+    except Exception:
+        messages.error(request, 'تعذّر إنشاء ملف PDF.')
+        return redirect('ops:daily_orders')
+    return _pdf_http_response(pdf_bytes, filename)
+
+
+def daily_order_pdf_public(request, token):
+    """Public PDF download via token (shared on WhatsApp)."""
+    seed = DailyOrder.objects.filter(public_token=token).order_by('pk').first()
+    if not seed:
+        return HttpResponse('غير موجود', status=404)
+    if seed.batch_number:
+        orders = list(
+            DailyOrder.objects.filter(batch_number=seed.batch_number).order_by('pk')
+        )
+    else:
+        orders = [seed]
+    try:
+        pdf_bytes, filename = build_daily_orders_pdf(
+            orders,
+            actor=seed.reviewed_by or seed.created_by,
+        )
+    except Exception:
+        return HttpResponse('تعذّر إنشاء الملف', status=500)
+    return _pdf_http_response(pdf_bytes, filename)
 
 
 def _parse_order_date(raw, fallback):
