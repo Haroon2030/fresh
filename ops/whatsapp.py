@@ -160,23 +160,26 @@ def connection_state() -> dict:
                 ).lower()
                 owner = inst.get("ownerJid") or inst.get("owner") or ""
                 break
-        # Never trust a lone 'open' from fetchInstances if connectionState says close
         state_l = str(state).lower()
-        if state_l not in ("open", "close", "connecting"):
-            state = fetch_status or state
+        # Evolution often returns connectionState=connecting while fetchInstances
+        # already has open + ownerJid. Trust the owned open session — otherwise the
+        # UI keeps requesting QR/restart and WhatsApp never stays connected.
+        if fetch_status == "open" and owner:
+            state = "open"
         elif state_l == "open" and fetch_status == "close":
             state = "close"
         elif state_l == "close":
             state = "close"
-        # open without ownerJid is often a zombie socket
+        elif state_l not in ("open", "close", "connecting"):
+            state = fetch_status or state
         elif state_l == "open" and not owner and fetch_status != "open":
             state = "close"
 
-    ok = str(state).lower() == "open" and bool(owner or fetch_status == "open")
-    # Extra safety: open + empty owner from both → still show as connecting
+    ok = str(state).lower() == "open" and bool(owner)
     if str(state).lower() == "open" and not owner:
+        # open without owner is unreliable — show closed, not endless connecting
         ok = False
-        state = "connecting"
+        state = "close"
 
     return {
         "ok": ok,
@@ -189,13 +192,13 @@ def connection_state() -> dict:
     }
 
 
-def fetch_qr() -> dict:
+def fetch_qr(*, force: bool = False) -> dict:
     if not getattr(settings, "EVOLUTION_SERVER_URL", "") or not settings.EVOLUTION_API_KEY:
         return {"ok": False, "error": "إعدادات Evolution غير مكتملة."}
 
     instance = resolve_instance_name()
     state_info = connection_state()
-    if state_info.get("ok"):
+    if state_info.get("ok") and not force:
         return {
             "ok": True,
             "connected": True,
@@ -227,15 +230,17 @@ def fetch_qr() -> dict:
                 "instance": instance,
             }
 
-    # Refresh websocket + QR
-    _api(f"/instance/restart/{instance}", method="POST")
+    # NEVER auto-restart — restart drops the WhatsApp socket (401) and is why
+    # the session never stays "متصل". Only /connect for a QR when truly needed.
+    if force:
+        _api(f"/instance/restart/{instance}", method="POST")
     status, data = _api(f"/instance/connect/{instance}")
     base64, pairing, code = _extract_qr(data if isinstance(data, dict) else {})
 
     if status == 404:
         created = create_instance()
         if created.get("ok"):
-            return fetch_qr()
+            return fetch_qr(force=force)
         return {
             "ok": False,
             "error": created.get("error") or "الانستانس غير موجود وتعذّر إنشاؤه.",
@@ -256,11 +261,23 @@ def fetch_qr() -> dict:
         }
 
     if not base64 and not pairing:
+        # Maybe already connected after connect call
+        again = connection_state()
+        if again.get("ok"):
+            return {
+                "ok": True,
+                "connected": True,
+                "base64": "",
+                "pairingCode": "",
+                "state": "open",
+                "instance": instance,
+                "message": "الواتساب متصل بالفعل — لا حاجة لـ QR.",
+            }
         return {
             "ok": False,
             "error": (
                 "لم يُرجع Evolution صورة QR. من الجوال: واتساب ← الأجهزة المرتبطة ← "
-                "احذف أي جهاز Evolution قديم، ثم اضغط «إعادة إنشاء الانستانس»."
+                "احذف أي جهاز Evolution قديم، ثم اضغط «إعادة إنشاء» مرة واحدة فقط وامسح."
             ),
             "detail": data,
             "state": state_info.get("state"),

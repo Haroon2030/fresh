@@ -10,8 +10,8 @@
             امسح رمز QR لربط الجهاز، ثم عيّن رقم واتساب لكل دور لاستلام الإشعارات.
         </p>
         <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-bold text-amber-900 leading-relaxed" style="font-family:'Cairo',sans-serif">
-            مهم: واتساب يفصل الجلسة (كود 401) إذا سجّلت الخروج من «الأجهزة المرتبطة»، أو ربطت نفس الرقم على أكثر من انستانس، أو مسحت QR جديداً أثناء جلسة قديمة.
-            ابقِ انستانس واحد فقط مربوطاً ولا تحذف الجهاز من الجوال إلا عند إعادة الربط عمداً.
+            مهم لاستقرار الاتصال: امسح QR <u>مرة واحدة فقط</u> ثم اترك الصفحة. لا تضغط «تحديث QR» أو «إعادة إنشاء» وأنت متصل — ذلك يفصل الجلسة (401).
+            أبقِ انستانس واحد فقط (`farshops`) ولا تربط نفس الرقم على أكثر من جهاز Evolution.
         </div>
     </div>
     <div class="flex flex-wrap gap-sm text-[12px] font-bold" style="font-family:'Cairo',sans-serif">
@@ -233,14 +233,15 @@
         setChip(false, data.state || 'connecting');
     }
 
-    async function loadQr() {
+    async function loadQr(force) {
         if (!img) return;
         errEl.classList.add('hidden');
         placeholder.classList.remove('hidden');
         placeholder.textContent = 'جاري التحميل…';
         img.classList.add('hidden');
         try {
-            const res = await fetch(qrUrl, { headers: { 'Accept': 'application/json' } });
+            const url = force ? (qrUrl + (qrUrl.includes('?') ? '&' : '?') + 'force=1') : qrUrl;
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
             const data = await res.json();
             await applyQrPayload(data);
         } catch (e) {
@@ -259,14 +260,15 @@
             } else {
                 setChip(false, data.state);
                 showQrMode();
-                if (!img.src || img.classList.contains('hidden')) {
-                    loadQr();
-                }
+                // Do NOT auto-call loadQr here — that used to restart the socket every few seconds.
             }
         } catch (_) {}
     }
 
-    document.getElementById('btnRefreshQr')?.addEventListener('click', loadQr);
+    document.getElementById('btnRefreshQr')?.addEventListener('click', () => {
+        if (!confirm('تحديث QR يقطع الجلسة الحالية إن كانت مربوطة. متابعة؟')) return;
+        loadQr(true);
+    });
     document.getElementById('btnRecreateWa')?.addEventListener('click', async () => {
         if (!confirm('إعادة إنشاء انستانس واتساب وجلب QR جديد؟')) return;
         showQrMode();
@@ -293,7 +295,7 @@
             headers: { 'X-CSRFToken': csrf, 'Accept': 'application/json' },
         });
         showQrMode();
-        loadQr();
+        loadQr(true);
     });
 
     document.getElementById('btnTestWa')?.addEventListener('click', async () => {
@@ -314,7 +316,8 @@
                 const err = String(data.error || '');
                 if (err.includes('Closed') || err.includes('جلسة') || err.includes('QR')) {
                     showQrMode();
-                    loadQr();
+                    // Soft fetch — no force restart
+                    loadQr(false);
                 }
             }
         } catch (e) {
@@ -325,17 +328,11 @@
         }
     });
 
-    {% if not wa_state.ok %}
-    loadQr();
-    setInterval(() => { pollStatus(); }, 8000);
-    setInterval(() => {
-        if (!connectedBox.classList.contains('hidden')) return;
-        loadQr();
-    }, 25000);
-    {% else %}
-    // Verify live status; if session died, fall back to QR
+    // Poll status only. Load QR once if not connected — never auto-restart on a timer.
     pollStatus();
     setInterval(pollStatus, 10000);
+    {% if not wa_state.ok %}
+    loadQr(false);
     {% endif %}
 })();
 </script>

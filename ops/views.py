@@ -860,7 +860,8 @@ def whatsapp_hub(request):
 
 @manager_required
 def whatsapp_qr_api(request):
-    data = fetch_qr()
+    force = request.GET.get('force') in ('1', 'true', 'yes') or request.method == 'POST'
+    data = fetch_qr(force=force)
     return JsonResponse(data)
 
 
