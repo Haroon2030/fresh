@@ -9,25 +9,369 @@
 </form>
 {% endblock %}
 
-{% block content %}
-<div class="mb-lg flex flex-col sm:flex-row justify-between items-start sm:items-end gap-md">
-    <div>
-        <h2 class="font-headline-lg text-headline-lg font-bold text-primary mb-1">لوحة المهام</h2>
-        <p class="font-body-md text-body-md text-on-surface-variant">إدارة وتتبع العمليات التشغيلية اليومية.</p>
-    </div>
-    {% if user.is_manager %}
-    <button type="button" id="btnOpenNewTask" class="btn-primary-app">
-        <span class="material-symbols-outlined text-[18px]">add</span>
-        مهمة جديدة
-    </button>
-    {% endif %}
-</div>
+{% block extra_head %}
+<style>
+    .tasks-page {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        min-height: 0;
+        max-width: 100%;
+    }
+    .tasks-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding-bottom: 0.25rem;
+        border-bottom: 2px solid #0f172a14;
+    }
+    .tasks-toolbar h2 {
+        font-family: 'Cairo', sans-serif;
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0;
+        line-height: 1.3;
+    }
+    .tasks-toolbar p {
+        margin: 0.25rem 0 0;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #64748b;
+    }
+    .tasks-board-frame {
+        border: 1px solid #bfdbfe;
+        border-radius: 12px;
+        background: #f8fafc;
+        box-shadow: 0 1px 0 #e2e8f0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        min-height: calc(100vh - 220px);
+        max-height: calc(100vh - 180px);
+    }
+    .tasks-board-scroll {
+        flex: 1;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 12px;
+        min-height: 0;
+    }
+    .tasks-board-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(260px, 1fr));
+        gap: 12px;
+        align-items: stretch;
+        min-width: min(100%, 1120px);
+        height: 100%;
+        min-height: 420px;
+    }
+    .task-col {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        height: 100%;
+        max-height: 100%;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    .task-col-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid #e2e8f0;
+        flex-shrink: 0;
+    }
+    .task-col-head .title-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+    .task-col-head h3 {
+        font-family: 'Cairo', sans-serif;
+        font-size: 0.95rem;
+        font-weight: 800;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .task-col-count {
+        font-size: 0.75rem;
+        font-weight: 800;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-variant-numeric: tabular-nums;
+        flex-shrink: 0;
+    }
+    .task-col-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 0;
+        background: #fafbfc;
+    }
+    .task-col-empty {
+        margin: auto;
+        text-align: center;
+        padding: 2rem 0.5rem;
+        color: #94a3b8;
+        font-size: 0.8rem;
+        font-weight: 700;
+        border: 1px dashed #cbd5e1;
+        border-radius: 8px;
+        width: 100%;
+        background: #fff;
+    }
+    .task-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        box-shadow: 0 1px 0 #f1f5f9;
+    }
+    .task-card:hover {
+        border-color: #93c5fd;
+        box-shadow: 0 2px 8px #0f172a0d;
+    }
+    .task-card-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+    .task-prio {
+        font-size: 10px;
+        font-weight: 800;
+        padding: 2px 8px;
+        border-radius: 6px;
+        border: 1px solid transparent;
+    }
+    .task-prio.urgent { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .task-prio.medium { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .task-prio.normal { background: #f8fafc; color: #475569; border-color: #e2e8f0; }
+    .task-card h4 {
+        font-family: 'Cairo', sans-serif;
+        font-size: 0.95rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0;
+        line-height: 1.35;
+    }
+    .task-card.done h4 {
+        color: #64748b;
+        text-decoration: line-through;
+    }
+    .task-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 10px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #64748b;
+    }
+    .task-meta span {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+    }
+    .task-meta .material-symbols-outlined { font-size: 14px; }
+    .task-desc {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+        line-height: 1.45;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .task-reply {
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        border-radius: 6px;
+        padding: 8px;
+    }
+    .task-reply .lbl {
+        font-size: 10px;
+        font-weight: 800;
+        color: #334155;
+        margin: 0 0 4px;
+    }
+    .task-reply .txt {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 600;
+        color: #334155;
+        white-space: pre-wrap;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .task-photos {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+    }
+    .task-photos img {
+        width: 48px;
+        height: 48px;
+        object-fit: cover;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+    }
+    .task-card-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #f1f5f9;
+        margin-top: 2px;
+    }
+    .task-avatar {
+        width: 26px;
+        height: 26px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 800;
+        border: 2px solid #fff;
+        box-shadow: 0 0 0 1px #e2e8f0;
+    }
+    .task-due {
+        font-size: 11px;
+        font-weight: 700;
+        color: #64748b;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+    }
+    .task-due.overdue { color: #dc2626; font-weight: 800; }
+    .task-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding-top: 8px;
+        border-top: 1px solid #f1f5f9;
+    }
+    .task-act {
+        font-size: 10px;
+        font-weight: 800;
+        padding: 4px 8px;
+        border-radius: 6px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        background: #f1f5f9;
+        color: #334155;
+    }
+    .task-act:hover { filter: brightness(0.97); }
+    .task-act.todo { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .task-act.run { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+    .task-act.ok { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .task-act.warn { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+    .task-link {
+        font-size: 11px;
+        font-weight: 800;
+        color: #1d4ed8;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        text-decoration: none;
+    }
+    .task-link:hover { text-decoration: underline; }
+    .task-review-note {
+        width: 100%;
+        font-size: 12px;
+        font-weight: 600;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 6px 8px;
+        resize: vertical;
+        min-height: 52px;
+    }
+    /* column accents via left border on head */
+    .task-col.is-todo .task-col-head { background: #fffbeb; border-bottom-color: #fde68a; }
+    .task-col.is-todo .task-col-head h3 { color: #92400e; }
+    .task-col.is-todo .task-col-count { background: #fde68a; color: #92400e; }
+    .task-col.is-todo { border-top: 3px solid #f59e0b; }
 
-<div class="flex gap-lg overflow-x-auto pb-4 items-start min-h-[60vh]">
-    {% include "ops/_task_column.html" with status_key="todo" title="قيد الانتظار" tasks=columns.todo col_icon="schedule" col_bg="bg-amber-50" col_border="border-amber-200" header_bg="bg-amber-100/80" header_text="text-amber-900" header_icon="text-amber-600" badge="bg-amber-200 text-amber-900" card_bg="bg-white border-l-4 border-l-amber-400" card_border="border-amber-100" avatar="bg-amber-500" %}
-    {% include "ops/_task_column.html" with status_key="in_progress" title="قيد التنفيذ" tasks=columns.in_progress col_icon="autorenew" col_bg="bg-sky-50" col_border="border-sky-200" header_bg="bg-sky-100/80" header_text="text-sky-900" header_icon="text-sky-600" badge="bg-sky-200 text-sky-900" card_bg="bg-white border-l-4 border-l-sky-500" card_border="border-sky-100" avatar="bg-sky-600" %}
-    {% include "ops/_task_column.html" with status_key="pending_review" title="بانتظار المراجعة" tasks=columns.pending_review col_icon="rate_review" col_bg="bg-violet-50" col_border="border-violet-200" header_bg="bg-violet-100/80" header_text="text-violet-900" header_icon="text-violet-600" badge="bg-violet-200 text-violet-900" card_bg="bg-white border-l-4 border-l-violet-500" card_border="border-violet-100" avatar="bg-violet-600" %}
-    {% include "ops/_task_column.html" with status_key="done" title="مكتمل" tasks=columns.done col_icon="check_circle" col_bg="bg-emerald-50" col_border="border-emerald-200" header_bg="bg-emerald-100/80" header_text="text-emerald-900" header_icon="text-emerald-600" badge="bg-emerald-200 text-emerald-900" card_bg="bg-white border-l-4 border-l-emerald-500" card_border="border-emerald-100" avatar="bg-emerald-600" faded=True %}
+    .task-col.is-run .task-col-head { background: #eff6ff; border-bottom-color: #bfdbfe; }
+    .task-col.is-run .task-col-head h3 { color: #1e3a8a; }
+    .task-col.is-run .task-col-count { background: #bfdbfe; color: #1e3a8a; }
+    .task-col.is-run { border-top: 3px solid #2563eb; }
+
+    .task-col.is-review .task-col-head { background: #f0fdfa; border-bottom-color: #99f6e4; }
+    .task-col.is-review .task-col-head h3 { color: #115e59; }
+    .task-col.is-review .task-col-count { background: #99f6e4; color: #115e59; }
+    .task-col.is-review { border-top: 3px solid #0d9488; }
+
+    .task-col.is-done .task-col-head { background: #ecfdf5; border-bottom-color: #a7f3d0; }
+    .task-col.is-done .task-col-head h3 { color: #065f46; }
+    .task-col.is-done .task-col-count { background: #a7f3d0; color: #065f46; }
+    .task-col.is-done { border-top: 3px solid #10b981; }
+
+    .task-avatar.todo { background: #d97706; }
+    .task-avatar.run { background: #2563eb; }
+    .task-avatar.review { background: #0d9488; }
+    .task-avatar.done { background: #059669; }
+
+    @media (max-width: 900px) {
+        .tasks-board-frame {
+            max-height: none;
+            min-height: 520px;
+        }
+        .tasks-board-grid {
+            grid-template-columns: repeat(4, minmax(250px, 280px));
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tasks-page">
+    <div class="tasks-toolbar">
+        <div>
+            <h2>لوحة المهام</h2>
+            <p>تتبع حالات المهام ضمن أعمدة واضحة وحدود ثابتة.</p>
+        </div>
+        {% if user.is_manager %}
+        <button type="button" id="btnOpenNewTask" class="btn-primary-app">
+            <span class="material-symbols-outlined text-[18px]">add</span>
+            مهمة جديدة
+        </button>
+        {% endif %}
+    </div>
+
+    <div class="tasks-board-frame">
+        <div class="tasks-board-scroll">
+            <div class="tasks-board-grid">
+                {% include "ops/_task_column.html" with status_key="todo" title="قيد الانتظار" tasks=columns.todo col_icon="schedule" col_mod="is-todo" avatar_mod="todo" %}
+                {% include "ops/_task_column.html" with status_key="in_progress" title="قيد التنفيذ" tasks=columns.in_progress col_icon="autorenew" col_mod="is-run" avatar_mod="run" %}
+                {% include "ops/_task_column.html" with status_key="pending_review" title="بانتظار المراجعة" tasks=columns.pending_review col_icon="rate_review" col_mod="is-review" avatar_mod="review" %}
+                {% include "ops/_task_column.html" with status_key="done" title="مكتمل" tasks=columns.done col_icon="check_circle" col_mod="is-done" avatar_mod="done" %}
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
