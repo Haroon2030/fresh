@@ -22,6 +22,7 @@ urlpatterns = [
     path('returns/<int:pk>/reject/', views.return_reject, name='return_reject'),
     path('tasks/', views.tasks_board, name='tasks'),
     path('tasks/create/', views.task_create, name='task_create'),
+    path('tasks/api/places/', views.places_search_api, name='places_search'),
     path('tasks/<int:pk>/move/', views.task_move, name='task_move'),
     path('tasks/p/<str:token>/', views.task_public, name='task_public'),
     path('items/', views.items_list, name='items'),

@@ -684,6 +684,21 @@ def _notify_assignee_task(task, request=None, created=False):
     notify_user(task.assigned_to, title, '\n'.join(lines))
 
 
+@login_required
+def places_search_api(request):
+    """Smart place autocomplete for task map picker."""
+    from .places import search_places
+
+    q = (request.GET.get('q') or '').strip()
+    if len(q) < 2:
+        return JsonResponse({'ok': True, 'results': []})
+    try:
+        results = search_places(q, limit=10)
+    except Exception:
+        return JsonResponse({'ok': False, 'results': [], 'error': 'تعذّر البحث عن المواقع.'}, status=500)
+    return JsonResponse({'ok': True, 'results': results, 'q': q})
+
+
 @manager_required
 @require_POST
 def task_create(request):
