@@ -16,8 +16,7 @@
         <p class="font-body-md text-body-md text-on-surface-variant">إدارة وتتبع العمليات التشغيلية اليومية.</p>
     </div>
     {% if user.is_manager %}
-    <button type="button" class="btn-primary-app"
-            onclick="document.getElementById('newTaskModal').classList.remove('hidden')">
+    <button type="button" id="btnOpenNewTask" class="btn-primary-app">
         <span class="material-symbols-outlined text-[18px]">add</span>
         مهمة جديدة
     </button>
@@ -33,32 +32,214 @@
 
 {% block modals %}
 {% if user.is_manager and form %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
 <div class="hidden fixed inset-0 z-50 flex items-center justify-center p-md bg-[#1b1b1d]/50 backdrop-blur-sm" id="newTaskModal">
-    <div class="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+    <div class="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh]">
         <div class="px-lg py-md border-b border-outline-variant flex justify-between items-center bg-surface-bright">
             <h3 class="font-headline-md text-headline-md font-bold text-on-surface">مهمة جديدة</h3>
-            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full"
-                    onclick="document.getElementById('newTaskModal').classList.add('hidden')">
+            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full" id="btnCloseNewTask">
                 <span class="material-symbols-outlined">close</span>
             </button>
         </div>
-        <form method="post" action="{% url 'ops:task_create' %}" class="flex flex-col overflow-hidden">
+        <form method="post" action="{% url 'ops:task_create' %}" class="flex flex-col overflow-hidden" id="newTaskForm">
             {% csrf_token %}
             <div class="p-lg overflow-y-auto flex flex-col gap-md">
-                {% for field in form %}
                 <div class="flex flex-col gap-sm">
-                    <label class="font-label-md text-label-md text-on-surface">{{ field.label }}</label>
-                    {{ field }}
+                    <label class="font-label-md text-label-md text-on-surface">{{ form.title.label }}</label>
+                    {{ form.title }}
                 </div>
-                {% endfor %}
+                <div class="flex flex-col gap-sm">
+                    <label class="font-label-md text-label-md text-on-surface">{{ form.description.label }}</label>
+                    {{ form.description }}
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
+                    <div class="flex flex-col gap-sm">
+                        <label class="font-label-md text-label-md text-on-surface">{{ form.priority.label }}</label>
+                        {{ form.priority }}
+                    </div>
+                    <div class="flex flex-col gap-sm">
+                        <label class="font-label-md text-label-md text-on-surface">{{ form.assigned_to.label }}</label>
+                        {{ form.assigned_to }}
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-sm">
+                    <label class="font-label-md text-label-md text-on-surface">{{ form.branch.label }}</label>
+                    <div class="flex gap-2">
+                        <input type="search" id="mapSearchInput" autocomplete="off"
+                               class="flex-1 bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md"
+                               placeholder="ابحث عن موقع أو فرع…">
+                        <button type="button" id="mapSearchBtn" class="act-btn act-ok shrink-0">
+                            <span class="material-symbols-outlined text-[16px] text-inherit">search</span>
+                            بحث
+                        </button>
+                    </div>
+                    <div id="mapSearchResults" class="hidden border border-outline-variant rounded-lg overflow-hidden bg-white max-h-40 overflow-y-auto"></div>
+                    <div id="taskMap" class="w-full h-[240px] rounded-xl border border-sky-200 overflow-hidden z-0"></div>
+                    <p class="text-[12px] text-on-surface-variant">انقر على الخريطة أو اسحب الدبوس لتحديد الموقع.</p>
+                    {{ form.branch }}
+                    {{ form.location_lat }}
+                    {{ form.location_lng }}
+                    <p id="mapPickHint" class="hidden text-[12px] font-bold text-emerald-700">تم اختيار الموقع ✓</p>
+                </div>
+
+                <div class="flex flex-col gap-sm">
+                    <label class="font-label-md text-label-md text-on-surface">{{ form.visit_details.label }}</label>
+                    {{ form.visit_details }}
+                </div>
+                <div class="flex flex-col gap-sm">
+                    <label class="font-label-md text-label-md text-on-surface">{{ form.due_at.label }}</label>
+                    {{ form.due_at }}
+                </div>
             </div>
             <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
-                <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md"
-                        onclick="document.getElementById('newTaskModal').classList.add('hidden')">إلغاء</button>
+                <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md" id="btnCancelNewTask">إلغاء</button>
                 <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md">حفظ</button>
             </div>
         </form>
     </div>
 </div>
+
+<script>
+(function () {
+    const modal = document.getElementById('newTaskModal');
+    const openBtn = document.getElementById('btnOpenNewTask');
+    const closeBtn = document.getElementById('btnCloseNewTask');
+    const cancelBtn = document.getElementById('btnCancelNewTask');
+    const branchInput = document.getElementById('id_branch');
+    const latInput = document.getElementById('id_location_lat');
+    const lngInput = document.getElementById('id_location_lng');
+    const hint = document.getElementById('mapPickHint');
+    const searchInput = document.getElementById('mapSearchInput');
+    const searchBtn = document.getElementById('mapSearchBtn');
+    const resultsBox = document.getElementById('mapSearchResults');
+    const form = document.getElementById('newTaskForm');
+
+    // Riyadh default
+    const DEFAULT = [24.7136, 46.6753];
+    let map = null;
+    let marker = null;
+    let mapReady = false;
+
+    function closeModal() {
+        modal.classList.add('hidden');
+        resultsBox.classList.add('hidden');
+        resultsBox.innerHTML = '';
+    }
+
+    function openModal() {
+        modal.classList.remove('hidden');
+        setTimeout(initMap, 80);
+    }
+
+    function setLocation(lat, lng, label) {
+        lat = Number(lat);
+        lng = Number(lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        latInput.value = lat.toFixed(7);
+        lngInput.value = lng.toFixed(7);
+        if (label) {
+            branchInput.value = String(label).slice(0, 255);
+        }
+        if (hint) hint.classList.remove('hidden');
+        if (marker) {
+            marker.setLatLng([lat, lng]);
+        } else if (map) {
+            marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+            marker.on('dragend', function () {
+                const p = marker.getLatLng();
+                reverseGeocode(p.lat, p.lng);
+            });
+        }
+        if (map) {
+            map.setView([lat, lng], Math.max(map.getZoom(), 15));
+        }
+    }
+
+    async function reverseGeocode(lat, lng) {
+        setLocation(lat, lng, branchInput.value || `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        try {
+            const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=ar`;
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+            const name = data.display_name || data.name;
+            if (name) {
+                branchInput.value = String(name).slice(0, 255);
+            }
+        } catch (_) {}
+    }
+
+    async function searchPlaces(q) {
+        q = (q || '').trim();
+        if (!q) return;
+        resultsBox.classList.remove('hidden');
+        resultsBox.innerHTML = '<div class="px-3 py-2 text-sm text-slate-500">جاري البحث…</div>';
+        try {
+            const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&countrycodes=sa&limit=6&accept-language=ar`;
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+            if (!data.length) {
+                resultsBox.innerHTML = '<div class="px-3 py-2 text-sm text-slate-500">لا نتائج — جرّب اسماً آخر أو انقر على الخريطة.</div>';
+                return;
+            }
+            resultsBox.innerHTML = '';
+            data.forEach((item) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'block w-full text-right px-3 py-2 text-sm hover:bg-sky-50 border-b border-slate-100 last:border-0';
+                btn.textContent = item.display_name;
+                btn.addEventListener('click', () => {
+                    setLocation(item.lat, item.lon, item.display_name);
+                    resultsBox.classList.add('hidden');
+                    resultsBox.innerHTML = '';
+                    searchInput.value = '';
+                });
+                resultsBox.appendChild(btn);
+            });
+        } catch (e) {
+            resultsBox.innerHTML = '<div class="px-3 py-2 text-sm text-red-600">فشل البحث. انقر على الخريطة يدوياً.</div>';
+        }
+    }
+
+    function initMap() {
+        if (!window.L) return;
+        if (!mapReady) {
+            map = L.map('taskMap', { scrollWheelZoom: true }).setView(DEFAULT, 11);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap',
+            }).addTo(map);
+            map.on('click', function (e) {
+                reverseGeocode(e.latlng.lat, e.latlng.lng);
+            });
+            mapReady = true;
+        }
+        setTimeout(() => map && map.invalidateSize(), 100);
+        setTimeout(() => map && map.invalidateSize(), 350);
+    }
+
+    openBtn?.addEventListener('click', openModal);
+    closeBtn?.addEventListener('click', closeModal);
+    cancelBtn?.addEventListener('click', closeModal);
+
+    searchBtn?.addEventListener('click', () => searchPlaces(searchInput.value));
+    searchInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            searchPlaces(searchInput.value);
+        }
+    });
+
+    form?.addEventListener('submit', (e) => {
+        if (!latInput.value || !lngInput.value || !branchInput.value.trim()) {
+            e.preventDefault();
+            alert('اختر موقع الفرع من الخريطة أو عبر البحث أولاً.');
+            return;
+        }
+    });
+})();
+</script>
 {% endif %}
 {% endblock %}

@@ -270,7 +270,21 @@ class Task(models.Model):
         related_name='assigned_tasks',
         verbose_name='معيّن إلى',
     )
-    branch = models.CharField(max_length=150, blank=True, verbose_name='موقع الفرع')
+    branch = models.CharField(max_length=255, blank=True, verbose_name='موقع الفرع')
+    location_lat = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        verbose_name='خط العرض',
+    )
+    location_lng = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        verbose_name='خط الطول',
+    )
     visit_details = models.TextField(blank=True, verbose_name='تفاصيل الزيارة')
     public_token = models.CharField(
         max_length=64,
@@ -321,6 +335,14 @@ class Task(models.Model):
         if self.due_at and self.status != self.Status.DONE:
             return self.due_at < timezone.now()
         return False
+
+    @property
+    def maps_url(self):
+        if self.location_lat is None or self.location_lng is None:
+            return ''
+        return (
+            f'https://www.google.com/maps?q={self.location_lat},{self.location_lng}'
+        )
 
 
 class CatalogItem(models.Model):

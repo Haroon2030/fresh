@@ -160,7 +160,7 @@ class TaskForm(forms.ModelForm):
         model = Task
         fields = [
             'title', 'description', 'priority', 'assigned_to',
-            'branch', 'visit_details', 'due_at',
+            'branch', 'location_lat', 'location_lng', 'visit_details', 'due_at',
         ]
         widgets = {
             'description': forms.Textarea(attrs={
@@ -176,12 +176,16 @@ class TaskForm(forms.ModelForm):
             }),
             'branch': forms.TextInput(attrs={
                 'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
-                'placeholder': 'مثال: فرع العليا',
+                'placeholder': 'اختر الموقع من الخريطة…',
+                'readonly': True,
+                'id': 'id_branch',
             }),
+            'location_lat': forms.HiddenInput(attrs={'id': 'id_location_lat'}),
+            'location_lng': forms.HiddenInput(attrs={'id': 'id_location_lng'}),
             'visit_details': forms.Textarea(attrs={
                 'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors resize-none',
                 'rows': 3,
-                'placeholder': 'تفاصيل الزيارة: العنوان، المطلوب، ملاحظات…',
+                'placeholder': 'تفاصيل الزيارة: المطلوب، ملاحظات…',
             }),
             'due_at': forms.DateTimeInput(attrs={
                 'class': 'w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface transition-colors',
@@ -199,12 +203,16 @@ class TaskForm(forms.ModelForm):
         self.fields['title'].required = True
         self.fields['description'].required = False
         self.fields['branch'].required = True
+        self.fields['location_lat'].required = True
+        self.fields['location_lng'].required = True
         self.fields['visit_details'].required = True
         self.fields['due_at'].required = False
         self.fields['description'].label = 'الوصف'
         self.fields['priority'].label = 'الأولوية'
         self.fields['assigned_to'].label = 'تعيين للموظف'
-        self.fields['branch'].label = 'موقع الفرع'
+        self.fields['branch'].label = 'موقع الفرع (من الخريطة)'
+        self.fields['location_lat'].label = ''
+        self.fields['location_lng'].label = ''
         self.fields['visit_details'].label = 'تفاصيل الزيارة'
         self.fields['due_at'].label = 'الموعد'
 

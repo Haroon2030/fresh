@@ -631,6 +631,8 @@ def _notify_assignee_task(task, request=None, created=False):
         f'تفاصيل الزيارة:\n{task.visit_details or task.description or "—"}',
         f'الأولوية: {task.get_priority_display()}',
     ]
+    if task.maps_url:
+        lines.append(f'الموقع على الخريطة: {task.maps_url}')
     if task.due_at:
         lines.append(f'الموعد: {timezone.localtime(task.due_at).strftime("%Y-%m-%d %H:%M")}')
     lines.append('')
@@ -656,10 +658,11 @@ def task_create(request):
             f'{task.title}\n'
             f'الفرع: {task.branch or "—"}\n'
             f'الموظف: {task.assigned_to.display_name if task.assigned_to_id else "—"}\n'
-            f'بواسطة: {request.user.display_name}',
+            f'بواسطة: {request.user.display_name}'
+            + (f'\nالخريطة: {task.maps_url}' if task.maps_url else ''),
         )
     else:
-        messages.error(request, 'تعذر حفظ المهمة. تحقق من البيانات (الموظف والفرع وتفاصيل الزيارة مطلوبة).')
+        messages.error(request, 'تعذر حفظ المهمة. تحقق من البيانات (الموظف وموقع الخريطة وتفاصيل الزيارة مطلوبة).')
     return redirect('ops:tasks')
 
 
