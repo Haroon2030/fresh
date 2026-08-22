@@ -209,6 +209,10 @@ def _public_url_hosts(base_url: str) -> list[str]:
     if not host:
         return []
     hosts = [host]
+    if not host.startswith("www.") and "." in host and not re.fullmatch(
+        r"(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})", host
+    ):
+        hosts.append(f"www.{host}")
     match = re.fullmatch(r"(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})", host)
     if match:
         hosts.append("-".join(match.groups()) + ".sslip.io")
@@ -216,7 +220,7 @@ def _public_url_hosts(base_url: str) -> list[str]:
 
 
 def _public_url_origins(base_url: str) -> list[str]:
-    """CSRF origins for public task reply form (GET/POST)."""
+    """CSRF origins for forms behind Dokploy / Traefik."""
     from urllib.parse import urlparse
 
     if not base_url:
@@ -224,28 +228,51 @@ def _public_url_origins(base_url: str) -> list[str]:
     parsed = urlparse(base_url)
     if not parsed.scheme or not parsed.netloc:
         return [base_url.rstrip("/")]
-    origins = [f"{parsed.scheme}://{parsed.netloc}".rstrip("/")]
-    port = f":{parsed.port}" if parsed.port else ""
-    for host in _public_url_hosts(base_url):
-        if host != parsed.hostname:
-            origins.append(f"{parsed.scheme}://{host}{port}".rstrip("/"))
-    return origins
+
+    def _origin(scheme: str, hostname: str, port: int | None) -> str:
+        if port and port not in (80, 443):
+            netloc = f"{hostname}:{port}"
+        else:
+            netloc = hostname
+        return f"{scheme}://{netloc}".rstrip("/")
+
+    host = parsed.hostname or ""
+    port = parsed.port
+    origins = [
+        _origin(parsed.scheme, host, port),
+        _origin("https" if parsed.scheme == "http" else "http", host, port),
+    ]
+    for alt_host in _public_url_hosts(base_url):
+        if alt_host != host:
+            origins.append(_origin(parsed.scheme, alt_host, port))
+            origins.append(_origin("https" if parsed.scheme == "http" else "http", alt_host, port))
+    return list(dict.fromkeys(o for o in origins if o))
 
 
-_allowed_hosts = env_list("ALLOWED_HOSTS", "*")
-_public_hosts = _public_url_hosts(PUBLIC_BASE_URL)
-if "*" in _allowed_hosts and not DEBUG:
-    # DEBUG=False: * لا يكفي — أضف IP و sslip صراحةً
-    ALLOWED_HOSTS = list(dict.fromkeys(_public_hosts + ["localhost", "127.0.0.1"]))
-else:
-    if "*" not in _allowed_hosts:
-        for _host in _public_hosts:
-            if _host not in _allowed_hosts:
-                _allowed_hosts.append(_host)
-    ALLOWED_HOSTS = _allowed_hosts
+def _merge_allowed_hosts() -> list[str]:
+    """Avoid DisallowedHost (400) — merge env, PUBLIC_BASE_URL, and local dev."""
+    merged: list[str] = []
+    for host in env_list("ALLOWED_HOSTS", "fresh.alrsheed.net,localhost,127.0.0.1"):
+        if host and host != "*":
+            merged.append(host)
+    merged.extend(_public_url_hosts(PUBLIC_BASE_URL))
+    for host in ("localhost", "127.0.0.1", "fresh.alrsheed.net", "www.fresh.alrsheed.net"):
+        if host not in merged:
+            merged.append(host)
+    return list(dict.fromkeys(merged))
 
-_csrf_origins = env_list("CSRF_TRUSTED_ORIGINS", "")
+
+ALLOWED_HOSTS = _merge_allowed_hosts()
+
+_csrf_origins = env_list(
+    "CSRF_TRUSTED_ORIGINS",
+    "https://fresh.alrsheed.net,http://fresh.alrsheed.net",
+)
 for _origin in _public_url_origins(PUBLIC_BASE_URL):
     if _origin not in _csrf_origins:
         _csrf_origins.append(_origin)
-CSRF_TRUSTED_ORIGINS = _csrf_origins
+# Legacy IP access during migration
+for _legacy in ("http://72.61.107.230:7080", "https://72.61.107.230:7080"):
+    if _legacy not in _csrf_origins:
+        _csrf_origins.append(_legacy)
+CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(_csrf_origins))
