@@ -5,6 +5,7 @@ from django.core.management.base import BaseCommand
 from ops.catalog_units import (
     PACKAGE_NAMES,
     merge_unit_strings,
+    normalize_catalog_item_fields,
     sanitize_catalog_row,
     split_item_number,
 )
@@ -22,6 +23,10 @@ class Command(BaseCommand):
         for item in list(CatalogItem.objects.order_by('pk')):
             clean_number, num_extras = split_item_number(item.item_number)
             units = merge_unit_strings(item.unit, item.package, *num_extras)
+            normalized_number, normalized_units = normalize_catalog_item_fields(
+                clean_number or item.item_number,
+                units,
+            )
 
             if item.name in PACKAGE_NAMES:
                 sibling = None
@@ -47,13 +52,16 @@ class Command(BaseCommand):
             new_name, new_number, _, extras = sanitize_catalog_row(
                 item.name,
                 '',
-                clean_number or item.item_number,
+                normalized_number or item.item_number,
             )
-            new_units = merge_unit_strings(units, *extras)
+            new_units = merge_unit_strings(normalized_units, *extras)
             changed = False
 
             if new_number and new_number != item.item_number:
                 item.item_number = new_number
+                changed = True
+            elif normalized_number and normalized_number != item.item_number:
+                item.item_number = normalized_number
                 changed = True
             if new_name and new_name != item.name:
                 item.name = new_name

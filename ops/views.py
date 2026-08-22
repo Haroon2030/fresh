@@ -2278,7 +2278,7 @@ def items_list(request):
             | Q(unit__icontains=q)
             | Q(package__icontains=q)
         )
-    paginator = Paginator(qs, 20)
+    paginator = Paginator(qs, 6)
     page = paginator.get_page(request.GET.get('page'))
     return render(request, 'ops/items.html', {
         'items': page,

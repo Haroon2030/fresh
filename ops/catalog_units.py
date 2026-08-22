@@ -65,6 +65,47 @@ def split_item_number(value: str) -> tuple[str, list[str]]:
     return sku, extras
 
 
+def normalize_catalog_item_fields(
+    item_number: str,
+    unit: str,
+    package: str = '',
+) -> tuple[str, str]:
+    """
+    يصحّح رقم الصنf والوحدات عندما يُخزَّن الرقم في unit
+    أو تُخزَّن عبوة (جرm، كيس…) في item_number.
+    """
+    raw_number = (item_number or '').strip()
+    sku = ''
+    units: list[str] = []
+
+    number_sku, number_extras = split_item_number(raw_number)
+    if looks_like_item_number(number_sku):
+        sku = number_sku
+    elif raw_number in PACKAGE_NAMES and raw_number not in units:
+        units.append(raw_number)
+    for extra in number_extras:
+        if looks_like_item_number(extra):
+            if not sku:
+                sku = extra
+        elif extra not in units:
+            units.append(extra)
+
+    for part in split_units(unit) + split_units(package):
+        if looks_like_item_number(part):
+            if not sku:
+                sku = part
+        elif part not in units:
+            units.append(part)
+
+    if not sku and looks_like_item_number(raw_number):
+        sku = raw_number
+
+    if sku in PACKAGE_NAMES:
+        sku = ''
+
+    return sku, join_units(units)
+
+
 def sanitize_catalog_row(
     name: str,
     package: str,

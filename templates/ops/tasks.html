@@ -233,6 +233,7 @@
         overflow: hidden;
         border: 1px solid #bae6fd;
         background: #f0f9ff;
+        cursor: pointer;
     }
     .task-photo-hero img {
         width: 100%;
@@ -255,11 +256,45 @@
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
+        align-items: center;
     }
     .task-link-btn {
         border: none;
         cursor: pointer;
         font: inherit;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .task-link-btn--has-photos {
+        padding: 4px 8px 4px 4px;
+        border-radius: 999px;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+    }
+    .task-link-btn--has-photos:hover {
+        background: #dbeafe;
+    }
+    .task-link-thumb-row {
+        display: inline-flex;
+        align-items: center;
+    }
+    .task-link-thumb {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        object-fit: cover;
+        border: 2px solid #fff;
+        box-shadow: 0 0 0 1px #93c5fd;
+        margin-inline-start: -6px;
+    }
+    .task-link-thumb-row .task-link-thumb:first-child {
+        margin-inline-start: 0;
+    }
+    .task-link-btn-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
     }
     .task-modal-block {
         border: 1px solid #e2e8f0;
@@ -270,6 +305,16 @@
     .task-modal-block--reply {
         background: #f0fdf4;
         border-color: #bbf7d0;
+    }
+    .task-modal-block--photos {
+        background: #f0f9ff;
+        border-color: #bae6fd;
+    }
+    .task-modal-photo-hint {
+        margin: 10px 0 0;
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
     }
     .task-modal-lbl {
         margin: 0 0 8px;
@@ -296,8 +341,8 @@
     }
     .task-modal-photos {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 10px;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 12px;
     }
     .task-modal-photo {
         display: block;
@@ -306,6 +351,8 @@
         overflow: hidden;
         border: 1px solid #bae6fd;
         background: #fff;
+        padding: 0;
+        cursor: zoom-in;
     }
     .task-modal-photo:hover {
         border-color: #0284c7;
@@ -316,6 +363,45 @@
         height: 100%;
         object-fit: cover;
         display: block;
+        pointer-events: none;
+    }
+    .task-photo-lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 80;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: rgba(15, 23, 42, 0.88);
+        backdrop-filter: blur(4px);
+    }
+    .task-photo-lightbox.hidden { display: none !important; }
+    .task-photo-lightbox img {
+        max-width: min(960px, 100%);
+        max-height: 88vh;
+        border-radius: 12px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+        object-fit: contain;
+        background: #fff;
+    }
+    .task-photo-lightbox-close {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        width: 42px;
+        height: 42px;
+        border: none;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.16);
+        color: #fff;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .task-photo-lightbox-close:hover {
+        background: rgba(255, 255, 255, 0.28);
     }
     .task-card-foot {
         display: flex;
@@ -556,6 +642,13 @@
 {% include "ops/_task_detail_modal.html" with task=task %}
 {% endfor %}
 
+<div class="task-photo-lightbox hidden" id="taskPhotoLightbox" aria-hidden="true">
+    <button type="button" class="task-photo-lightbox-close" id="taskPhotoLightboxClose" aria-label="إغلاق">
+        <span class="material-symbols-outlined">close</span>
+    </button>
+    <img id="taskPhotoLightboxImg" src="" alt="صورة مكبرة">
+</div>
+
 <script>
 (function () {
     function openTask(id) {
@@ -566,6 +659,39 @@
         const modal = document.getElementById('taskModal-' + id);
         if (modal) modal.classList.add('hidden');
     }
+    const lightbox = document.getElementById('taskPhotoLightbox');
+    const lightboxImg = document.getElementById('taskPhotoLightboxImg');
+    const lightboxClose = document.getElementById('taskPhotoLightboxClose');
+
+    function openLightbox(src) {
+        if (!lightbox || !lightboxImg || !src) return;
+        lightboxImg.src = src;
+        lightbox.classList.remove('hidden');
+        lightbox.setAttribute('aria-hidden', 'false');
+    }
+    function closeLightbox() {
+        if (!lightbox || !lightboxImg) return;
+        lightbox.classList.add('hidden');
+        lightbox.setAttribute('aria-hidden', 'true');
+        lightboxImg.src = '';
+    }
+
+    document.querySelectorAll('.task-link-btn[data-open-task], .task-photo-hero[data-open-task]').forEach((el) => {
+        el.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openTask(el.getAttribute('data-open-task'));
+        });
+        if (el.classList.contains('task-photo-hero')) {
+            el.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openTask(el.getAttribute('data-open-task'));
+                }
+            });
+        }
+    });
+
     document.addEventListener('click', (e) => {
         const closeBtn = e.target.closest('[data-close-task]');
         if (closeBtn) {
@@ -576,12 +702,29 @@
             e.target.classList.add('hidden');
             return;
         }
-        if (e.target.closest('form, button[type=submit], textarea, input, select, a.task-link:not(.task-link-btn)')) {
+        const photoBtn = e.target.closest('[data-task-photo]');
+        if (photoBtn) {
+            e.preventDefault();
+            openLightbox(photoBtn.getAttribute('data-task-photo'));
+            return;
+        }
+        if (lightbox && e.target === lightbox) {
+            closeLightbox();
+            return;
+        }
+        if (e.target.closest('form, button[type=submit], textarea, input, select, a.task-link:not(.task-link-btn), .task-link-btn, .task-photo-hero')) {
             return;
         }
         const openBtn = e.target.closest('[data-open-task]');
         if (openBtn) {
             openTask(openBtn.getAttribute('data-open-task'));
+        }
+    });
+
+    lightboxClose?.addEventListener('click', closeLightbox);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && lightbox && !lightbox.classList.contains('hidden')) {
+            closeLightbox();
         }
     });
 })();

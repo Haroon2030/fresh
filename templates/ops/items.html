@@ -18,10 +18,76 @@
 
 {% block content %}
 <style>
-.units-cell { min-width: 9rem; max-width: 12rem; vertical-align: middle !important; }
+.items-table-center {
+    width: 100%;
+    max-width: 42rem;
+    margin-inline: auto;
+}
+.units-cell {
+    min-width: 10rem;
+    width: 10rem;
+    vertical-align: middle !important;
+}
 .item-units-form { margin: 0; }
+.app-data-grid .units-cell .item-unit-select {
+    min-height: 44px;
+    padding: 10px 40px 10px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.3;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    background-color: #fff;
+    cursor: pointer;
+}
+.app-data-grid .units-cell .item-unit-select:focus {
+    border-color: #1d4ed8;
+    background-color: #eff6ff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.15);
+}
+.items-pagination {
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.items-page-nav,
+.items-page-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #1d4ed8;
+    background: #fff;
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s;
+}
+.items-page-nav:hover,
+.items-page-num:hover {
+    background: #eff6ff;
+    border-color: #93c5fd;
+}
+.items-page-num.is-active {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+    color: #fff;
+    cursor: default;
+}
+.items-page-nav.is-disabled {
+    opacity: 0.45;
+    pointer-events: none;
+    background: #f8fafc;
+    color: #64748b;
+}
 </style>
-<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-md">
+<div class="items-table-center">
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-md w-full">
     <div>
         <h2 class="font-headline-lg text-headline-lg font-bold text-primary">الأصناف</h2>
         <p class="font-body-md text-body-md text-on-surface-variant mt-xs">استيراد أصناف من Excel أو إضافتها يدوياً.</p>
@@ -39,12 +105,14 @@
         </button>
     </div>
 </div>
+</div>
 
 <!-- Drag & drop Excel -->
-<form method="post" action="{% url 'ops:items_import' %}" enctype="multipart/form-data" id="excelImportForm">
+<div class="items-table-center">
+<form method="post" action="{% url 'ops:items_import' %}" enctype="multipart/form-data" id="excelImportForm" class="w-full">
     {% csrf_token %}
     <div id="dropZone"
-         class="border-2 border-dashed border-[#93c5fd] rounded-xl bg-[#eff6ff] p-xl flex flex-col items-center justify-center gap-md text-center transition-colors cursor-pointer hover:border-[#1d4ed8] hover:bg-[#dbeafe]/40">
+         class="border-2 border-dashed border-[#93c5fd] rounded-xl bg-[#eff6ff] p-xl flex flex-col items-center justify-center gap-md text-center transition-colors cursor-pointer hover:border-[#1d4ed8] hover:bg-[#dbeafe]/40 w-full">
         <div class="w-14 h-14 rounded-xl bg-[#1d4ed8] text-white flex items-center justify-center">
             <span class="material-symbols-outlined text-3xl text-inherit">upload_file</span>
         </div>
@@ -60,7 +128,9 @@
         </button>
     </div>
 </form>
+</div>
 
+<div class="items-table-center">
 <div class="app-table-frame w-full">
     <div class="app-toolbar flex flex-col sm:flex-row sm:items-center justify-between gap-sm">
         <span class="font-label-md text-label-md font-bold text-on-surface flex items-center gap-sm">
@@ -133,25 +203,49 @@
             </tbody>
         </table>
     </div>
-    <div class="pt-md flex justify-between items-center">
+    <div class="pt-md flex flex-col sm:flex-row justify-between items-center gap-sm">
         <span class="font-body-md text-body-md text-on-surface-variant">
             {% if page_obj.paginator.count %}
             عرض {{ page_obj.start_index }}-{{ page_obj.end_index }} من {{ page_obj.paginator.count }}
             {% else %}لا نتائج{% endif %}
         </span>
-        <div class="flex gap-sm">
+        {% if page_obj.paginator.num_pages > 1 %}
+        <nav class="items-pagination flex items-center" aria-label="ترقيم الصفحات">
             {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}&q={{ q }}" class="p-2 border border-[#bfdbfe] rounded-lg text-[#1d4ed8] hover:bg-[#eff6ff]">
-                <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+            <a href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}" class="items-page-nav" title="السابق">
+                <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                السابق
             </a>
+            {% else %}
+            <span class="items-page-nav is-disabled" aria-disabled="true">
+                <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                السابق
+            </span>
             {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <span class="items-page-num is-active" aria-current="page">{{ num }}</span>
+            {% else %}
+            <a href="?page={{ num }}{% if q %}&q={{ q }}{% endif %}" class="items-page-num">{{ num }}</a>
+            {% endif %}
+            {% endfor %}
+
             {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}&q={{ q }}" class="p-2 border border-[#bfdbfe] rounded-lg text-[#1d4ed8] hover:bg-[#eff6ff]">
-                <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+            <a href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}" class="items-page-nav" title="التالي">
+                التالي
+                <span class="material-symbols-outlined text-[18px]">chevron_left</span>
             </a>
+            {% else %}
+            <span class="items-page-nav is-disabled" aria-disabled="true">
+                التالي
+                <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+            </span>
             {% endif %}
-        </div>
+        </nav>
+        {% endif %}
     </div>
+</div>
 </div>
 {% endblock %}
 

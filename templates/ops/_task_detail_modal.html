@@ -23,6 +23,25 @@
             </div>
         </div>
         <div class="app-modal-body flex flex-col gap-md">
+            {% with photos=task.response_photos.all %}
+            {% if photos %}
+            <div class="task-modal-block task-modal-block--photos">
+                <p class="task-modal-lbl">
+                    <span class="material-symbols-outlined text-[16px]">photo_library</span>
+                    صور الرد ({{ photos|length }})
+                </p>
+                <div class="task-modal-photos">
+                    {% for photo in photos %}
+                    <button type="button" class="task-modal-photo" data-task-photo="{{ photo.image.url }}" aria-label="تكبير صورة {{ forloop.counter }}">
+                        <img src="{{ photo.image.url }}" alt="صورة {{ forloop.counter }}" loading="lazy">
+                    </button>
+                    {% endfor %}
+                </div>
+                <p class="task-modal-photo-hint">اضغط على أي صورة لتكبيرها</p>
+            </div>
+            {% endif %}
+            {% endwith %}
+
             {% if task.visit_details or task.description %}
             <div class="task-modal-block">
                 <p class="task-modal-lbl">تفاصيل المهمة</p>
@@ -37,24 +56,15 @@
             </div>
             {% endif %}
 
+            {% if not task.response_photos.all %}
             <div class="task-modal-block">
                 <p class="task-modal-lbl">
                     <span class="material-symbols-outlined text-[16px]">photo_library</span>
                     صور الرد
-                    {% if task.response_photos.all %}({{ task.response_photos.all|length }}){% endif %}
                 </p>
-                {% if task.response_photos.all %}
-                <div class="task-modal-photos">
-                    {% for photo in task.response_photos.all %}
-                    <a href="{{ photo.image.url }}" target="_blank" rel="noopener" class="task-modal-photo">
-                        <img src="{{ photo.image.url }}" alt="صورة {{ forloop.counter }}" loading="lazy">
-                    </a>
-                    {% endfor %}
-                </div>
-                {% else %}
                 <p class="task-modal-empty">لا توجد صور بعد — يرسلها الموظف عبر رابط الرد.</p>
-                {% endif %}
             </div>
+            {% endif %}
         </div>
         <div class="app-modal-foot">
             <button type="button" class="btn-ghost-app" data-close-task="{{ task.pk }}">إغلاق</button>

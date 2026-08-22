@@ -41,14 +41,13 @@
 
             {% with photos=task.response_photos.all %}
             {% if photos %}
-            <div class="task-photo-hero" data-open-task="{{ task.pk }}">
+            <div class="task-photo-hero" data-open-task="{{ task.pk }}" role="button" tabindex="0" aria-label="عرض الصور">
                 <img src="{{ photos.0.image.url }}" alt="صورة الرد" loading="lazy">
                 {% if photos|length > 1 %}
                 <span class="task-photo-more">+{{ photos|length|add:"-1" }}</span>
                 {% endif %}
             </div>
             {% endif %}
-            {% endwith %}
 
             {% if task.response_text %}
             <div class="task-reply">
@@ -64,11 +63,21 @@
                 رابط الرد
             </a>
             {% endif %}
-            <button type="button" class="task-link task-link-btn" data-open-task="{{ task.pk }}">
-                <span class="material-symbols-outlined text-[14px]">{% if task.response_photos.all %}photo_library{% else %}visibility{% endif %}</span>
-                {% if task.response_photos.all %}عرض الصور{% else %}عرض التفاصيل{% endif %}
+            <button type="button" class="task-link task-link-btn{% if photos %} task-link-btn--has-photos{% endif %}" data-open-task="{{ task.pk }}">
+                {% if photos %}
+                <span class="task-link-thumb-row" aria-hidden="true">
+                    {% for photo in photos|slice:":3" %}
+                    <img src="{{ photo.image.url }}" alt="" class="task-link-thumb" loading="lazy">
+                    {% endfor %}
+                </span>
+                {% endif %}
+                <span class="task-link-btn-label">
+                    <span class="material-symbols-outlined text-[14px]">{% if photos %}photo_library{% else %}visibility{% endif %}</span>
+                    {% if photos %}عرض الصور ({{ photos|length }}){% else %}عرض التفاصيل{% endif %}
+                </span>
             </button>
             </div>
+            {% endwith %}
 
             {% if user.is_manager and task.assigned_to and status_key != 'done' %}
             <form method="post" action="{% url 'ops:task_send_whatsapp' task.pk %}" class="task-actions" style="padding-top:4px;border-top:none">
