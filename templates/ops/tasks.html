@@ -224,17 +224,43 @@
         -webkit-box-orient: vertical;
         overflow: hidden;
     }
+    .task-photos-wrap {
+        border: 1px solid #dbeafe;
+        background: #f0f9ff;
+        border-radius: 8px;
+        padding: 8px;
+    }
+    .task-photos-lbl {
+        margin: 0 0 6px;
+        font-size: 10px;
+        font-weight: 800;
+        color: #0369a1;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
     .task-photos {
-        display: flex;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
         gap: 6px;
-        overflow-x: auto;
+    }
+    .task-photos a {
+        display: block;
+        aspect-ratio: 1;
+        overflow: hidden;
+        border-radius: 8px;
+        border: 1px solid #bae6fd;
+        background: #fff;
+    }
+    .task-photos a:hover {
+        border-color: #0284c7;
+        box-shadow: 0 2px 6px #0284c733;
     }
     .task-photos img {
-        width: 48px;
-        height: 48px;
+        width: 100%;
+        height: 100%;
         object-fit: cover;
-        border-radius: 6px;
-        border: 1px solid #e2e8f0;
+        display: block;
     }
     .task-card-foot {
         display: flex;

@@ -39,22 +39,26 @@
             <p class="task-desc">{{ task.description }}</p>
             {% endif %}
 
-            {% if status_key == 'pending_review' or status_key == 'done' %}
-                {% if task.response_text %}
-                <div class="task-reply">
-                    <p class="lbl">رد الموظف</p>
-                    <p class="txt">{{ task.response_text }}</p>
-                </div>
-                {% endif %}
-                {% if task.response_photos.exists %}
+            {% if task.response_text %}
+            <div class="task-reply">
+                <p class="lbl">رد الموظف</p>
+                <p class="txt">{{ task.response_text }}</p>
+            </div>
+            {% endif %}
+            {% if task.response_photos.exists %}
+            <div class="task-photos-wrap">
+                <p class="task-photos-lbl">
+                    <span class="material-symbols-outlined text-[14px]">photo_library</span>
+                    صور الرد ({{ task.response_photos.count }})
+                </p>
                 <div class="task-photos">
                     {% for photo in task.response_photos.all %}
-                    <a href="{{ photo.image.url }}" target="_blank" rel="noopener">
-                        <img src="{{ photo.image.url }}" alt="">
+                    <a href="{{ photo.image.url }}" target="_blank" rel="noopener" title="عرض الصورة">
+                        <img src="{{ photo.image.url }}" alt="صورة رد {{ forloop.counter }}" loading="lazy">
                     </a>
                     {% endfor %}
                 </div>
-                {% endif %}
+            </div>
             {% endif %}
 
             {% if task.public_token %}
