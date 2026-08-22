@@ -54,6 +54,7 @@ from .notify_ops import (
     schedule_supply_batch_status,
     schedule_supply_notify,
     schedule_task_assigned,
+    schedule_task_created_notify,
     schedule_task_review_result,
     schedule_task_submitted,
     schedule_variance_authorized,
@@ -1825,9 +1826,7 @@ def task_create(request):
         assignee_phone = ""
         if task.assigned_to_id and getattr(task.assigned_to, "whatsapp", ""):
             assignee_phone = normalize_whatsapp(task.assigned_to.whatsapp)
-        notify_roles(
-            'إشعار مهمة جديدة',
-            'تم إنشاء مهمة تشغيلية. يرجى المتابعة عبر الرابط أدناه.',
+        schedule_task_created_notify(
             exclude_phones={assignee_phone} if assignee_phone else set(),
             action_url=link,
         )

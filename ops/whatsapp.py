@@ -1001,6 +1001,7 @@ def notify_roles(
         }
 
     message = build_wa_notice(title, body=body)
+    sent = 0
     for phone in phones:
         ok = False
         if (action_url or "").strip():

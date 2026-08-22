@@ -483,6 +483,27 @@ def schedule_task_assigned(task_id: int, public_link: str = "") -> None:
     _run_in_background(f"task-assign-{task_id}", _run)
 
 
+def schedule_task_created_notify(
+    *,
+    exclude_phones: set | None = None,
+    action_url: str = "",
+) -> None:
+    """إشعار الأدوار بمهمة جديدة — في الخلفية حتى لا يتوقف حفظ المهمة."""
+    skip = set(exclude_phones or ())
+
+    def _run():
+        from ops.whatsapp import notify_roles
+
+        notify_roles(
+            'إشعار مهمة جديدة',
+            'تم إنشاء مهمة تشغيلية. يرجى المتابعة عبر الرابط أدناه.',
+            exclude_phones=skip,
+            action_url=action_url,
+        )
+
+    _run_in_background("task-created-notify", _run)
+
+
 def schedule_task_submitted(task_id: int) -> None:
     def _run():
         from ops.models import Task
