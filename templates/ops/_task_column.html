@@ -97,11 +97,18 @@
             <form method="post" action="{% url 'ops:task_review' task.pk %}" class="task-actions" style="flex-direction:column;align-items:stretch">
                 {% csrf_token %}
                 <textarea name="review_note" class="task-review-note" rows="2" placeholder="ملاحظة للموظف (مطلوبة عند الرد)"></textarea>
-                <div class="flex flex-wrap gap-1">
+                <div class="task-actions-row">
                     <button type="submit" name="action" value="approve" class="task-act ok">اعتماد وإغلاق</button>
                     <button type="submit" name="action" value="reject" class="task-act warn">رد للموظف</button>
                 </div>
             </form>
+            <div class="task-actions" style="padding-top:4px;border-top:none">
+                <form method="post" action="{% url 'ops:task_delete' task.pk %}"
+                      onsubmit="return confirm('حذف المهمة «{{ task.title|escapejs }}»؟ لا يمكن التراجع.');">
+                    {% csrf_token %}
+                    <button type="submit" class="task-act danger" title="حذف المهمة">حذف</button>
+                </form>
+            </div>
             {% elif status_key != 'done' or user.is_manager %}
             <div class="task-actions">
                 {% if status_key != 'todo' and user.is_manager %}
@@ -125,16 +132,13 @@
                     <button type="submit" class="task-act ok">مكتمل</button>
                 </form>
                 {% endif %}
-            </div>
-            {% endif %}
-
-            {% if user.is_manager %}
-            <div class="task-actions">
+                {% if user.is_manager %}
                 <form method="post" action="{% url 'ops:task_delete' task.pk %}"
                       onsubmit="return confirm('حذف المهمة «{{ task.title|escapejs }}»؟ لا يمكن التراجع.');">
                     {% csrf_token %}
                     <button type="submit" class="task-act danger" title="حذف المهمة">حذف</button>
                 </form>
+                {% endif %}
             </div>
             {% endif %}
         </article>

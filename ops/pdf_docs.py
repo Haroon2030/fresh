@@ -423,7 +423,7 @@ def build_supply_orders_pdf(orders: list, *, actor) -> tuple[bytes, str]:
     )
     story.append(Spacer(1, 0.3 * cm))
     story.append(Paragraph(_ar("بيان الأصناف"), styles["h"]))
-    headers = ["ملاحظات", "متوقع", "كمية", "عبوة", "وحدة", "رقم", "الصنف", "طلب"]
+    headers = ["ملاحظات", "متوقع", "كمية", "سعر", "وحدة", "رقم", "الصنف", "طلب"]
     rows = []
     for o in orders:
         exp = o.expected_date.isoformat() if o.expected_date else "—"
@@ -432,7 +432,7 @@ def build_supply_orders_pdf(orders: list, *, actor) -> tuple[bytes, str]:
                 (o.notes or "")[:50] or "—",
                 exp,
                 str(o.quantity),
-                o.package or "—",
+                f"{o.unit_price:.2f}",
                 o.unit or "—",
                 o.item_number or "—",
                 o.item_name,

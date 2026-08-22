@@ -116,6 +116,45 @@
         border-color: #1e293b;
     }
     .stat-card-slate .stat-bar-fill { background: #334155; }
+
+    .excel-grid .cell-input,
+    .excel-grid .cell-select {
+        width: 100%;
+        border: 0;
+        outline: none;
+        background: transparent;
+        padding: 8px 6px;
+        font: inherit;
+        text-align: right;
+    }
+    .excel-grid .cell-input:focus,
+    .excel-grid .cell-select:focus {
+        background: #eff6ff;
+    }
+    .excel-grid .row-num {
+        text-align: center;
+        color: #64748b;
+        font-weight: 700;
+        padding: 6px !important;
+    }
+    .excel-grid .cell-action {
+        text-align: center;
+        padding: 4px !important;
+    }
+    .excel-grid .row-actions {
+        display: inline-flex;
+        gap: 4px;
+    }
+    .excel-grid .remove-row {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 8px;
+        border-radius: 6px;
+        border: 1px solid #fda4af;
+        background: #fff1f2;
+        color: #be123c;
+        cursor: pointer;
+    }
 </style>
 {% endblock %}
 
@@ -352,7 +391,7 @@
                         <th>الاسم</th>
                         <th>رقم الصنف</th>
                         <th>الوحدة</th>
-                        <th>العبوة</th>
+                        <th>سعر الشراء</th>
                         <th>الكمية</th>
                         <th>متوقع</th>
                         <th>الحالة</th>
@@ -367,7 +406,7 @@
                         <td class="cell-strong">{{ order.item_name }}</td>
                         <td dir="ltr">{{ order.item_number|default:"—" }}</td>
                         <td>{{ order.unit|default:"—" }}</td>
-                        <td>{{ order.package|default:"—" }}</td>
+                        <td class="cell-center" dir="ltr">{{ order.unit_price|floatformat:2 }}</td>
                         <td class="cell-center cell-strong">{{ order.quantity }}</td>
                         <td>{% if order.expected_date %}{{ order.expected_date|date:"Y/m/d" }}{% else %}—{% endif %}</td>
                         <td class="cell-center">
@@ -416,9 +455,12 @@
                     <input type="hidden" name="representative" value="{{ user.pk }}">
                     {% else %}
                     <div class="flex flex-col gap-sm">
-                        <label class="font-label-md text-label-md text-on-surface" for="supplyRep">اسم المندوب</label>
+                        <label class="font-label-md text-label-md text-on-surface filter-field-label" for="supplyRep">
+                            <span class="material-symbols-outlined">badge</span>
+                            المندوب
+                        </label>
                         <select name="representative" id="supplyRep" required
-                                class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface">
+                                class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface app-select">
                             <option value="">اختر المندوب...</option>
                             {% for rep in representatives %}
                             <option value="{{ rep.pk }}">{{ rep.display_name }}</option>
@@ -429,7 +471,10 @@
                     </div>
                     {% endif %}
                     <div class="flex flex-col gap-sm">
-                        <label class="font-label-md text-label-md text-on-surface" for="supplyBranch">الفرع</label>
+                        <label class="font-label-md text-label-md text-on-surface filter-field-label" for="supplyBranch">
+                            <span class="material-symbols-outlined">store</span>
+                            الفرع
+                        </label>
                         <select name="branch" id="supplyBranch" required
                                 class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface app-select">
                             <option value="">اختر الفرع...</option>
@@ -441,7 +486,10 @@
                         </select>
                     </div>
                     <div class="flex flex-col gap-sm">
-                        <label class="font-label-md text-label-md text-on-surface" for="supplySupplier">المورد</label>
+                        <label class="font-label-md text-label-md text-on-surface filter-field-label" for="supplySupplier">
+                            <span class="material-symbols-outlined">corporate_fare</span>
+                            المورد
+                        </label>
                         <select name="supplier" id="supplySupplier" required
                                 class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface app-select">
                             <option value="">اختر المورد...</option>
@@ -453,7 +501,10 @@
                         </select>
                     </div>
                     <div class="flex flex-col gap-sm">
-                        <label class="font-label-md text-label-md text-on-surface" for="expectedDate">التاريخ المتوقع</label>
+                        <label class="font-label-md text-label-md text-on-surface filter-field-label" for="expectedDate">
+                            <span class="material-symbols-outlined">event</span>
+                            التاريخ المتوقع
+                        </label>
                         <input type="date" name="expected_date" id="expectedDate"
                                class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface">
                     </div>
@@ -468,24 +519,23 @@
                     </button>
                 </div>
 
-                <div class="overflow-x-auto border border-outline-variant rounded-xl">
-                    <table class="w-full text-right border-collapse min-w-[900px]">
-                        <thead class="bg-surface-container-low">
+                <div class="excel-sheet overflow-x-auto border border-[#b4b4b4] rounded-sm bg-white shadow-sm">
+                    <table class="excel-grid w-full text-right border-collapse">
+                        <thead>
                         <tr>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-10">#</th>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">الاسم</th>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">رقم الصنف</th>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">الوحدة</th>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">العبوة</th>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-24">الكمية</th>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">ملاحظات</th>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-14"></th>
+                            <th style="width:44px">#</th>
+                            <th>الاسم</th>
+                            <th>رقم الصنف</th>
+                            <th style="width:90px">الوحدة</th>
+                            <th style="width:100px">سعر الشراء</th>
+                            <th style="width:80px">الكمية</th>
+                            <th style="width:72px">إجراء</th>
                         </tr>
                         </thead>
-                        <tbody id="supplyRows" class="divide-y divide-outline-variant"></tbody>
+                        <tbody id="supplyRows"></tbody>
                     </table>
                 </div>
-                <p class="font-body-md text-body-md text-on-surface-variant text-xs">كل الحفظ يُنشئ ملفاً واحداً يحتوي كل الأصناف.</p>
+                <p class="font-body-md text-body-md text-on-surface-variant text-xs">أضف عدة صفوف ثم احفظ ملفاً واحداً — سعر الشراء مطلوب لكل صف.</p>
             </div>
             <div class="app-modal-foot">
                 <button type="button" class="btn-ghost-app"
@@ -506,7 +556,7 @@
     const addBtn = document.getElementById('addSupplyRow');
     if (!tbody || !addBtn) return;
 
-    const inputClass = 'w-full bg-surface border border-outline-variant rounded-lg py-2 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface';
+    const inputClass = 'cell-input';
 
     function renumber() {
         tbody.querySelectorAll('tr').forEach((tr, i) => {
@@ -517,19 +567,17 @@
 
     function addRow() {
         const tr = document.createElement('tr');
-        tr.className = 'bg-surface-container-lowest';
         tr.innerHTML = `
-            <td class="p-2 text-on-surface-variant font-label-md text-label-md text-center" data-row-num></td>
-            <td class="p-2"><input name="item_name" type="text" required placeholder="الاسم" class="${inputClass}"></td>
-            <td class="p-2"><input name="item_number" type="text" placeholder="رقم الصنف" class="${inputClass}"></td>
-            <td class="p-2"><input name="unit" type="text" placeholder="قطعة / كرتون" class="${inputClass}"></td>
-            <td class="p-2"><input name="package" type="text" placeholder="العبوة" class="${inputClass}"></td>
-            <td class="p-2"><input name="quantity" type="number" min="1" value="1" required class="${inputClass}"></td>
-            <td class="p-2"><input name="notes" type="text" placeholder="اختياري" class="${inputClass}"></td>
-            <td class="p-2 text-center">
-                <button type="button" class="text-error hover:bg-error-container p-1 rounded-full remove-row" title="حذف الصف">
-                    <span class="material-symbols-outlined text-[20px]">delete</span>
-                </button>
+            <td class="row-num" data-row-num></td>
+            <td><input name="item_name" type="text" required placeholder="اسم الصنف" class="${inputClass}"></td>
+            <td><input name="item_number" type="text" placeholder="رقم الصنف" class="${inputClass}" dir="ltr"></td>
+            <td><input name="unit" type="text" placeholder="كرتون / قطعة" class="${inputClass}"></td>
+            <td><input name="unit_price" type="number" min="0" step="0.01" required placeholder="0.00" class="${inputClass} num-entry" dir="ltr"></td>
+            <td><input name="quantity" type="number" min="1" required placeholder="1" class="${inputClass} num-entry"></td>
+            <td class="cell-action">
+                <div class="row-actions">
+                    <button type="button" class="remove-row" title="حذف الصف">حذف</button>
+                </div>
             </td>
         `;
         tbody.appendChild(tr);

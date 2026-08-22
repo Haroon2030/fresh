@@ -567,6 +567,72 @@ def to_whatsapp_clickable_url(url: str) -> str:
     return raw
 
 
+WA_BRAND = "🏢 *عمليات الفرش*"
+
+
+def format_wa_title(title: str) -> str:
+    title = (title or "").strip()
+    return f"*{title}*" if title else ""
+
+
+def format_wa_field(icon: str, label: str, value: str) -> str:
+    val = (value or "").strip() or "—"
+    return f"{icon} *{label}:* {val}"
+
+
+def format_wa_bullets(items: list[str] | None, *, max_items: int = 5) -> list[str]:
+    lines: list[str] = []
+    for line in (items or [])[:max_items]:
+        text = (line or "").strip()
+        if text:
+            lines.append(f"• {text}")
+    extra = len(items or []) - max_items
+    if extra > 0:
+        lines.append(f"… +{extra} أصناف")
+    return lines
+
+
+def format_wa_link_block(url: str, *, label: str = "🔗 *فتح الرابط*") -> str:
+    link = to_whatsapp_clickable_url((url or "").strip())
+    if not link.startswith("http"):
+        return ""
+    return f"\n\n{label}\n{link}"
+
+
+def build_wa_message(
+    title: str,
+    *,
+    file_ref: str = "",
+    meta: str = "",
+    bullets: list[str] | None = None,
+    note: str = "",
+    include_pdf_note: bool = False,
+    action_url: str = "",
+    link_label: str = "🔗 *فتح الرابط*",
+) -> str:
+    """رسالة واتساب منسّقة (عريض/مائل) — موحّدة لكل العمليات."""
+    lines: list[str] = [WA_BRAND]
+    title_line = format_wa_title(title)
+    if title_line:
+        lines.extend(["", title_line])
+    if file_ref:
+        lines.append(format_wa_field("📁", "الملف", file_ref))
+    if meta:
+        lines.append(format_wa_field("📋", "التفاصيل", meta))
+    bullet_lines = format_wa_bullets(bullets)
+    if bullet_lines:
+        lines.extend(["", "*الأصناف:*", *bullet_lines])
+    note = (note or "").strip()
+    if note:
+        lines.extend(["", f"💬 _{note}_"])
+    if include_pdf_note:
+        lines.extend(["", "📎 *المرفق:* ملف PDF"])
+    message = "\n".join(lines).strip()
+    if action_url:
+        message += format_wa_link_block(action_url, label=link_label)
+    return message.strip()
+
+
 def send_url_button(
     number: str,
     *,
@@ -576,7 +642,7 @@ def send_url_button(
     button_text: str = "فتح صفحة الرد",
     footer: str = "عمليات الفرش",
 ) -> bool:
-    """زر URL تفاعلي — أوضح من نص IP في واتساب."""
+    """زر URL تفاعلي — اختياري بعد sendText."""
     if not notify_enabled():
         return False
     phone = normalize_whatsapp(number)
@@ -620,8 +686,7 @@ def send_clickable_link(
     button_text: str = "فتح صفحة الرد",
 ) -> bool:
     """
-    إرسال رابط مهمة قابل للنقر عبر sendText (موثوق).
-    sendButtons على Baileys قد يُرجع 201 دون تسليم — لا نعتمد عليه وحده.
+    رسالة منسّقة + رابط في رسالة مستقلة مع linkPreview (قابل للنقر).
     """
     link = to_whatsapp_clickable_url((url or "").strip())
     if not link.startswith("http"):
@@ -633,27 +698,28 @@ def send_clickable_link(
         return False
 
     detail = (detail_text or "").strip()
+    if link in detail:
+        detail = detail.replace(link, "").strip()
     sent = False
 
     if detail:
-        hint = f"{detail}\n\n⬇️ اضغط الرابط في الرسالة التالية"
-        sent = send_text(phone, hint) or sent
+        sent = send_text(phone, detail) or sent
 
-    # الرابط وحده في رسالة مستقلة — أوضح للنقر في واتساب
-    if send_text(phone, link, link_preview=True):
+    link_label = f"🔗 *{button_text}*"
+    link_msg = f"{link_label}\n{link}"
+    if send_text(phone, link_msg, link_preview=True):
         sent = True
 
     if not sent:
-        logger.warning("Task WhatsApp text send failed for %s", phone)
+        logger.warning("WhatsApp link send failed for %s", phone)
         return False
 
-    # زر اختياري إن دعمه السيرفر — لا يؤثر على نجاح الإرسال
     try:
         title_line = "عمليات الفرش"
-        if detail.startswith("[عمليات الفرش]"):
-            bracket = detail.find("]")
-            if bracket > 0:
-                title_line = detail[1:bracket].strip() or title_line
+        if detail.startswith("*🏢"):
+            first = detail.split("\n", 2)
+            if len(first) > 1:
+                title_line = first[1].strip("* ") or title_line
         send_url_button(
             number,
             title=title_line[:60],
@@ -867,9 +933,7 @@ def notify_user(user, title: str, body: str = "") -> bool:
     if not phone:
         logger.info("Skip WhatsApp: user %s has no whatsapp number", getattr(user, "pk", "?"))
         return False
-    message = f"[عمليات الفرش] {title}"
-    if body:
-        message = f"{message}\n{body}"
+    message = build_wa_message(title, note=body)
     return send_text(phone, message)
 
 
@@ -905,9 +969,7 @@ def notify_roles(
             "error": "لا توجد أرقام واتساب. احفظ أرقام الأدوار في شاشة واتساب أولاً.",
         }
 
-    message = f"[عمليات الفرش] {title}"
-    if body:
-        message = f"{message}\n{body}"
+    message = build_wa_message(title, note=body)
 
     sent = 0
     for phone in phones:
@@ -916,8 +978,8 @@ def notify_roles(
             ok = send_clickable_link(
                 phone,
                 message,
-                to_whatsapp_clickable_url(action_url.strip()),
-                button_text="فتح صفحة الرد",
+                action_url.strip(),
+                button_text="فتح الرابط",
             )
         else:
             ok = send_text(phone, message)
@@ -987,8 +1049,10 @@ def notify_with_pdf(
                 media_url=media_url,
             )
             if not ok:
-                # Last resort: text alone (still one message)
-                ok = send_text(phone, caption or message)
+                fallback = caption
+                if media_url:
+                    fallback = (fallback + format_wa_link_block(media_url, label="📄 *تحميل PDF*")).strip()
+                ok = send_text(phone, fallback, link_preview=bool(media_url))
             if ok:
                 sent += 1
         except Exception:

@@ -20,6 +20,7 @@ from ops.pdf_docs import (
     role_label,
 )
 from ops.whatsapp import (
+    build_wa_message,
     collect_recipient_entries,
     notify_with_pdf,
     normalize_whatsapp,
@@ -104,7 +105,7 @@ def _now_str() -> str:
 def _portal_hint() -> str:
     base = (getattr(settings, "PUBLIC_BASE_URL", "") or "").rstrip("/")
     if base:
-        return f"الرابط: {base}"
+        return f"🌐 بوابة النظام: {base}"
     return "ادخل النظام لمتابعة العملية."
 
 
@@ -138,23 +139,14 @@ def _compact_wa(
     note: str = "",
     pdf_url: str = "",
 ) -> str:
-    parts = [f"عمليات الفرش | {title}"]
-    if file_ref and meta:
-        parts.append(f"الملف: {file_ref} | {meta}")
-    elif file_ref:
-        parts.append(f"الملف: {file_ref}")
-    elif meta:
-        parts.append(meta)
-    for line in (bullets or [])[:5]:
-        parts.append(f"• {line}")
-    extra = len(bullets or []) - 5
-    if extra > 0:
-        parts.append(f"… +{extra} أصناف")
-    if note:
-        parts.append(note)
-    if pdf_url:
-        parts.append(f"📄 PDF: {pdf_url}")
-    return "\n".join(parts)
+    return build_wa_message(
+        title,
+        file_ref=file_ref,
+        meta=meta,
+        bullets=bullets,
+        note=note,
+        include_pdf_note=bool(pdf_url),
+    )
 
 
 def _public_pdf_url(route_name: str, token: str, request=None) -> str:
@@ -425,7 +417,7 @@ def _build_task_wa_message(
     review_note: str = "",
 ) -> str:
     """
-    رسالة واتساب احترافية للمهام (بدون الرابط — يُرسل في سطر مستقل).
+    رسالة واتساب احترافية للمهام (بدون الرابط — يُرسل في رسالة مستقلة).
     kind: assigned | correction
     """
     assignee = task.assigned_to.display_name if task.assigned_to_id else "الموظف"
@@ -437,34 +429,32 @@ def _build_task_wa_message(
         desc = desc[:277].rstrip() + "…"
 
     if kind == "correction":
-        header = "*عمليات الفرش*\n*مهمة — مطلوب تصحيح*"
-        intro = f"مرحباً *{assignee}*،\n\nتمت مراجعة ردك ويُطلب تعديله قبل الإغلاق:"
+        title = "مهمة — مطلوب تصحيح"
+        intro = f"مرحباً *{assignee}*،\nتمت مراجعة ردك ويُطلب تعديله قبل الإغلاق."
         note = (review_note or task.review_note or "").strip() or "—"
         action = "لإعادة إرسال الرد (نص + صور) استخدم الرابط أدناه:"
     else:
-        header = "*عمليات الفرش*\n*مهمة جديدة*"
-        intro = f"مرحباً *{assignee}*،\n\nتم إسناد مهمة عمل جديدة إليك:"
+        title = "مهمة جديدة"
+        intro = f"مرحباً *{assignee}*،\nتم إسناد مهمة عمل جديدة إليك."
         note = ""
         action = "للرد على المهمة (نص + صور) استخدم الرابط أدناه:"
 
-    lines = [
-        header,
-        "",
-        intro,
-        "",
-        f"📋 *{task.title}*",
-        f"🔢 الرقم: #{task.pk}",
-        f"⚡ الأولوية: {priority}",
-        f"📍 الفرع: {branch}",
-        f"📅 الموعد: {_format_due_at(task)}",
-        f"👤 من: {creator}",
-    ]
+    meta = f"#{task.pk} | {priority} | {branch} | موعد: {_format_due_at(task)} | من: {creator}"
+    bullets = [f"📋 *{task.title}*"]
     if desc:
-        lines.extend(["", "📝 *التفاصيل:*", desc])
+        bullets.append(f"📝 {desc}")
     if note and kind == "correction":
-        lines.extend(["", "💬 *ملاحظة المراجعة:*", note])
-    lines.extend(["", action])
-    return "\n".join(lines)
+        bullets.append(f"💬 ملاحظة المراجعة: {note}")
+
+    body = build_wa_message(
+        title,
+        meta=meta,
+        bullets=bullets,
+        note=action,
+    )
+    if intro:
+        body = f"{intro}\n\n{body}"
+    return body
 
 
 def _send_whatsapp_link(phone: str, message: str, link: str, *, link_label: str = "فتح صفحة الرد") -> bool:

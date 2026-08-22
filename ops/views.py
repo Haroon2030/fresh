@@ -338,7 +338,7 @@ def supply_create(request):
     item_names = request.POST.getlist('item_name')
     item_numbers = request.POST.getlist('item_number')
     units = request.POST.getlist('unit')
-    packages = request.POST.getlist('package')
+    unit_prices = request.POST.getlist('unit_price')
     quantities = request.POST.getlist('quantity')
     notes_list = request.POST.getlist('notes')
 
@@ -370,14 +370,21 @@ def supply_create(request):
             quantity = max(1, int(qty_raw or 1))
         except (TypeError, ValueError):
             quantity = 1
+        price_raw = unit_prices[i] if i < len(unit_prices) else '0'
+        try:
+            unit_price = Decimal(str(price_raw or '0').strip() or '0')
+        except Exception:
+            unit_price = Decimal('0')
+        if unit_price < 0:
+            unit_price = Decimal('0')
         order = SupplyOrder(
             batch_number=batch_number,
             representative=representative,
             item_name=item_name,
             item_number=(item_numbers[i] if i < len(item_numbers) else '').strip(),
             unit=(units[i] if i < len(units) else '').strip(),
-            package=(packages[i] if i < len(packages) else '').strip(),
             quantity=quantity,
+            unit_price=unit_price,
             notes=(notes_list[i] if i < len(notes_list) else '').strip(),
             branch=branch,
             supplier=supplier,
