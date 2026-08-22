@@ -8,6 +8,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Avg, Max, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -1764,10 +1765,10 @@ def price_compare(request):
     })
 
 
-@login_required
-def tasks_board(request):
+def _tasks_board_context(request, form=None, q=None, open_new_task_modal=False):
     qs = _task_queryset(request.user).prefetch_related('response_photos')
-    q = request.GET.get('q', '').strip()
+    if q is None:
+        q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(
             Q(title__icontains=q) | Q(description__icontains=q) | Q(branch__icontains=q)
@@ -1779,14 +1780,21 @@ def tasks_board(request):
         'pending_review': qs.filter(status=Task.Status.PENDING_REVIEW),
         'done': qs.filter(status=Task.Status.DONE),
     }
-    form = TaskForm() if request.user.is_manager else None
-    return render(request, 'ops/tasks.html', {
+    if form is None and request.user.is_manager:
+        form = TaskForm()
+    return {
         'columns': columns,
         'form': form,
         'q': q,
         'active_nav': 'tasks',
         'public_base_url': getattr(settings, 'PUBLIC_BASE_URL', ''),
-    })
+        'open_new_task_modal': open_new_task_modal,
+    }
+
+
+@login_required
+def tasks_board(request):
+    return render(request, 'ops/tasks.html', _tasks_board_context(request))
 
 
 def _public_task_url(task, request=None) -> str:
@@ -1815,6 +1823,8 @@ def task_create(request):
         task = form.save(commit=False)
         task.created_by = request.user
         task.status = Task.Status.TODO
+        if task.description and not task.visit_details:
+            task.visit_details = task.description
         task.save()
         link = _public_task_url(task, request=request)
         messages.success(
@@ -1831,9 +1841,14 @@ def task_create(request):
             exclude_phones={assignee_phone} if assignee_phone else set(),
             action_url=link,
         )
-    else:
-        messages.error(request, 'تعذر حفظ المهمة. تحقق من العنوان والموظف والفرع.')
-    return redirect('ops:tasks')
+        return redirect('ops:tasks')
+
+    messages.error(request, 'تعذر حفظ المهمة. راجع الحقول المظللة أدناه.')
+    return render(
+        request,
+        'ops/tasks.html',
+        _tasks_board_context(request, form=form, open_new_task_modal=True),
+    )
 
 
 @manager_required
@@ -1878,7 +1893,7 @@ def task_public(request, token):
             else:
                 text = (request.POST.get('response_text') or '').strip()
                 files = request.FILES.getlist('photos')
-                if not text and not files and not task.response_photos.exists():
+                if not text and not files:
                     error = 'أدخل نص الرد أو أرفق صورة واحدة على الأقل.'
                 else:
                     bad = [f.name for f in files if not _is_allowed_task_image(f)]
@@ -1894,15 +1909,20 @@ def task_public(request, token):
                         if oversized:
                             error = 'حجم الصورة يجب ألا يتجاوز 8MB.'
                         else:
-                            if text or files:
-                                # keep previous text if empty update with only photos
-                                if not text and task.response_text:
-                                    text = task.response_text
-                            task.submit_for_review(text)
-                            for f in files:
-                                TaskResponsePhoto.objects.create(task=task, image=f)
-                            submitted = True
-                            schedule_task_submitted(task.pk)
+                            if not text and task.response_text:
+                                text = task.response_text
+                            if not text and not files:
+                                error = 'أدخل نص الرد أو أرفق صورة واحدة على الأقل.'
+                            else:
+                                with transaction.atomic():
+                                    for f in files:
+                                        TaskResponsePhoto.objects.create(
+                                            task=task, image=f,
+                                        )
+                                    task.submit_for_review(text)
+                                task.refresh_from_db()
+                                submitted = True
+                                schedule_task_submitted(task.pk)
         else:
             error = 'إجراء غير معروف.'
 

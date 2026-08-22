@@ -404,9 +404,19 @@
         <form method="post" action="{% url 'ops:task_create' %}" class="flex flex-col overflow-hidden" id="newTaskForm">
             {% csrf_token %}
             <div class="app-modal-body flex flex-col gap-md">
+                {% if form.errors %}
+                <div class="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-red-800 text-[13px] font-bold">
+                    {% if form.non_field_errors %}
+                        {{ form.non_field_errors }}
+                    {% else %}
+                        تحقق من الحقول المطلوبة أدناه.
+                    {% endif %}
+                </div>
+                {% endif %}
                 <div class="flex flex-col gap-sm">
                     <label class="font-label-md text-label-md text-on-surface">{{ form.title.label }}</label>
                     {{ form.title }}
+                    {% if form.title.errors %}<p class="text-red-600 text-[12px] font-bold">{{ form.title.errors.0 }}</p>{% endif %}
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
                     <div class="flex flex-col gap-sm">
@@ -416,11 +426,13 @@
                     <div class="flex flex-col gap-sm">
                         <label class="font-label-md text-label-md text-on-surface">{{ form.assigned_to.label }}</label>
                         {{ form.assigned_to }}
+                        {% if form.assigned_to.errors %}<p class="text-red-600 text-[12px] font-bold">{{ form.assigned_to.errors.0 }}</p>{% endif %}
                     </div>
                 </div>
                 <div class="flex flex-col gap-sm">
                     <label class="font-label-md text-label-md text-on-surface">{{ form.branch.label }}</label>
                     {{ form.branch }}
+                    {% if form.branch.errors %}<p class="text-red-600 text-[12px] font-bold">{{ form.branch.errors.0 }}</p>{% endif %}
                 </div>
                 <div class="flex flex-col gap-sm">
                     <label class="font-label-md text-label-md text-on-surface">{{ form.description.label }}</label>
@@ -429,6 +441,8 @@
                 <div class="flex flex-col gap-sm">
                     <label class="font-label-md text-label-md text-on-surface">{{ form.due_at.label }}</label>
                     {{ form.due_at }}
+                    {% if form.due_at.help_text %}<p class="text-on-surface-variant text-[12px] font-semibold">{{ form.due_at.help_text }}</p>{% endif %}
+                    {% if form.due_at.errors %}<p class="text-red-600 text-[12px] font-bold">{{ form.due_at.errors.0 }}</p>{% endif %}
                 </div>
             </div>
             <div class="app-modal-foot">
@@ -450,6 +464,9 @@
     openBtn?.addEventListener('click', openModal);
     closeBtn?.addEventListener('click', closeModal);
     cancelBtn?.addEventListener('click', closeModal);
+    {% if open_new_task_modal %}
+    openModal();
+    {% endif %}
 })();
 </script>
 {% endif %}

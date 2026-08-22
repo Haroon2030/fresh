@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django import forms
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 from .models import ReturnRequest, SupplyOrder, Task
 
@@ -221,8 +224,11 @@ class TaskForm(forms.ModelForm):
             default = Branch.default_name()
             if default:
                 self.fields['branch'].initial = default
+            default_due = timezone.localtime() + timedelta(days=3)
+            self.fields['due_at'].initial = default_due.strftime('%Y-%m-%dT%H:%M')
 
         self.fields['due_at'].required = False
+        self.fields['due_at'].help_text = 'افتراضي بعد 3 أيام — يمكن تركه فارغاً.'
         self.fields['description'].label = 'الوصف'
         self.fields['priority'].label = 'الأولوية'
         self.fields['assigned_to'].label = 'تعيين للموظف'
@@ -237,3 +243,11 @@ class TaskForm(forms.ModelForm):
             current = (self.instance.title or '').strip()
         if current and current not in dict(self.TITLE_CHOICES):
             self.fields['title'].choices = list(self.TITLE_CHOICES) + [(current, current)]
+
+    def clean_due_at(self):
+        value = self.cleaned_data.get('due_at')
+        if value is None:
+            return value
+        if timezone.is_naive(value):
+            value = timezone.make_aware(value, timezone.get_current_timezone())
+        return value

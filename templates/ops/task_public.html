@@ -26,7 +26,10 @@
         {% if just_submitted %}
         <div class="m-4 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-emerald-800 font-bold flex items-center gap-2">
             <span class="material-symbols-outlined text-emerald-600">send</span>
-            تم إرسال ردك — بانتظار مراجعة مسؤول القسم
+            <div>
+                <p>تم إرسال ردك بنجاح.</p>
+                <p class="text-[13px] font-semibold mt-1 text-emerald-700">المهمة انتقلت لعمود «بانتظار المراجعة» — لم تُحذف. انتظر اعتماد المسؤول.</p>
+            </div>
         </div>
         {% elif task.status == 'done' %}
         <div class="m-4 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-emerald-800 font-bold flex items-center gap-2">
@@ -111,27 +114,47 @@
             </div>
 
             {% if can_respond %}
-            <form method="post" enctype="multipart/form-data" class="pt-2 space-y-3 border-t border-slate-100">
+            <form method="post" enctype="multipart/form-data" class="pt-2 space-y-3 border-t border-slate-100" id="taskResponseForm">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="submit_response">
                 <div>
                     <label class="text-[13px] font-extrabold text-slate-800">نص الرد</label>
-                    <textarea name="response_text" rows="4" required
+                    <textarea name="response_text" rows="4"
                               class="mt-1 w-full rounded-xl border border-sky-200 bg-white px-3 py-2.5 text-[15px] font-semibold focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-                              placeholder="اكتب ما تم إنجازه في الزيارة…">{{ task.response_text }}</textarea>
+                              placeholder="اكتب ما تم إنجازه في الزيارة… (أو أرفق صوراً فقط)">{{ task.response_text }}</textarea>
                 </div>
                 <div>
                     <label class="text-[13px] font-extrabold text-slate-800">صور من الموقع</label>
                     <input type="file" name="photos" accept="image/*" multiple capture="environment"
                            class="mt-1 block w-full text-[13px] font-semibold file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-sky-600 file:text-white">
-                    <p class="text-[11px] text-slate-500 mt-1 font-bold">يمكن اختيار عدة صور (حتى 8) — JPG/PNG</p>
+                    <p class="text-[11px] text-slate-500 mt-1 font-bold">يمكن إرسال صور فقط أو نص فقط — حتى 8 صور، 8MB لكل صورة</p>
                 </div>
-                <button type="submit"
-                        class="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[16px] flex items-center justify-center gap-2">
+                <button type="submit" id="taskSubmitBtn"
+                        class="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[16px] flex items-center justify-center gap-2 disabled:opacity-60">
                     <span class="material-symbols-outlined">send</span>
-                    إرسال الرد للمراجعة وإغلاق من طرفي
+                    <span id="taskSubmitLabel">إرسال الرد للمراجعة</span>
                 </button>
             </form>
+            <script>
+            (function () {
+                const form = document.getElementById('taskResponseForm');
+                const btn = document.getElementById('taskSubmitBtn');
+                const label = document.getElementById('taskSubmitLabel');
+                form?.addEventListener('submit', function (e) {
+                    const text = (form.response_text?.value || '').trim();
+                    const files = form.photos?.files?.length || 0;
+                    if (!text && !files) {
+                        e.preventDefault();
+                        alert('أدخل نص الرد أو اختر صورة واحدة على الأقل.');
+                        return;
+                    }
+                    if (btn) {
+                        btn.disabled = true;
+                        if (label) label.textContent = 'جاري الرفع…';
+                    }
+                });
+            })();
+            </script>
             {% endif %}
         </div>
     </div>
