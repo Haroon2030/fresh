@@ -603,6 +603,7 @@ class DailyOrder(models.Model):
     order_date = models.DateField(verbose_name='تاريخ الطلبية')
     item_number = models.CharField(max_length=100, blank=True, verbose_name='رقم الصنف')
     item_name = models.CharField(max_length=255, verbose_name='اسم الصنف')
+    package = models.CharField(max_length=50, blank=True, verbose_name='العبوة')
     quantity = models.PositiveIntegerField(default=1, verbose_name='الكمية')
     unit_price = models.DecimalField(
         max_digits=12,

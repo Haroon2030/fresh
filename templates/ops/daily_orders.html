@@ -37,6 +37,16 @@
         font: inherit;
         text-align: right;
     }
+    .excel-grid .cell-select {
+        width: 100%;
+        border: 0;
+        outline: none;
+        background: transparent;
+        padding: 8px 6px;
+        font: inherit;
+        text-align: right;
+        cursor: pointer;
+    }
     .excel-grid .cell-input:focus,
     .excel-grid .cell-select:focus {
         background: #eff6ff;
@@ -201,10 +211,9 @@
                     <thead>
                     <tr>
                         <th>#</th>
-                        <th>رقم الطلبية</th>
-                        <th>رقم الصنف</th>
                         <th>اسم الصنف</th>
-                        <th>الكمية</th>
+                        <th>العبوة</th>
+                        <th>رقم الصنف</th>
                         <th>الحالة</th>
                     </tr>
                     </thead>
@@ -212,10 +221,9 @@
                     {% for order in batch.items %}
                     <tr>
                         <td class="cell-center">{{ forloop.counter }}</td>
-                        <td dir="ltr">{{ order.order_number }}</td>
-                        <td dir="ltr">{{ order.item_number|default:"—" }}</td>
                         <td class="cell-strong">{{ order.item_name }}</td>
-                        <td class="cell-center">{{ order.quantity }}</td>
+                        <td class="cell-center">{{ order.package|default:"—" }}</td>
+                        <td dir="ltr">{{ order.item_number|default:"—" }}</td>
                         <td class="cell-center">
                             {% if order.status == 'approved' %}
                             <span class="status-chip status-ok">معتمد</span>
@@ -227,7 +235,7 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="6" class="empty-row">لا أصناف.</td></tr>
+                    <tr><td colspan="5" class="empty-row">لا أصناف.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
@@ -324,16 +332,16 @@
                         <thead>
                         <tr>
                             <th style="width:44px">#</th>
-                            <th>رقم الصنف</th>
                             <th>اسم الصنف</th>
-                            <th style="width:90px">الكمية</th>
+                            <th style="width:110px">العبوة</th>
+                            <th style="width:100px">رقم الصنف</th>
                             <th style="width:90px">إجراء</th>
                         </tr>
                         </thead>
                         <tbody id="orderRows"></tbody>
                     </table>
                 </div>
-                <p class="text-xs text-on-surface-variant font-bold m-0">أضف عدة صفوف ثم احفظ دفعة واحدة.</p>
+                <p class="text-xs text-on-surface-variant font-bold m-0">الأعمدة: اسم الصنف · العبوة · رقم الصنف — يمكن إضافة نفس الصنف بعبوات مختلفة.</p>
             </div>
             <div class="app-modal-foot">
                 <button type="button" class="btn-ghost-app"
@@ -351,7 +359,15 @@
     if (!tbody || !addBtn) return;
 
     let catalog = [];
+    let packageOptions = [];
     try { catalog = JSON.parse('{{ catalog_json|escapejs }}') || []; } catch (e) { catalog = []; }
+    try { packageOptions = JSON.parse('{{ package_choices_json|escapejs }}') || []; } catch (e) { packageOptions = []; }
+
+    function packageSelectHtml() {
+        const opts = ['<option value="">اختر...</option>']
+            .concat(packageOptions.map((p) => `<option value="${p}">${p}</option>`));
+        return `<select class="cell-input cell-select app-select" name="package" required>${opts.join('')}</select>`;
+    }
 
     function renumber() {
         tbody.querySelectorAll('tr').forEach((tr, i) => {
@@ -380,9 +396,9 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="row-num" data-row-num></td>
-            <td><input class="cell-input" name="item_number" type="text" list="catalogNumbers" placeholder="رقم الصنف" dir="ltr"></td>
             <td><input class="cell-input" name="item_name" type="text" list="catalogNames" required placeholder="اسم الصنف"></td>
-            <td><input class="cell-input num-entry" name="quantity" type="number" min="1" required placeholder="1"></td>
+            <td>${packageSelectHtml()}</td>
+            <td><input class="cell-input" name="item_number" type="text" list="catalogNumbers" placeholder="رقم الصنف" dir="ltr"></td>
             <td class="cell-action">
                 <div class="row-actions">
                     <button type="button" class="remove-row" title="حذف الصف">حذف</button>
@@ -396,7 +412,7 @@
         num?.addEventListener('change', () => fillFromCatalog(tr, true));
         num?.addEventListener('blur', () => fillFromCatalog(tr, true));
         name?.addEventListener('change', () => fillFromCatalog(tr, false));
-        if (num) num.focus();
+        if (name) name.focus();
     }
 
     addBtn.addEventListener('click', addRow);

@@ -16,6 +16,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
+from .daily_order_packages import DAILY_ORDER_PACKAGES
 from .forms import TaskForm
 from .models import (
     Branch,
@@ -1444,6 +1445,8 @@ def daily_orders_list(request):
         'suppliers': Supplier.active_names(),
         'catalog': catalog,
         'catalog_json': json.dumps(catalog, ensure_ascii=False),
+        'package_choices': DAILY_ORDER_PACKAGES,
+        'package_choices_json': json.dumps(DAILY_ORDER_PACKAGES, ensure_ascii=False),
         'active_nav': 'orders',
     })
 
@@ -1482,7 +1485,7 @@ def daily_order_create(request):
 
     item_names = request.POST.getlist('item_name')
     item_numbers = request.POST.getlist('item_number')
-    quantities = request.POST.getlist('quantity')
+    packages = request.POST.getlist('package')
 
     import secrets
     last_batch = (
@@ -1507,18 +1510,18 @@ def daily_order_create(request):
         item_name = (item_name or '').strip()
         if not item_name:
             continue
-        qty_raw = quantities[i] if i < len(quantities) else '1'
-        try:
-            quantity = max(1, int(qty_raw or 1))
-        except (TypeError, ValueError):
-            quantity = 1
+        package = (packages[i] if i < len(packages) else '').strip()
+        if not package:
+            messages.error(request, f'اختر العبوة للصنف «{item_name}».')
+            return redirect('ops:daily_orders')
         DailyOrder.objects.create(
             order_date=order_date,
             batch_number=batch_number,
             public_token=public_token,
             item_name=item_name,
             item_number=(item_numbers[i] if i < len(item_numbers) else '').strip(),
-            quantity=quantity,
+            package=package,
+            quantity=1,
             unit_price=Decimal('0'),
             representative=representative,
             branch=branch,
