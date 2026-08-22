@@ -8,7 +8,7 @@
     </div>
     <div class="task-col-body">
         {% for task in tasks %}
-        <article class="task-card {% if status_key == 'done' %}done{% endif %}">
+        <article class="task-card {% if status_key == 'done' %}done{% endif %}" data-open-task="{{ task.pk }}">
             <div class="task-card-top">
                 {% if task.priority == 'urgent' %}
                 <span class="task-prio urgent">عاجل</span>
@@ -39,34 +39,36 @@
             <p class="task-desc">{{ task.description }}</p>
             {% endif %}
 
+            {% with photos=task.response_photos.all %}
+            {% if photos %}
+            <div class="task-photo-hero" data-open-task="{{ task.pk }}">
+                <img src="{{ photos.0.image.url }}" alt="صورة الرد" loading="lazy">
+                {% if photos|length > 1 %}
+                <span class="task-photo-more">+{{ photos|length|add:"-1" }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
             {% if task.response_text %}
             <div class="task-reply">
                 <p class="lbl">رد الموظف</p>
                 <p class="txt">{{ task.response_text }}</p>
             </div>
             {% endif %}
-            {% if task.response_photos.exists %}
-            <div class="task-photos-wrap">
-                <p class="task-photos-lbl">
-                    <span class="material-symbols-outlined text-[14px]">photo_library</span>
-                    صور الرد ({{ task.response_photos.count }})
-                </p>
-                <div class="task-photos">
-                    {% for photo in task.response_photos.all %}
-                    <a href="{{ photo.image.url }}" target="_blank" rel="noopener" title="عرض الصورة">
-                        <img src="{{ photo.image.url }}" alt="صورة رد {{ forloop.counter }}" loading="lazy">
-                    </a>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
 
+            <div class="task-card-links">
             {% if task.public_token %}
             <a href="{% if public_base_url %}{{ public_base_url }}{% url 'ops:task_public' task.public_token %}{% else %}{% url 'ops:task_public' task.public_token %}{% endif %}" class="task-link" target="_blank" rel="noopener">
                 <span class="material-symbols-outlined text-[14px]">link</span>
                 رابط الرد
             </a>
             {% endif %}
+            <button type="button" class="task-link task-link-btn" data-open-task="{{ task.pk }}">
+                <span class="material-symbols-outlined text-[14px]">{% if task.response_photos.all %}photo_library{% else %}visibility{% endif %}</span>
+                {% if task.response_photos.all %}عرض الصور{% else %}عرض التفاصيل{% endif %}
+            </button>
+            </div>
 
             {% if user.is_manager and task.assigned_to and status_key != 'done' %}
             <form method="post" action="{% url 'ops:task_send_whatsapp' task.pk %}" class="task-actions" style="padding-top:4px;border-top:none">

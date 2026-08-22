@@ -1,0 +1,63 @@
+<div class="app-modal hidden task-detail-modal" id="taskModal-{{ task.pk }}">
+    <div class="app-modal-panel app-modal-panel--lg">
+        <div class="app-modal-head">
+            <div class="app-modal-head-main">
+                <h3>{{ task.title }}</h3>
+                <p class="app-modal-sub">
+                    {{ task.get_status_display }}
+                    {% if task.branch %} · {{ task.branch }}{% endif %}
+                    {% if task.assigned_to %} · {{ task.assigned_to.display_name }}{% endif %}
+                </p>
+            </div>
+            <div class="app-modal-head-actions">
+                {% if task.public_token %}
+                <a href="{% if public_base_url %}{{ public_base_url }}{% url 'ops:task_public' task.public_token %}{% else %}{% url 'ops:task_public' task.public_token %}{% endif %}"
+                   class="app-modal-head-btn" target="_blank" rel="noopener">
+                    <span class="material-symbols-outlined">link</span>
+                    رابط الرد
+                </a>
+                {% endif %}
+                <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-task="{{ task.pk }}">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+        </div>
+        <div class="app-modal-body flex flex-col gap-md">
+            {% if task.visit_details or task.description %}
+            <div class="task-modal-block">
+                <p class="task-modal-lbl">تفاصيل المهمة</p>
+                <p class="task-modal-txt">{{ task.visit_details|default:task.description }}</p>
+            </div>
+            {% endif %}
+
+            {% if task.response_text %}
+            <div class="task-modal-block task-modal-block--reply">
+                <p class="task-modal-lbl">رد الموظف</p>
+                <p class="task-modal-txt">{{ task.response_text }}</p>
+            </div>
+            {% endif %}
+
+            <div class="task-modal-block">
+                <p class="task-modal-lbl">
+                    <span class="material-symbols-outlined text-[16px]">photo_library</span>
+                    صور الرد
+                    {% if task.response_photos.all %}({{ task.response_photos.all|length }}){% endif %}
+                </p>
+                {% if task.response_photos.all %}
+                <div class="task-modal-photos">
+                    {% for photo in task.response_photos.all %}
+                    <a href="{{ photo.image.url }}" target="_blank" rel="noopener" class="task-modal-photo">
+                        <img src="{{ photo.image.url }}" alt="صورة {{ forloop.counter }}" loading="lazy">
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="task-modal-empty">لا توجد صور بعد — يرسلها الموظف عبر رابط الرد.</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="app-modal-foot">
+            <button type="button" class="btn-ghost-app" data-close-task="{{ task.pk }}">إغلاق</button>
+        </div>
+    </div>
+</div>

@@ -143,6 +143,7 @@
         flex-direction: column;
         gap: 8px;
         box-shadow: 0 1px 0 #f1f5f9;
+        cursor: pointer;
     }
     .task-card:hover {
         border-color: #93c5fd;
@@ -224,39 +225,93 @@
         -webkit-box-orient: vertical;
         overflow: hidden;
     }
-    .task-photos-wrap {
-        border: 1px solid #dbeafe;
-        background: #f0f9ff;
+    .task-photo-hero {
+        position: relative;
+        width: 100%;
+        height: 96px;
         border-radius: 8px;
-        padding: 8px;
+        overflow: hidden;
+        border: 1px solid #bae6fd;
+        background: #f0f9ff;
     }
-    .task-photos-lbl {
-        margin: 0 0 6px;
-        font-size: 10px;
+    .task-photo-hero img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+    .task-photo-more {
+        position: absolute;
+        bottom: 6px;
+        left: 6px;
+        background: #0f172acc;
+        color: #fff;
+        font-size: 11px;
         font-weight: 800;
-        color: #0369a1;
+        padding: 2px 8px;
+        border-radius: 999px;
+    }
+    .task-card-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .task-link-btn {
+        border: none;
+        cursor: pointer;
+        font: inherit;
+    }
+    .task-modal-block {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 12px;
+        background: #f8fafc;
+    }
+    .task-modal-block--reply {
+        background: #f0fdf4;
+        border-color: #bbf7d0;
+    }
+    .task-modal-lbl {
+        margin: 0 0 8px;
+        font-size: 12px;
+        font-weight: 800;
+        color: #334155;
         display: inline-flex;
         align-items: center;
         gap: 4px;
     }
-    .task-photos {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 6px;
+    .task-modal-txt {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: #0f172a;
+        white-space: pre-wrap;
+        line-height: 1.5;
     }
-    .task-photos a {
+    .task-modal-empty {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+        color: #64748b;
+    }
+    .task-modal-photos {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 10px;
+    }
+    .task-modal-photo {
         display: block;
         aspect-ratio: 1;
+        border-radius: 10px;
         overflow: hidden;
-        border-radius: 8px;
         border: 1px solid #bae6fd;
         background: #fff;
     }
-    .task-photos a:hover {
+    .task-modal-photo:hover {
         border-color: #0284c7;
-        box-shadow: 0 2px 6px #0284c733;
+        box-shadow: 0 4px 12px #0284c733;
     }
-    .task-photos img {
+    .task-modal-photo img {
         width: 100%;
         height: 100%;
         object-fit: cover;
@@ -496,4 +551,39 @@
 })();
 </script>
 {% endif %}
+
+{% for task in task_items %}
+{% include "ops/_task_detail_modal.html" with task=task %}
+{% endfor %}
+
+<script>
+(function () {
+    function openTask(id) {
+        const modal = document.getElementById('taskModal-' + id);
+        if (modal) modal.classList.remove('hidden');
+    }
+    function closeTask(id) {
+        const modal = document.getElementById('taskModal-' + id);
+        if (modal) modal.classList.add('hidden');
+    }
+    document.addEventListener('click', (e) => {
+        const closeBtn = e.target.closest('[data-close-task]');
+        if (closeBtn) {
+            closeTask(closeBtn.getAttribute('data-close-task'));
+            return;
+        }
+        if (e.target.classList.contains('task-detail-modal')) {
+            e.target.classList.add('hidden');
+            return;
+        }
+        if (e.target.closest('form, button[type=submit], textarea, input, select, a.task-link:not(.task-link-btn)')) {
+            return;
+        }
+        const openBtn = e.target.closest('[data-open-task]');
+        if (openBtn) {
+            openTask(openBtn.getAttribute('data-open-task'));
+        }
+    });
+})();
+</script>
 {% endblock %}

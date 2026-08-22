@@ -1774,6 +1774,7 @@ def _tasks_board_context(request, form=None, q=None, open_new_task_modal=False):
         form = TaskForm()
     return {
         'columns': columns,
+        'task_items': qs,
         'form': form,
         'q': q,
         'active_nav': 'tasks',
