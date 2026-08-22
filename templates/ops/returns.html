@@ -38,7 +38,7 @@
                 <col style="width:130px">
                 <col style="width:110px">
                 <col style="width:80px">
-                <col style="width:220px">
+                <col style="width:320px">
             </colgroup>
             <thead>
             <tr>
@@ -74,12 +74,41 @@
                 <td class="cell-center cell-strong">{{ batch.items.all|length }}</td>
                 <td class="cell-action" onclick="event.stopPropagation()">
                     <div class="flex flex-wrap gap-1 justify-center">
-                        <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="act-btn act-ok" title="تحميل ملف PDF">PDF</a>
-                        <button type="button" class="act-btn act-ok" data-open-batch="{{ batch.pk }}">عرض الأصناف</button>
+                        <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="act-btn act-pdf" title="تحميل ملف PDF">PDF</a>
+                        <button type="button" class="act-btn act-view" data-open-batch="{{ batch.pk }}">عرض</button>
+                        {% for item in batch.items.all %}
+                        {% if item.status == 'pending' %}
+                            {% if item.rep_decision == 'pending' %}
+                                {% if user.is_manager or item.representative_id == user.id %}
+                                <form method="post" action="{% url 'ops:return_authorize' item.pk %}" class="inline"
+                                      onsubmit="return confirm('تعميد «{{ item.item_name }}»؟');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-approve" title="{{ item.item_name }}">تعميد</button>
+                                </form>
+                                <form method="post" action="{% url 'ops:return_rep_reject' item.pk %}" class="inline"
+                                      onsubmit="return confirm('رفض «{{ item.item_name }}»؟');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-reject" title="{{ item.item_name }}">رفض</button>
+                                </form>
+                                {% endif %}
+                            {% elif user.is_manager and item.rep_decision == 'authorized' %}
+                                <form method="post" action="{% url 'ops:return_accept' item.pk %}" class="inline"
+                                      onsubmit="return confirm('قبول «{{ item.item_name }}»؟');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-approve" title="{{ item.item_name }}">قبول</button>
+                                </form>
+                                <form method="post" action="{% url 'ops:return_reject' item.pk %}" class="inline"
+                                      onsubmit="return confirm('رفض «{{ item.item_name }}»؟');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-delete" title="{{ item.item_name }}">رفض</button>
+                                </form>
+                            {% endif %}
+                        {% endif %}
+                        {% endfor %}
                         <form method="post" action="{% url 'ops:return_batch_delete' batch.pk %}" class="inline"
                               onsubmit="return confirm('حذف المرتجع {{ batch.return_number }} وجميع أصنافه؟ لا يمكن التراجع.');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-bad" title="حذف المرتجع">حذف</button>
+                            <button type="submit" class="act-btn act-delete" title="حذف الملف">حذف</button>
                         </form>
                     </div>
                 </td>
@@ -235,9 +264,7 @@
                         <col style="width:90px">
                         <col style="width:70px">
                         <col style="width:110px">
-                        <col style="width:140px">
-                        <col style="width:100px">
-                        <col style="width:150px">
+                        <col style="width:180px">
                     </colgroup>
                     <thead>
                     <tr>
@@ -249,8 +276,6 @@
                         <th>الكمية</th>
                         <th>النوع</th>
                         <th>سبب الإرجاع</th>
-                        <th>الحالة</th>
-                        <th>إجراءات</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -286,40 +311,10 @@
                             </select>
                         </td>
                         <td>
-                            <input class="cell-input" form="edit-item-{{ item.pk }}" name="reason"
-                                   value="{{ item.reason|default:'' }}" required title="{{ item.reason }}">
-                        </td>
-                        <td class="cell-center cell-pad">
-                            {% if item.rep_decision == 'pending' %}
-                            <span class="status-chip status-wait">بانتظار التعميد</span>
-                            {% elif item.rep_decision == 'authorized' %}
-                            <span class="status-chip status-ok">معتمد</span>
-                            {% else %}
-                            <span class="status-chip status-bad">مرفوض</span>
-                            {% endif %}
-                        </td>
-                        <td class="cell-action">
-                            <div class="row-actions" style="flex-wrap:wrap">
-                                <button type="submit" form="edit-item-{{ item.pk }}" class="edit-row">حفظ</button>
-                                {% if item.rep_decision == 'pending' %}
-                                <form method="post" action="{% url 'ops:return_authorize' item.pk %}">
-                                    {% csrf_token %}
-                                    <button type="submit" class="act-btn act-ok">تعميد</button>
-                                </form>
-                                <form method="post" action="{% url 'ops:return_rep_reject' item.pk %}">
-                                    {% csrf_token %}
-                                    <button type="submit" class="act-btn act-bad">رفض</button>
-                                </form>
-                                {% elif user.is_manager and item.rep_decision == 'authorized' %}
-                                <form method="post" action="{% url 'ops:return_accept' item.pk %}">
-                                    {% csrf_token %}
-                                    <button type="submit" class="act-btn act-ok">قبول</button>
-                                </form>
-                                <form method="post" action="{% url 'ops:return_reject' item.pk %}">
-                                    {% csrf_token %}
-                                    <button type="submit" class="act-btn act-bad">رفض</button>
-                                </form>
-                                {% endif %}
+                            <div class="flex gap-1 items-center min-w-0">
+                                <input class="cell-input flex-1 min-w-0" form="edit-item-{{ item.pk }}" name="reason"
+                                       value="{{ item.reason|default:'' }}" required title="{{ item.reason }}">
+                                <button type="submit" form="edit-item-{{ item.pk }}" class="edit-row shrink-0">حفظ</button>
                             </div>
                         </td>
                     </tr>
@@ -333,37 +328,10 @@
                         <td class="cell-pad cell-center">{{ item.quantity }}</td>
                         <td class="cell-pad cell-text">{{ item.get_return_type_display }}</td>
                         <td class="cell-pad cell-text cell-reason" title="{{ item.reason }}">{{ item.reason }}</td>
-                        <td class="cell-center cell-pad">
-                            {% if item.status == 'accepted' %}
-                            <span class="status-chip status-ok">مقبول</span>
-                            {% elif item.status == 'rejected' %}
-                            <span class="status-chip status-bad">مرفوض</span>
-                            {% elif item.rep_decision == 'authorized' %}
-                            <span class="status-chip status-ok">معتمد</span>
-                            {% else %}
-                            <span class="status-chip status-wait">بانتظار</span>
-                            {% endif %}
-                        </td>
-                        <td class="cell-action">
-                            {% if user.is_manager and item.status == 'pending' and item.rep_decision == 'authorized' %}
-                            <div class="row-actions">
-                                <form method="post" action="{% url 'ops:return_accept' item.pk %}">
-                                    {% csrf_token %}
-                                    <button type="submit" class="act-btn act-ok">قبول</button>
-                                </form>
-                                <form method="post" action="{% url 'ops:return_reject' item.pk %}">
-                                    {% csrf_token %}
-                                    <button type="submit" class="act-btn act-bad">رفض</button>
-                                </form>
-                            </div>
-                            {% else %}
-                            <span class="act-muted">—</span>
-                            {% endif %}
-                        </td>
                     </tr>
                     {% endif %}
                     {% empty %}
-                    <tr><td colspan="10" class="empty-row">لا توجد أصناف في هذا الملف.</td></tr>
+                    <tr><td colspan="8" class="empty-row">لا توجد أصناف في هذا الملف.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>

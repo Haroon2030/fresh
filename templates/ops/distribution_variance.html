@@ -78,6 +78,22 @@
                 <td class="cell-center" onclick="event.stopPropagation()">
                     <div class="flex flex-wrap gap-1 justify-center">
                         <button type="button" class="act-btn act-view" data-open-batch="{{ batch.seed_pk }}">عرض</button>
+                        {% if can_authorize %}
+                        {% for row in batch.items %}
+                        {% if row.status == 'pending' %}
+                        <form method="post" action="{% url 'ops:distribution_variance_authorize' row.pk %}" class="inline"
+                              onsubmit="return confirm('تعميد «{{ row.item_name }}» وإرسال إشعار للمورد؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-approve" title="{{ row.item_name }}">تعميد</button>
+                        </form>
+                        <form method="post" action="{% url 'ops:distribution_variance_reject' row.pk %}" class="inline"
+                              onsubmit="return confirm('رفض «{{ row.item_name }}»؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-reject" title="{{ row.item_name }}">رفض</button>
+                        </form>
+                        {% endif %}
+                        {% endfor %}
+                        {% endif %}
                         {% if user.is_manager or batch.created_by.id == user.id %}
                         <form method="post" action="{% url 'ops:distribution_variance_delete' batch.seed_pk %}" class="inline"
                               onsubmit="return confirm('حذف ملف {{ batch.batch_number }}؟');">
@@ -125,8 +141,6 @@
                         <th>الكمية</th>
                         <th>الفرع</th>
                         <th>المورد</th>
-                        <th>الحالة</th>
-                        <th>إجراء</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -144,34 +158,9 @@
                         <td class="cell-center cell-strong">{{ row.quantity }}</td>
                         <td>{{ row.branch }}</td>
                         <td>{{ row.supplier }}</td>
-                        <td class="cell-center">
-                            {% if row.status == 'authorized' %}
-                            <span class="status-chip status-ok">معتمد</span>
-                            {% elif row.status == 'rejected' %}
-                            <span class="status-chip status-bad">مرفوض</span>
-                            {% else %}
-                            <span class="status-chip status-pending">بانتظار</span>
-                            {% endif %}
-                        </td>
-                        <td class="cell-center">
-                            {% if can_authorize and row.status == 'pending' %}
-                            <div class="flex flex-wrap gap-1 justify-center">
-                                <form method="post" action="{% url 'ops:distribution_variance_authorize' row.pk %}" class="inline"
-                                      onsubmit="return confirm('تعميد وإرسال إشعار للمورد؟');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="act-btn act-approve">تعميد</button>
-                                </form>
-                                <form method="post" action="{% url 'ops:distribution_variance_reject' row.pk %}" class="inline"
-                                      onsubmit="return confirm('رفض هذا السجل؟');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="act-btn act-reject">رفض</button>
-                                </form>
-                            </div>
-                            {% else %}—{% endif %}
-                        </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="8" class="empty-row">لا سجلات.</td></tr>
+                    <tr><td colspan="6" class="empty-row">لا سجلات.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
