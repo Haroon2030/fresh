@@ -532,26 +532,39 @@ def recreate_instance() -> dict:
 
 def to_whatsapp_clickable_url(url: str) -> str:
     """
-    Normalize public links to PUBLIC_BASE_URL (IP) so the reply page opens in the browser.
-    sslip.io was used for WhatsApp linkify but broke ALLOWED_HOSTS on some deploys.
+    For WhatsApp: sslip.io hostname so the link is tappable (raw IP stays plain text).
+    ALLOWED_HOSTS/CSRF already include the sslip alias — page opens normally.
     """
+    import re
     from django.conf import settings
-    from urllib.parse import urlparse
+    from urllib.parse import urlparse, urlunparse
 
     raw = (url or "").strip()
     if not raw:
         return raw
+
     base = (getattr(settings, "PUBLIC_BASE_URL", "") or "").strip().rstrip("/")
-    if not base:
-        return raw
-    path = urlparse(raw).path or ""
-    if not path:
-        return raw
-    query = urlparse(raw).query
-    out = f"{base}{path}"
-    if query:
-        out = f"{out}?{query}"
-    return out
+    parsed = urlparse(raw)
+    path = parsed.path or ""
+    if base and path:
+        parsed = urlparse(f"{base}{path}")
+
+    host = (parsed.hostname or "").strip()
+    match = re.fullmatch(r"(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})", host)
+    if match:
+        sslip_host = "-".join(match.groups()) + ".sslip.io"
+        port = parsed.port
+        netloc = f"{sslip_host}:{port}" if port else sslip_host
+        return urlunparse(
+            (parsed.scheme or "http", netloc, parsed.path, "", parsed.query, "")
+        )
+
+    if base and path:
+        out = f"{base}{path}"
+        if parsed.query:
+            out = f"{out}?{parsed.query}"
+        return out
+    return raw
 
 
 def send_url_button(
@@ -623,11 +636,11 @@ def send_clickable_link(
     sent = False
 
     if detail:
-        sent = send_text(phone, detail) or sent
+        hint = f"{detail}\n\n⬇️ اضغط الرابط في الرسالة التالية"
+        sent = send_text(phone, hint) or sent
 
-    # الرابط الرسمي (IP) — يفتح صفحة الرد في المتصفح
-    link_body = f"{button_text}:\n{link}"
-    if send_text(phone, link_body, link_preview=True):
+    # الرابط وحده في رسالة مستقلة — أوضح للنقر في واتساب
+    if send_text(phone, link, link_preview=True):
         sent = True
 
     if not sent:

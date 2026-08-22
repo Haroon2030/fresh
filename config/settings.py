@@ -233,11 +233,16 @@ def _public_url_origins(base_url: str) -> list[str]:
 
 
 _allowed_hosts = env_list("ALLOWED_HOSTS", "*")
-if "*" not in _allowed_hosts:
-    for _host in _public_url_hosts(PUBLIC_BASE_URL):
-        if _host not in _allowed_hosts:
-            _allowed_hosts.append(_host)
-ALLOWED_HOSTS = _allowed_hosts
+_public_hosts = _public_url_hosts(PUBLIC_BASE_URL)
+if "*" in _allowed_hosts and not DEBUG:
+    # DEBUG=False: * لا يكفي — أضف IP و sslip صراحةً
+    ALLOWED_HOSTS = list(dict.fromkeys(_public_hosts + ["localhost", "127.0.0.1"]))
+else:
+    if "*" not in _allowed_hosts:
+        for _host in _public_hosts:
+            if _host not in _allowed_hosts:
+                _allowed_hosts.append(_host)
+    ALLOWED_HOSTS = _allowed_hosts
 
 _csrf_origins = env_list("CSRF_TRUSTED_ORIGINS", "")
 for _origin in _public_url_origins(PUBLIC_BASE_URL):
