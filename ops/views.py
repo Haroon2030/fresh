@@ -46,7 +46,11 @@ from .notify_ops import (
     schedule_daily_distribution_notify,
     schedule_daily_order_approved,
     schedule_return_authorized,
+    schedule_return_batch_rep_decision,
     schedule_return_notify,
+    schedule_return_ops_batch_decision,
+    schedule_return_rep_rejected,
+    schedule_supply_batch_status,
     schedule_supply_notify,
     schedule_task_assigned,
     schedule_task_review_result,
@@ -352,6 +356,8 @@ def supply_create(request):
     else:
         batch_seq = (SupplyOrder.objects.aggregate(Max('id'))['id__max'] or 0) + 1
     batch_number = f'#SUPB-{batch_seq:04d}'
+    import secrets
+    batch_token = secrets.token_urlsafe(24)
 
     created = []
     for i, item_name in enumerate(item_names):
@@ -376,6 +382,7 @@ def supply_create(request):
             supplier=supplier,
             expected_date=expected_raw,
             created_by=request.user,
+            public_token=batch_token,
         )
         order.save()
         created.append(order)
@@ -414,12 +421,7 @@ def supply_complete(request, pk):
     qs.update(status=SupplyOrder.Status.COMPLETED, reviewed_by=request.user, updated_at=timezone.now())
     ref = seed.batch_number or seed.order_number
     messages.success(request, f'تم إكمال ملف التوريد {ref} ({count} صنف).')
-    notify_roles(
-        'اكتمال توريد',
-        f'{ref}\n'
-        f'الأصناف: {count}\n'
-        f'بواسطة: {request.user.display_name}',
-    )
+    schedule_supply_batch_status(seed.pk, request.user.pk, 'completed')
     return redirect('ops:supply')
 
 
@@ -435,12 +437,7 @@ def supply_reject(request, pk):
     qs.update(status=SupplyOrder.Status.REJECTED, reviewed_by=request.user, updated_at=timezone.now())
     ref = seed.batch_number or seed.order_number
     messages.success(request, f'تم رفض ملف التوريد {ref} ({count} صنف).')
-    notify_roles(
-        'رفض توريد',
-        f'{ref}\n'
-        f'الأصناف: {count}\n'
-        f'بواسطة: {request.user.display_name}',
-    )
+    schedule_supply_batch_status(seed.pk, request.user.pk, 'rejected')
     return redirect('ops:supply')
 
 
@@ -565,6 +562,8 @@ def daily_distribution_create(request):
     else:
         batch_seq = (DailySupplyDistribution.objects.aggregate(Max('id'))['id__max'] or 0) + 1
     batch_number = f'#DIST-{batch_seq:04d}'
+    import secrets
+    batch_token = secrets.token_urlsafe(24)
 
     created_ids = []
     for i, item_name in enumerate(item_names):
@@ -589,6 +588,7 @@ def daily_distribution_create(request):
             quantity=quantity,
             notes=(notes_list[i] if i < len(notes_list) else '').strip(),
             created_by=request.user,
+            public_token=batch_token,
         )
         created_ids.append(row.pk)
 
@@ -740,6 +740,8 @@ def distribution_variance_create(request):
     else:
         batch_seq = (DistributionVariance.objects.aggregate(Max('id'))['id__max'] or 0) + 1
     batch_number = f'#VAR-{batch_seq:04d}'
+    import secrets
+    batch_token = secrets.token_urlsafe(24)
 
     created_ids = []
     for i, item_name in enumerate(item_names):
@@ -774,6 +776,7 @@ def distribution_variance_create(request):
             supplier=supplier,
             notes=(notes_list[i] if i < len(notes_list) else '').strip(),
             created_by=request.user,
+            public_token=batch_token,
         )
         created_ids.append(row.pk)
 
@@ -1041,6 +1044,57 @@ def return_batch_pdf_public(request, token):
     return _pdf_http_response(pdf_bytes, filename)
 
 
+@require_http_methods(['GET'])
+def supply_batch_pdf_public(request, token):
+    orders = list(
+        SupplyOrder.objects.select_related('representative', 'created_by')
+        .filter(public_token=token)
+        .order_by('pk')
+    )
+    if not orders:
+        return HttpResponse('غير موجود', status=404)
+    try:
+        from .pdf_docs import build_supply_orders_pdf
+        pdf_bytes, filename = build_supply_orders_pdf(orders, actor=orders[0].created_by)
+    except Exception:
+        return HttpResponse('تعذّر إنشاء الملف', status=500)
+    return _pdf_http_response(pdf_bytes, filename)
+
+
+@require_http_methods(['GET'])
+def distribution_batch_pdf_public(request, token):
+    rows = list(
+        DailySupplyDistribution.objects.select_related('created_by')
+        .filter(public_token=token)
+        .order_by('pk')
+    )
+    if not rows:
+        return HttpResponse('غير موجود', status=404)
+    try:
+        from .pdf_docs import build_distribution_batch_pdf
+        pdf_bytes, filename = build_distribution_batch_pdf(rows, actor=rows[0].created_by)
+    except Exception:
+        return HttpResponse('تعذّر إنشاء الملف', status=500)
+    return _pdf_http_response(pdf_bytes, filename)
+
+
+@require_http_methods(['GET'])
+def variance_batch_pdf_public(request, token):
+    rows = list(
+        DistributionVariance.objects.select_related('created_by')
+        .filter(public_token=token)
+        .order_by('pk')
+    )
+    if not rows:
+        return HttpResponse('غير موجود', status=404)
+    try:
+        from .pdf_docs import build_variance_batch_pdf
+        pdf_bytes, filename = build_variance_batch_pdf(rows, actor=rows[0].created_by)
+    except Exception:
+        return HttpResponse('تعذّر إنشاء الملف', status=500)
+    return _pdf_http_response(pdf_bytes, filename)
+
+
 @login_required
 @require_POST
 def return_batch_delete(request, pk):
@@ -1120,7 +1174,7 @@ def return_rep_authorize(request, pk):
     ret.save(update_fields=['rep_decision', 'rep_decided_by', 'rep_decided_at', 'updated_at'])
     messages.success(request, f'تم تعميد الصنف «{ret.item_name}».')
     schedule_return_authorized(ret.pk, request.user.pk)
-    messages.info(request, 'جاري إشعار المحاسب والمستلم والعمليات عبر واتساب.')
+    messages.info(request, 'جاري إشعار المستلم والمحاسب والعمليات ورئيس القسم عبر واتساب.')
     return _redirect_returns(ret.batch_id)
 
 
@@ -1149,12 +1203,112 @@ def return_rep_reject(request, pk):
         'status', 'reviewed_by', 'updated_at',
     ])
     messages.success(request, f'تم رفض الصنف «{ret.item_name}» من المندوب.')
-    notify_roles(
-        'رفض مرتجع (مندوب)',
-        f'{ret.return_number or (ret.batch.return_number if ret.batch_id else "")} — {ret.item_name}\n'
-        f'بواسطة: {request.user.display_name}',
-    )
+    schedule_return_rep_rejected(ret.pk, request.user.pk)
+    messages.info(request, 'جاري إشعار المستلم والمحاسب والعمليات ورئيس القسم عبر واتساب.')
     return _redirect_returns(ret.batch_id)
+
+
+@login_required
+@require_POST
+def return_batch_authorize(request, pk):
+    batch = get_object_or_404(_return_batch_queryset(request.user), pk=pk)
+    if not batch.user_can_rep_decide(request.user):
+        messages.error(request, 'لا يمكنك تعميد هذا الملف.')
+        return _redirect_returns(batch.pk)
+
+    items = list(batch.rep_pending_items())
+    if not items:
+        messages.error(request, 'لا توجد أصناف بانتظار التعميد.')
+        return _redirect_returns(batch.pk)
+
+    now = timezone.now()
+    item_ids = []
+    for ret in items:
+        ret.rep_decision = ReturnRequest.RepDecision.AUTHORIZED
+        ret.rep_decided_by = request.user
+        ret.rep_decided_at = now
+        ret.save(update_fields=['rep_decision', 'rep_decided_by', 'rep_decided_at', 'updated_at'])
+        item_ids.append(ret.pk)
+
+    messages.success(request, f'تم تعميد {len(items)} صنف في {batch.return_number}.')
+    schedule_return_batch_rep_decision(batch.pk, request.user.pk, 'authorized', item_ids)
+    messages.info(request, 'جاري إرسال PDF وإشعار المستلم والمحاسب والعمليات ورئيس القسم.')
+    return _redirect_returns(batch.pk)
+
+
+@login_required
+@require_POST
+def return_batch_rep_reject(request, pk):
+    batch = get_object_or_404(_return_batch_queryset(request.user), pk=pk)
+    if not batch.user_can_rep_decide(request.user):
+        messages.error(request, 'لا يمكنك رفض هذا الملف.')
+        return _redirect_returns(batch.pk)
+
+    items = list(batch.rep_pending_items())
+    if not items:
+        messages.error(request, 'لا توجد أصناف بانتظار القرار.')
+        return _redirect_returns(batch.pk)
+
+    now = timezone.now()
+    item_ids = []
+    for ret in items:
+        ret.rep_decision = ReturnRequest.RepDecision.REJECTED
+        ret.rep_decided_by = request.user
+        ret.rep_decided_at = now
+        ret.status = ReturnRequest.Status.REJECTED
+        ret.reviewed_by = request.user
+        ret.save(update_fields=[
+            'rep_decision', 'rep_decided_by', 'rep_decided_at',
+            'status', 'reviewed_by', 'updated_at',
+        ])
+        item_ids.append(ret.pk)
+
+    messages.success(request, f'تم رفض {len(items)} صنف في {batch.return_number}.')
+    schedule_return_batch_rep_decision(batch.pk, request.user.pk, 'rejected', item_ids)
+    messages.info(request, 'جاري إرسال PDF وإشعار المستلم والمحاسب والعمليات ورئيس القسم.')
+    return _redirect_returns(batch.pk)
+
+
+@manager_required
+@require_POST
+def return_batch_accept(request, pk):
+    batch = get_object_or_404(_return_batch_queryset(request.user), pk=pk)
+    items = list(batch.ops_pending_items())
+    if not items:
+        messages.error(request, 'لا توجد أصناف معمّدة بانتظار اعتماد العمليات.')
+        return _redirect_returns(batch.pk)
+
+    for ret in items:
+        ret.status = ReturnRequest.Status.ACCEPTED
+        ret.reviewed_by = request.user
+        ret.save(update_fields=['status', 'reviewed_by', 'updated_at'])
+
+    messages.success(request, f'تم اعتماد {len(items)} صنف في {batch.return_number}.')
+    schedule_return_ops_batch_decision(
+        batch.pk, request.user.pk, 'accepted', [r.pk for r in items]
+    )
+    return _redirect_returns(batch.pk)
+
+
+@manager_required
+@require_POST
+def return_batch_ops_reject(request, pk):
+    batch = get_object_or_404(_return_batch_queryset(request.user), pk=pk)
+    items = list(batch.ops_pending_items())
+    if not items:
+        messages.error(request, 'لا توجد أصناف بانتظار الرفض.')
+        return _redirect_returns(batch.pk)
+
+    for ret in items:
+        ret.status = ReturnRequest.Status.REJECTED
+        ret.reviewed_by = request.user
+        ret.save(update_fields=['status', 'reviewed_by', 'updated_at'])
+
+    messages.success(request, f'تم رفض {len(items)} صنف في {batch.return_number}.')
+    schedule_return_ops_batch_decision(
+        batch.pk, request.user.pk, 'rejected', [r.pk for r in items]
+    )
+    return _redirect_returns(batch.pk)
 
 
 @manager_required
@@ -1659,7 +1813,7 @@ def task_create(request):
             request,
             'تم إنشاء المهمة وإرسال رابط الرد للموظف عبر واتساب إن وُجد الرقم.',
         )
-        schedule_task_assigned(task.pk)
+        schedule_task_assigned(task.pk, public_link=_public_task_url(task, request=request))
         notify_roles(
             'مهمة جديدة',
             f'{task.title}\n'

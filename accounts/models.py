@@ -26,11 +26,12 @@ class User(AbstractUser):
         Role.RECEIVER,
     }
 
-    # أدوار تستلم إشعار تعميد المندوب للمرتجعات
+    # بعد تعميد/رفض المندوب → المستلم، المحاسب، العمليات، رئيس القسم
     RETURN_AUTHORIZE_NOTIFY_ROLES = {
         Role.MANAGER,       # العمليات
         Role.ACCOUNTANT,    # المحاسب
         Role.RECEIVER,      # المستلم
+        Role.DEPT_MANAGER,  # رئيس القسم
     }
 
     role = models.CharField(

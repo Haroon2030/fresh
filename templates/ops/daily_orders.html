@@ -179,19 +179,25 @@
 <div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.seed_pk }}">
     <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
-            <div>
+            <div class="app-modal-head-main">
                 <h3>أصناف الملف {{ batch.batch_number }}</h3>
-                <p class="text-xs text-on-surface-variant font-bold m-0 mt-1">
+                <p class="app-modal-sub">
                     {{ batch.representative.display_name }} · {{ batch.branch }} · {{ batch.supplier|default:"—" }} · {{ batch.order_date|date:"Y/m/d" }}
                 </p>
             </div>
-            <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch="{{ batch.seed_pk }}">
-                <span class="material-symbols-outlined">close</span>
-            </button>
+            <div class="app-modal-head-actions">
+                <a href="{% url 'ops:daily_order_batch_pdf' batch.seed_pk %}" class="app-modal-head-btn">
+                    <span class="material-symbols-outlined">download</span>
+                    تحميل PDF
+                </a>
+                <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch="{{ batch.seed_pk }}">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
         </div>
-        <div class="p-lg overflow-y-auto">
-            <div class="app-table-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
-                <table class="excel-grid app-data-grid w-full">
+        <div class="app-modal-body">
+            <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+                <table class="excel-grid batch-detail-grid w-full">
                     <thead>
                     <tr>
                         <th>#</th>
@@ -231,10 +237,8 @@
                 </table>
             </div>
         </div>
-        <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
-            <a href="{% url 'ops:daily_order_batch_pdf' batch.seed_pk %}" class="act-btn act-pdf">PDF</a>
-            <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md"
-                    data-close-batch="{{ batch.seed_pk }}">إغلاق</button>
+        <div class="app-modal-foot">
+            <button type="button" class="btn-ghost-app" data-close-batch="{{ batch.seed_pk }}">إغلاق</button>
         </div>
     </div>
 </div>
@@ -243,15 +247,19 @@
 <div class="app-modal hidden" id="newOrderModal">
     <div class="app-modal-panel app-modal-panel--lg">
         <div class="app-modal-head">
-            <h3>طلبية يومية جديدة</h3>
-            <button type="button" class="app-modal-close" aria-label="إغلاق"
-                    onclick="document.getElementById('newOrderModal').classList.add('hidden')">
-                <span class="material-symbols-outlined">close</span>
-            </button>
+            <div class="app-modal-head-main">
+                <h3>طلبية يومية جديدة</h3>
+            </div>
+            <div class="app-modal-head-actions">
+                <button type="button" class="app-modal-close" aria-label="إغلاق"
+                        onclick="document.getElementById('newOrderModal').classList.add('hidden')">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
         </div>
         <form method="post" action="{% url 'ops:daily_order_create' %}" class="flex flex-col overflow-hidden" id="orderMultiForm">
             {% csrf_token %}
-            <div class="p-lg overflow-y-auto flex flex-col gap-md">
+            <div class="app-modal-body flex flex-col gap-md">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
                     {% if user.is_representative %}
                     <input type="hidden" name="representative" value="{{ user.pk }}">
@@ -332,10 +340,10 @@
                 </div>
                 <p class="text-xs text-on-surface-variant font-bold m-0">أضف عدة صفوف ثم احفظ دفعة واحدة. السعر مطلوب لكل صف.</p>
             </div>
-            <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
-                <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md"
+            <div class="app-modal-foot">
+                <button type="button" class="btn-ghost-app"
                         onclick="document.getElementById('newOrderModal').classList.add('hidden')">إلغاء</button>
-                <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md">حفظ</button>
+                <button type="submit" class="btn-primary-app">حفظ</button>
             </div>
         </form>
     </div>

@@ -74,42 +74,39 @@
                 <td class="cell-center cell-strong">{{ batch.items.all|length }}</td>
                 <td class="cell-action" onclick="event.stopPropagation()">
                     <div class="flex flex-wrap gap-1 justify-center">
-                        <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="act-btn act-pdf" title="تحميل ملف PDF">PDF</a>
-                        <button type="button" class="act-btn act-view" data-open-batch="{{ batch.pk }}">عرض</button>
-                        {% for item in batch.items.all %}
-                        {% if item.status == 'pending' %}
-                            {% if item.rep_decision == 'pending' %}
-                                {% if user.is_manager or item.representative_id == user.id %}
-                                <form method="post" action="{% url 'ops:return_authorize' item.pk %}" class="inline"
-                                      onsubmit="return confirm('تعميد «{{ item.item_name }}»؟');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="act-btn act-approve" title="{{ item.item_name }}">تعميد</button>
-                                </form>
-                                <form method="post" action="{% url 'ops:return_rep_reject' item.pk %}" class="inline"
-                                      onsubmit="return confirm('رفض «{{ item.item_name }}»؟');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="act-btn act-reject" title="{{ item.item_name }}">رفض</button>
-                                </form>
-                                {% endif %}
-                            {% elif user.is_manager and item.rep_decision == 'authorized' %}
-                                <form method="post" action="{% url 'ops:return_accept' item.pk %}" class="inline"
-                                      onsubmit="return confirm('قبول «{{ item.item_name }}»؟');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="act-btn act-approve" title="{{ item.item_name }}">قبول</button>
-                                </form>
-                                <form method="post" action="{% url 'ops:return_reject' item.pk %}" class="inline"
-                                      onsubmit="return confirm('رفض «{{ item.item_name }}»؟');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="act-btn act-delete" title="{{ item.item_name }}">رفض</button>
-                                </form>
+                        <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="act-btn act-pdf" title="تحميل PDF">تحميل</a>
+                        {% if batch.rep_pending_items.exists %}
+                            {% if user.is_manager or batch.representative_id == user.id %}
+                        <form method="post" action="{% url 'ops:return_batch_authorize' batch.pk %}" class="inline"
+                              onsubmit="return confirm('تعميد كل الأصناف في {{ batch.return_number }}؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-approve" title="تعميد الملف">تعميد</button>
+                        </form>
+                        <form method="post" action="{% url 'ops:return_batch_rep_reject' batch.pk %}" class="inline"
+                              onsubmit="return confirm('رفض كل الأصناف في {{ batch.return_number }}؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-reject" title="رفض الملف">رفض</button>
+                        </form>
                             {% endif %}
+                        {% elif user.is_manager and batch.ops_pending_items.exists %}
+                        <form method="post" action="{% url 'ops:return_batch_accept' batch.pk %}" class="inline"
+                              onsubmit="return confirm('اعتماد {{ batch.return_number }} من العمليات؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-approve" title="اعتماد العمليات">اعتماد</button>
+                        </form>
+                        <form method="post" action="{% url 'ops:return_batch_ops_reject' batch.pk %}" class="inline"
+                              onsubmit="return confirm('رفض {{ batch.return_number }} من العمليات؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-delete" title="رفض نهائي">رفض</button>
+                        </form>
                         {% endif %}
-                        {% endfor %}
+                        {% if user.is_manager or batch.representative_id == user.id or batch.created_by_id == user.id %}
                         <form method="post" action="{% url 'ops:return_batch_delete' batch.pk %}" class="inline"
                               onsubmit="return confirm('حذف المرتجع {{ batch.return_number }} وجميع أصنافه؟ لا يمكن التراجع.');">
                             {% csrf_token %}
                             <button type="submit" class="act-btn act-delete" title="حذف الملف">حذف</button>
                         </form>
+                        {% endif %}
                     </div>
                 </td>
             </tr>
@@ -128,15 +125,19 @@
 <div class="app-modal hidden" id="newReturnModal">
     <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
-            <h3>مرتجع جديد</h3>
-            <button type="button" class="app-modal-close" aria-label="إغلاق"
-                    onclick="document.getElementById('newReturnModal').classList.add('hidden')">
-                <span class="material-symbols-outlined">close</span>
-            </button>
+            <div class="app-modal-head-main">
+                <h3>مرتجع جديد</h3>
+            </div>
+            <div class="app-modal-head-actions">
+                <button type="button" class="app-modal-close" aria-label="إغلاق"
+                        onclick="document.getElementById('newReturnModal').classList.add('hidden')">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
         </div>
         <form method="post" action="{% url 'ops:return_create' %}" class="flex flex-col overflow-hidden" id="returnMultiForm">
             {% csrf_token %}
-            <div class="p-lg overflow-y-auto flex flex-col gap-md">
+            <div class="app-modal-body flex flex-col gap-md">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
                     {% if user.is_representative %}
                     <input type="hidden" name="representative" value="{{ user.pk }}">
@@ -184,7 +185,7 @@
                 </div>
 
                 <div class="excel-sheet overflow-x-auto border border-[#b4b4b4] rounded-sm bg-white shadow-sm">
-                    <table class="excel-grid resizable-cols w-full text-right border-collapse" data-resize-key="return-create">
+                    <table class="excel-grid excel-item-cols resizable-cols w-full text-right border-collapse" data-resize-key="return-create">
                         <colgroup>
                             <col style="width:44px">
                             <col style="width:160px">
@@ -214,10 +215,10 @@
                 </div>
                 <p class="font-body-md text-body-md text-on-surface-variant text-xs">يمكنك إضافة أكثر من صف ثم حفظها دفعة واحدة — التنقل بين الخلايا مثل Excel.</p>
             </div>
-            <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
-                <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface-variant"
+            <div class="app-modal-foot">
+                <button type="button" class="btn-ghost-app"
                         onclick="document.getElementById('newReturnModal').classList.add('hidden')">إلغاء</button>
-                <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md">حفظ الملف</button>
+                <button type="submit" class="btn-primary-app">حفظ الملف</button>
             </div>
         </form>
     </div>
@@ -227,15 +228,15 @@
 <div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.pk }}">
     <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
-            <div>
+            <div class="app-modal-head-main">
                 <h3>ملف {{ batch.return_number }}</h3>
-                <p style="margin:4px 0 0;opacity:.85;font-size:13px;font-family:Cairo,sans-serif">
+                <p class="app-modal-sub">
                     {{ batch.representative.display_name }} · {{ batch.branch }} · {{ batch.created_at|date:"Y/m/d H:i" }}
                 </p>
             </div>
-            <div class="flex items-center gap-sm shrink-0">
-                <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="act-btn" style="background:rgba(255,255,255,.18);color:#fff">
-                    <span class="material-symbols-outlined text-[16px] text-inherit">download</span>
+            <div class="app-modal-head-actions">
+                <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="app-modal-head-btn">
+                    <span class="material-symbols-outlined">download</span>
                     تحميل PDF
                 </a>
                 <button type="button" class="app-modal-close close-batch-modal" aria-label="إغلاق"
@@ -244,17 +245,8 @@
                 </button>
             </div>
         </div>
-        <div class="p-lg overflow-y-auto flex flex-col gap-md">
-            {% for item in batch.items.all %}
-                {% if item.status == 'pending' %}
-                    {% if user.is_manager or item.representative_id == user.id %}
-                    <form id="edit-item-{{ item.pk }}" method="post" action="{% url 'ops:return_item_update' item.pk %}" class="sr-only" aria-hidden="true">
-                        {% csrf_token %}
-                    </form>
-                    {% endif %}
-                {% endif %}
-            {% endfor %}
-            <div class="excel-sheet batch-detail-sheet overflow-x-auto border border-[#b4b4b4] rounded-sm bg-white shadow-sm">
+        <div class="app-modal-body flex flex-col gap-md">
+            <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
                 <table class="excel-grid batch-detail-grid resizable-cols w-full text-right border-collapse" data-resize-key="batch-detail-{{ batch.pk }}">
                     <colgroup>
                         <col style="width:44px">
@@ -280,45 +272,6 @@
                     </thead>
                     <tbody>
                     {% for item in batch.items.all %}
-                    {% if item.status == 'pending' and user.is_manager or item.status == 'pending' and item.representative_id == user.id %}
-                    <tr>
-                        <td class="row-num">{{ forloop.counter }}</td>
-                        <td>
-                            <input class="cell-input" form="edit-item-{{ item.pk }}" name="item_name"
-                                   value="{{ item.item_name|default:'' }}" required title="{{ item.item_name }}">
-                        </td>
-                        <td>
-                            <input class="cell-input" form="edit-item-{{ item.pk }}" name="item_number"
-                                   value="{{ item.item_number|default:'' }}" title="{{ item.item_number }}">
-                        </td>
-                        <td>
-                            <input class="cell-input" form="edit-item-{{ item.pk }}" name="unit"
-                                   value="{{ item.unit|default:'' }}" title="{{ item.unit }}">
-                        </td>
-                        <td>
-                            <input class="cell-input" form="edit-item-{{ item.pk }}" name="package"
-                                   value="{{ item.package|default:'' }}" title="{{ item.package }}">
-                        </td>
-                        <td>
-                            <input class="cell-input" form="edit-item-{{ item.pk }}" name="quantity"
-                                   type="number" min="1" value="{{ item.quantity }}" required>
-                        </td>
-                        <td>
-                            <select class="cell-select" form="edit-item-{{ item.pk }}" name="return_type" required>
-                                {% for val, label in return_types %}
-                                <option value="{{ val }}" {% if item.return_type == val %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </td>
-                        <td>
-                            <div class="flex gap-1 items-center min-w-0">
-                                <input class="cell-input flex-1 min-w-0" form="edit-item-{{ item.pk }}" name="reason"
-                                       value="{{ item.reason|default:'' }}" required title="{{ item.reason }}">
-                                <button type="submit" form="edit-item-{{ item.pk }}" class="edit-row shrink-0">حفظ</button>
-                            </div>
-                        </td>
-                    </tr>
-                    {% else %}
                     <tr>
                         <td class="row-num">{{ forloop.counter }}</td>
                         <td class="cell-pad cell-text" title="{{ item.item_name }}">{{ item.item_name }}</td>
@@ -329,7 +282,6 @@
                         <td class="cell-pad cell-text">{{ item.get_return_type_display }}</td>
                         <td class="cell-pad cell-text cell-reason" title="{{ item.reason }}">{{ item.reason }}</td>
                     </tr>
-                    {% endif %}
                     {% empty %}
                     <tr><td colspan="8" class="empty-row">لا توجد أصناف في هذا الملف.</td></tr>
                     {% endfor %}
@@ -337,8 +289,8 @@
                 </table>
             </div>
         </div>
-        <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end">
-            <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface-variant close-batch-modal"
+        <div class="app-modal-foot">
+            <button type="button" class="btn-ghost-app close-batch-modal"
                     data-close-batch="{{ batch.pk }}">إغلاق</button>
         </div>
     </div>
@@ -381,7 +333,7 @@
         vertical-align: middle;
         background: #fff;
     }
-    .excel-grid thead th {
+    .excel-grid:not(.batch-detail-grid):not(.excel-item-cols) thead th {
         background: #1d4ed8;
         color: #ffffff;
         font-weight: 600;

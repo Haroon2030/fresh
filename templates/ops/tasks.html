@@ -380,14 +380,18 @@
 <div class="app-modal hidden" id="newTaskModal">
     <div class="app-modal-panel app-modal-panel--md">
         <div class="app-modal-head">
-            <h3>مهمة جديدة</h3>
-            <button type="button" class="app-modal-close" aria-label="إغلاق" id="btnCloseNewTask">
-                <span class="material-symbols-outlined">close</span>
-            </button>
+            <div class="app-modal-head-main">
+                <h3>مهمة جديدة</h3>
+            </div>
+            <div class="app-modal-head-actions">
+                <button type="button" class="app-modal-close" aria-label="إغلاق" id="btnCloseNewTask">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
         </div>
         <form method="post" action="{% url 'ops:task_create' %}" class="flex flex-col overflow-hidden" id="newTaskForm">
             {% csrf_token %}
-            <div class="p-lg overflow-y-auto flex flex-col gap-md">
+            <div class="app-modal-body flex flex-col gap-md">
                 <div class="flex flex-col gap-sm">
                     <label class="font-label-md text-label-md text-on-surface">{{ form.title.label }}</label>
                     {{ form.title }}
@@ -415,9 +419,9 @@
                     {{ form.due_at }}
                 </div>
             </div>
-            <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
-                <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md" id="btnCancelNewTask">إلغاء</button>
-                <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md">حفظ</button>
+            <div class="app-modal-foot">
+                <button type="button" class="btn-ghost-app" id="btnCancelNewTask">إلغاء</button>
+                <button type="submit" class="btn-primary-app">حفظ</button>
             </div>
         </form>
     </div>

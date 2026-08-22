@@ -6,9 +6,14 @@ from django.db import connection
 TABLE_COLUMNS = {
     'ops_dailysupplydistribution': [
         ('batch_number', "varchar(20) NOT NULL DEFAULT ''"),
+        ('public_token', "varchar(64) NOT NULL DEFAULT ''"),
     ],
     'ops_distributionvariance': [
         ('batch_number', "varchar(20) NOT NULL DEFAULT ''"),
+        ('public_token', "varchar(64) NOT NULL DEFAULT ''"),
+    ],
+    'ops_supplyorder': [
+        ('public_token', "varchar(64) NOT NULL DEFAULT ''"),
     ],
 }
 

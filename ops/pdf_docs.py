@@ -523,3 +523,150 @@ def build_daily_orders_pdf(orders: list, *, actor=None) -> tuple[bytes, str]:
     safe_ref = str(batch_ref).replace("#", "").replace("/", "-")
     filename = f"daily_order_{safe_ref}.pdf"
     return _build(story, title=f"طلبية {batch_ref}"), filename
+
+
+def build_distribution_batch_pdf(rows: list, *, actor=None) -> tuple[bytes, str]:
+    styles = _styles()
+    if not rows:
+        raise ValueError("لا توجد سجلات توزيع")
+    first = rows[0]
+    actor = actor or first.created_by
+    created = timezone.localtime(first.created_at).strftime("%Y-%m-%d %H:%M")
+    batch_ref = first.batch_number or f"DIST-{first.pk}"
+    dist_date = first.distribution_date.strftime("%Y/%m/%d")
+
+    story: list = []
+    story.extend(_letterhead(styles, org_line="إدارة التوريد — التوزيع اليومي"))
+    story.extend(
+        _doc_heading(
+            styles,
+            title="ملف توزيع توريد يومي",
+            subtitle="مستند تشغيلي",
+            ref=batch_ref,
+            dated=created,
+        )
+    )
+    story.append(
+        _meta_grid(
+            [
+                ("رقم الملف", batch_ref),
+                ("تاريخ التوزيع", dist_date),
+                ("عدد الأصناف", str(len(rows))),
+                ("المرسل", f"{actor.display_name} — {role_label(actor)}" if actor else "—"),
+            ],
+            styles,
+        )
+    )
+    story.append(Spacer(1, 0.3 * cm))
+    story.append(Paragraph(_ar("تفاصيل التوزيع"), styles["h"]))
+    headers = ["الكمية", "الفرع", "رقم الصنف", "اسم الصنف", "#"]
+    body = [
+        [
+            str(r.quantity),
+            r.branch,
+            r.item_number or "—",
+            r.item_name,
+            str(i),
+        ]
+        for i, r in enumerate(rows, 1)
+    ]
+    story.append(_data_table(headers, body, styles))
+    story.extend(_footer_note(styles, "صادر من نظام عمليات الفرش — للمحاسب والعمليات والمستلم."))
+    filename = f"distribution_{str(batch_ref).replace('#', '')}.pdf"
+    return _build(story, title=f"توزيع {batch_ref}"), filename
+
+
+def build_variance_batch_pdf(rows: list, *, actor=None) -> tuple[bytes, str]:
+    styles = _styles()
+    if not rows:
+        raise ValueError("لا توجد سجلات")
+    first = rows[0]
+    actor = actor or first.created_by
+    created = timezone.localtime(first.created_at).strftime("%Y-%m-%d %H:%M")
+    batch_ref = first.batch_number or f"VAR-{first.pk}"
+    rec_date = first.record_date.strftime("%Y/%m/%d")
+
+    story: list = []
+    story.extend(_letterhead(styles, org_line="إدارة التوريد — نقص وزيادة"))
+    story.extend(
+        _doc_heading(
+            styles,
+            title="ملف نقص / زيادة توزيع",
+            subtitle="مستند تشغيلي",
+            ref=batch_ref,
+            dated=created,
+        )
+    )
+    story.append(
+        _meta_grid(
+            [
+                ("رقم الملف", batch_ref),
+                ("التاريخ", rec_date),
+                ("عدد السجلات", str(len(rows))),
+                ("المرسل", f"{actor.display_name} — {role_label(actor)}" if actor else "—"),
+            ],
+            styles,
+        )
+    )
+    story.append(Spacer(1, 0.3 * cm))
+    story.append(Paragraph(_ar("التفاصيل"), styles["h"]))
+    headers = ["المورد", "الفرع", "الكمية", "النوع", "اسم الصنف", "#"]
+    body = [
+        [
+            r.supplier,
+            r.branch,
+            str(r.quantity),
+            r.get_variance_type_display(),
+            r.item_name,
+            str(i),
+        ]
+        for i, r in enumerate(rows, 1)
+    ]
+    story.append(_data_table(headers, body, styles))
+    story.extend(_footer_note(styles, "صادر من نظام عمليات الفرش."))
+    filename = f"variance_{str(batch_ref).replace('#', '')}.pdf"
+    return _build(story, title=f"نقص/زيادة {batch_ref}"), filename
+
+
+def build_task_pdf(task, *, actor=None) -> tuple[bytes, str]:
+    styles = _styles()
+    actor = actor or task.created_by
+    created = timezone.localtime(task.created_at).strftime("%Y-%m-%d %H:%M")
+    assignee = task.assigned_to
+
+    story: list = []
+    story.extend(_letterhead(styles, org_line="إدارة المهام الميدانية"))
+    story.extend(
+        _doc_heading(
+            styles,
+            title="مهمة تشغيلية",
+            subtitle="مستند مهمة",
+            ref=f"#{task.pk}",
+            dated=created,
+        )
+    )
+    story.append(
+        _meta_grid(
+            [
+                ("المهمة", task.title),
+                ("الفرع", task.branch or "—"),
+                ("الأولوية", task.get_priority_display()),
+                ("المُسند إليه", assignee.display_name if assignee else "—"),
+                ("الحالة", task.get_status_display()),
+                ("المرسل", f"{actor.display_name} — {role_label(actor)}" if actor else "—"),
+            ],
+            styles,
+        )
+    )
+    story.append(Spacer(1, 0.3 * cm))
+    story.append(Paragraph(_ar("التفاصيل"), styles["h"]))
+    details = (task.visit_details or task.description or "—")[:800]
+    story.append(Paragraph(_ar(details), styles["body"]))
+    if task.response_text:
+        story.append(Spacer(1, 0.2 * cm))
+        story.append(Paragraph(_ar("الرد"), styles["h"]))
+        story.append(Paragraph(_ar(task.response_text[:800]), styles["body"]))
+    story.extend(_footer_note(styles, "صادر من نظام عمليات الفرش."))
+    safe = str(task.pk)
+    filename = f"task_{safe}.pdf"
+    return _build(story, title=f"مهمة {task.title}"), filename

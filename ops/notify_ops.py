@@ -10,7 +10,15 @@ from django.db import close_old_connections
 from django.urls import reverse
 from django.utils import timezone
 
-from ops.pdf_docs import build_daily_orders_pdf, build_return_batch_pdf, build_supply_orders_pdf, role_label
+from ops.pdf_docs import (
+    build_daily_orders_pdf,
+    build_distribution_batch_pdf,
+    build_return_batch_pdf,
+    build_supply_orders_pdf,
+    build_task_pdf,
+    build_variance_batch_pdf,
+    role_label,
+)
 from ops.whatsapp import (
     collect_recipient_entries,
     notify_with_pdf,
@@ -112,7 +120,117 @@ def _return_pdf_url(batch, request=None) -> str:
 
 
 def _actor_line(user) -> str:
-    return f"{user.display_name} | الدور: {role_label(user)}"
+    return f"{user.display_name} | {role_label(user)}"
+
+
+def _compact_wa(
+    title: str,
+    *,
+    file_ref: str = "",
+    meta: str = "",
+    bullets: list[str] | None = None,
+    note: str = "",
+    pdf_url: str = "",
+) -> str:
+    parts = [f"عمليات الفرش | {title}"]
+    if file_ref and meta:
+        parts.append(f"الملف: {file_ref} | {meta}")
+    elif file_ref:
+        parts.append(f"الملف: {file_ref}")
+    elif meta:
+        parts.append(meta)
+    for line in (bullets or [])[:5]:
+        parts.append(f"• {line}")
+    extra = len(bullets or []) - 5
+    if extra > 0:
+        parts.append(f"… +{extra} أصناف")
+    if note:
+        parts.append(note)
+    if pdf_url:
+        parts.append(f"📄 PDF: {pdf_url}")
+    return "\n".join(parts)
+
+
+def _public_pdf_url(route_name: str, token: str, request=None) -> str:
+    path = reverse(route_name, kwargs={"token": token})
+    base = (getattr(settings, "PUBLIC_BASE_URL", "") or "").rstrip("/")
+    if base:
+        return f"{base}{path}"
+    if request is not None:
+        return request.build_absolute_uri(path)
+    return path
+
+
+def _sync_batch_token(model, *, batch_number: str = "", pks: list[int] | None = None) -> str:
+    import secrets
+
+    qs = model.objects.all()
+    if pks:
+        qs = qs.filter(pk__in=pks)
+    elif batch_number:
+        qs = qs.filter(batch_number=batch_number)
+    else:
+        return ""
+    row = qs.exclude(public_token="").first()
+    token = row.public_token if row else secrets.token_urlsafe(24)
+    qs.update(public_token=token)
+    return token
+
+
+def _notify_pdf_to_roles(
+    message: str,
+    *,
+    pdf_bytes: bytes,
+    filename: str,
+    pdf_url: str,
+    roles: set | None = None,
+    extra: list[dict] | None = None,
+) -> dict:
+    recipients = [
+        {**entry, "message": entry.get("message") or message}
+        for entry in collect_recipient_entries(include_roles=True, roles=roles)
+    ]
+    seen = {r["phone"] for r in recipients if r.get("phone")}
+    for entry in extra or []:
+        phone = entry.get("phone") or ""
+        if phone and phone not in seen:
+            recipients.append({**entry, "message": entry.get("message") or message})
+            seen.add(phone)
+    if not recipients:
+        return {"sent": 0, "total": 0, "phones": [], "error": "لا مستلمين."}
+    return notify_with_pdf(
+        message=message,
+        pdf_bytes=pdf_bytes,
+        filename=filename,
+        recipients=recipients,
+        media_url=pdf_url,
+    )
+
+
+def _notify_pdf_to_user(
+    user,
+    message: str,
+    *,
+    pdf_bytes: bytes,
+    filename: str,
+    pdf_url: str,
+) -> dict:
+    phone = _user_phone(user)
+    if not phone:
+        return {"sent": 0, "total": 0, "phones": [], "error": "لا رقم واتساب."}
+    return notify_with_pdf(
+        message=message,
+        pdf_bytes=pdf_bytes,
+        filename=filename,
+        recipients=[{
+            "phone": phone,
+            "label": user.display_name,
+            "role": getattr(user, "role", ""),
+            "user_id": user.pk,
+            "message": message,
+        }],
+        media_url=pdf_url,
+    )
 
 
 def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
@@ -130,61 +248,29 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
 
     pdf_url = _return_pdf_url(batch, request=request)
     items = list(batch.items.all())
-    item_lines = []
-    for i, it in enumerate(items[:12], 1):
-        item_lines.append(
-            f"  {i}. {it.item_name} × {it.quantity} — {it.get_return_type_display()}"
-        )
-    if len(items) > 12:
-        item_lines.append(f"  … و{len(items) - 12} أصناف أخرى")
+    bullets = [
+        f"{it.item_name} × {it.quantity} — {it.get_return_type_display()}"
+        for it in items
+    ]
+    meta = f"{batch.branch} | {len(items)} صنف | {_now_str()}"
 
-    follow_msg = "\n".join(
-        [
-            "════════════════════",
-            "عمليات الفرش | مرتجع جديد — للمتابعة",
-            "════════════════════",
-            "تم حفظ مرتجع بانتظار تعميد المندوب.",
-            f"رقم الملف: {batch.return_number}",
-            f"الفرع: {batch.branch}",
-            f"الأصناف: {len(items)}",
-            f"المندوب المسؤول: {batch.representative.display_name} | {role_label(batch.representative)}",
-            f"المرسل: {_actor_line(actor)}",
-            f"وقت الحفظ: {_now_str()}",
-            "────────────────────",
-            "ملخص الأصناف:",
-            *(item_lines or ["  —"]),
-            "────────────────────",
-            "المطلوب من العمليات والمحاسب: المتابعة حتى اكتمال التعميد والقبول.",
-            "📄 ملف PDF للتحميل:",
-            pdf_url,
-            "════════════════════",
-        ]
+    follow_msg = _compact_wa(
+        "مرتجع جديد — للمتابعة",
+        file_ref=batch.return_number,
+        meta=meta,
+        bullets=bullets,
+        note="المحاسب والعمليات: المتابعة حتى التعميد.",
+        pdf_url=pdf_url,
+    )
+    rep_msg = _compact_wa(
+        "مرتجع — مطلوب التعميد",
+        file_ref=batch.return_number,
+        meta=f"{batch.branch} | {len(items)} صنف",
+        bullets=bullets,
+        note="المندوب: راجع PDF ثم عمّد أو ارفض.",
+        pdf_url=pdf_url,
     )
 
-    rep_msg = "\n".join(
-        [
-            "════════════════════",
-            "عمليات الفرش | تنبيه للمندوب — مطلوب التعميد",
-            "════════════════════",
-            "يوجد مرتجع جديد يحتاج تعميدك قبل متابعة العمليات.",
-            f"رقم الملف: {batch.return_number}",
-            f"الفرع: {batch.branch}",
-            f"عدد الأصناف: {len(items)}",
-            f"المرسل: {_actor_line(actor)}",
-            f"وقت الحفظ: {_now_str()}",
-            "────────────────────",
-            "المطلوب منك:",
-            "1) تحميل ملف PDF ومراجعته",
-            "2) تعميد أو رفض كل صنف",
-            "3) بعد التعميد يصل إشعار للمحاسب والمستلم والعمليات",
-            "────────────────────",
-            "📄 تحميل ملف المرتجع PDF:",
-            pdf_url,
-            "════════════════════",
-        ]
-    )
-
-    # العمليات + المحاسب للمتابعة (قبل التعميد)
     follow_roles = {User.Role.MANAGER, User.Role.ACCOUNTANT}
     recipients = collect_recipient_entries(include_roles=True, roles=follow_roles)
     rep = batch.representative
@@ -211,7 +297,6 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
         )
         seen.add(rep_phone)
     elif rep_phone and rep_phone in seen:
-        # نفس الرقم في قائمة المتابعة — فضّل رسالة التعميد للمندوب
         for entry in enriched:
             if entry.get("phone") == rep_phone:
                 entry["message"] = rep_msg
@@ -244,89 +329,125 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
 def notify_supply_orders_saved(orders: list, *, actor, representative) -> dict:
     if not orders:
         return {"sent": 0, "total": 0, "phones": [], "error": "لا طلبات."}
+    from ops.models import SupplyOrder
+
     try:
         pdf_bytes, filename = build_supply_orders_pdf(orders, actor=actor)
     except Exception:
         logger.exception("PDF build failed for supply")
         return {"sent": 0, "total": 0, "phones": [], "error": "تعذّر إنشاء PDF للتوريد."}
 
-    nums = [o.order_number for o in orders]
-    lines = [
-        f"  • {o.order_number}: {o.item_name} × {o.quantity}" for o in orders[:12]
-    ]
-    if len(orders) > 12:
-        lines.append(f"  … و{len(orders) - 12} أخرى")
+    first = orders[0]
+    batch_ref = first.batch_number or first.order_number
+    token = _sync_batch_token(
+        SupplyOrder,
+        batch_number=first.batch_number or "",
+        pks=[o.pk for o in orders] if not first.batch_number else None,
+    )
+    if not token and first.batch_number:
+        token = _sync_batch_token(SupplyOrder, batch_number=first.batch_number)
+    if not token:
+        token = _sync_batch_token(SupplyOrder, pks=[o.pk for o in orders])
+    pdf_url = _public_pdf_url("ops:supply_batch_pdf_public_file", token)
 
-    msg = "\n".join(
-        [
-            "════════════════════",
-            "عمليات الفرش | إشعار تشغيلي",
-            "النوع: طلبات توريد جديدة",
-            "════════════════════",
-            f"الأرقام: {', '.join(nums)}",
-            f"العدد: {len(orders)}",
-            f"المندوب: {representative.display_name} | {role_label(representative)}",
-            f"الفرع: {orders[0].branch or '—'}",
-            f"المورد: {getattr(orders[0], 'supplier', '') or '—'}",
-            f"المرسل: {_actor_line(actor)}",
-            f"وقت الحفظ: {_now_str()}",
-            "────────────────────",
-            "التفاصيل:",
-            *lines,
-            "────────────────────",
-            "المرفق: ملف PDF رسمي",
-            _portal_hint(),
-            "════════════════════",
-        ]
+    bullets = [f"{o.item_name} × {o.quantity}" for o in orders]
+    meta = (
+        f"{first.branch or '—'} | {first.supplier or '—'} | "
+        f"{len(orders)} صنف | {_now_str()}"
+    )
+    msg = _compact_wa(
+        "توريد جديد",
+        file_ref=batch_ref,
+        meta=meta,
+        bullets=bullets,
+        note=f"المندوب: {representative.display_name} — المرسل: {_actor_line(actor)}",
+        pdf_url=pdf_url,
     )
 
-    recipients = collect_recipient_entries(include_roles=True)
     rep_phone = _user_phone(representative) or _role_contact_phone("representative")
-    if rep_phone and not any(r["phone"] == rep_phone for r in recipients):
-        recipients.append(
-            {
-                "phone": rep_phone,
-                "label": f"{representative.display_name} — {role_label(representative)}",
-                "role": "representative",
-                "user_id": getattr(representative, "pk", None),
-            }
-        )
+    extra = []
+    if rep_phone:
+        extra.append({
+            "phone": rep_phone,
+            "label": f"{representative.display_name} — {role_label(representative)}",
+            "role": "representative",
+            "user_id": getattr(representative, "pk", None),
+            "message": msg,
+        })
 
-    return notify_with_pdf(
-        message=msg,
+    return _notify_pdf_to_roles(
+        msg,
         pdf_bytes=pdf_bytes,
         filename=filename,
-        recipients=recipients,
+        pdf_url=pdf_url,
+        roles=get_user_model().NOTIFY_ROLES,
+        extra=extra,
     )
 
 
-def _task_public_url(task) -> str:
-    path = reverse("ops:task_public", kwargs={"token": task.public_token})
-    base = getattr(settings, "PUBLIC_BASE_URL", "") or ""
+def _absolute_public_url(path: str, request=None) -> str:
+    """رابط عام كامل — واتساب يفعّل النقر فقط مع http(s)."""
+    base = (getattr(settings, "PUBLIC_BASE_URL", "") or "").rstrip("/")
     if base:
-        return f"{base.rstrip('/')}{path}"
+        return f"{base}{path}"
+    if request is not None:
+        return request.build_absolute_uri(path)
+    hosts = getattr(settings, "ALLOWED_HOSTS", []) or []
+    for host in hosts:
+        h = (host or "").strip()
+        if h and h not in ("*", "localhost", "127.0.0.1", "[::1]"):
+            scheme = "http" if h.startswith("127.") or h.startswith("192.168.") else "https"
+            return f"{scheme}://{h}{path}"
     return path
 
 
-def schedule_task_assigned(task_id: int) -> None:
+def _task_public_url(task, request=None) -> str:
+    path = reverse("ops:task_public", kwargs={"token": task.public_token})
+    return _absolute_public_url(path, request=request)
+
+
+def _send_whatsapp_link(phone: str, message: str, link: str) -> bool:
+    """رسالة نصية + رابط في سطر مستقل (قابل للنقر في واتساب)."""
+    from ops.whatsapp import send_text
+
+    link = (link or "").strip()
+    if not phone or not link:
+        return False
+    if not link.startswith("http"):
+        logger.warning("Task link is not absolute — set PUBLIC_BASE_URL: %s", link)
+    body = (message or "").strip()
+    if body:
+        text = f"{body}\n\n{link}"
+    else:
+        text = link
+    return send_text(phone, text)
+
+
+def schedule_task_assigned(task_id: int, public_link: str = "") -> None:
     def _run():
         from ops.models import Task
-        from ops.whatsapp import notify_user
 
         task = Task.objects.select_related("assigned_to", "created_by").filter(pk=task_id).first()
         if not task or not task.assigned_to_id:
             return
-        link = _task_public_url(task)
-        body = "\n".join([
-            f"المهمة: {task.title}",
-            f"الفرع: {task.branch or '—'}",
-            f"تفاصيل الزيارة:\n{task.visit_details or task.description or '—'}",
-            f"الأولوية: {task.get_priority_display()}",
-            "",
-            "افتح الرابط للرد (نص + صور) وإرسال المهمة للمراجعة:",
-            link,
-        ])
-        notify_user(task.assigned_to, "مهمة جديدة مُسندة إليك", body)
+        task.ensure_public_token()
+        if not task.public_token:
+            task.save(update_fields=["public_token"])
+        link = (public_link or "").strip() or _task_public_url(task)
+        msg = _compact_wa(
+            "مهمة جديدة",
+            file_ref=f"#{task.pk}",
+            meta=f"{task.branch or '—'} | {task.get_priority_display()}",
+            bullets=[task.title],
+            note="اضغط الرابط للدخول وإرسال الرد (نص + صور):",
+        )
+        phone = _user_phone(task.assigned_to)
+        if not phone:
+            logger.warning("Task %s: assignee has no WhatsApp number", task_id)
+            return
+        ok = _send_whatsapp_link(phone, msg, link)
+        if not ok:
+            logger.warning("Failed to send task link WhatsApp for task %s", task_id)
 
     _run_in_background(f"task-assign-{task_id}", _run)
 
@@ -334,25 +455,41 @@ def schedule_task_assigned(task_id: int) -> None:
 def schedule_task_submitted(task_id: int) -> None:
     def _run():
         from ops.models import Task
-        from ops.whatsapp import notify_roles, notify_user
 
         task = Task.objects.select_related("assigned_to", "created_by").filter(pk=task_id).first()
         if not task:
             return
-        link = _task_public_url(task)
-        body = "\n".join([
-            f"المهمة: {task.title}",
-            f"الفرع: {task.branch or '—'}",
-            f"الموظف: {task.assigned_to.display_name if task.assigned_to_id else '—'}",
-            f"الرد:\n{(task.response_text or '—')[:500]}",
-            f"الصور: {task.response_photos.count()}",
-            "",
-            "راجع الرد من لوحة المهام (عمود بانتظار المراجعة).",
-            f"رابط المهمة: {link}",
-        ])
-        notify_roles("رد مهمة بانتظار مراجعتك", body)
+        try:
+            pdf_bytes, filename = build_task_pdf(task, actor=task.assigned_to)
+        except Exception:
+            logger.exception("PDF build failed for task submit %s", task_id)
+            return
+        bullets = [
+            task.title,
+            (task.response_text or "—")[:120],
+        ]
+        msg = _compact_wa(
+            "رد مهمة — للمراجعة",
+            file_ref=f"#{task.pk}",
+            meta=f"{task.branch or '—'} | {task.assigned_to.display_name if task.assigned_to_id else '—'}",
+            bullets=bullets,
+            note=_portal_hint(),
+        )
+        _notify_pdf_to_roles(
+            msg,
+            pdf_bytes=pdf_bytes,
+            filename=filename,
+            pdf_url="",
+            roles=get_user_model().NOTIFY_ROLES,
+        )
         if task.created_by_id and getattr(task.created_by, "whatsapp", ""):
-            notify_user(task.created_by, "رد مهمة بانتظار مراجعتك", body)
+            _notify_pdf_to_user(
+                task.created_by,
+                msg,
+                pdf_bytes=pdf_bytes,
+                filename=filename,
+                pdf_url="",
+            )
 
     _run_in_background(f"task-submit-{task_id}", _run)
 
@@ -360,40 +497,59 @@ def schedule_task_submitted(task_id: int) -> None:
 def schedule_task_review_result(task_id: int, approved: bool) -> None:
     def _run():
         from ops.models import Task
-        from ops.whatsapp import notify_user
 
         task = Task.objects.select_related("assigned_to", "reviewed_by").filter(pk=task_id).first()
         if not task or not task.assigned_to_id:
             return
-        link = _task_public_url(task)
-        if approved:
-            title = "تم اعتماد رد المهمة وإغلاقها"
-            body = "\n".join([
-                f"المهمة: {task.title}",
-                f"الفرع: {task.branch or '—'}",
-                f"ملاحظة المراجع: {task.review_note or '—'}",
-            ])
-        else:
-            title = "رُدّت المهمة — مطلوب تصحيح"
-            body = "\n".join([
-                f"المهمة: {task.title}",
-                f"الفرع: {task.branch or '—'}",
-                f"ملاحظة المراجع: {task.review_note or '—'}",
-                "",
-                "افتح الرابط وعدّل الرد ثم أعد الإرسال:",
-                link,
-            ])
-        notify_user(task.assigned_to, title, body)
+        if not approved:
+            task.ensure_public_token()
+            if not task.public_token:
+                task.save(update_fields=["public_token"])
+            link = _task_public_url(task)
+            note = task.review_note or "—"
+            msg = _compact_wa(
+                "مهمة — مطلوب تصحيح",
+                file_ref=f"#{task.pk}",
+                meta=task.branch or "—",
+                bullets=[task.title, note],
+                note="اضغط الرابط لإعادة إرسال الرد:",
+            )
+            phone = _user_phone(task.assigned_to)
+            if not phone:
+                logger.warning("Task %s: assignee has no WhatsApp for correction link", task_id)
+                return
+            ok = _send_whatsapp_link(phone, msg, link)
+            if not ok:
+                logger.warning("Failed to send task correction link for task %s", task_id)
+            return
+        try:
+            pdf_bytes, filename = build_task_pdf(task, actor=task.reviewed_by)
+        except Exception:
+            logger.exception("PDF build failed for task review %s", task_id)
+            return
+        msg = _compact_wa(
+            "مهمة معتمدة",
+            file_ref=f"#{task.pk}",
+            meta=task.branch or "—",
+            bullets=[task.title],
+            note=task.review_note or "—",
+        )
+        _notify_pdf_to_user(
+            task.assigned_to,
+            msg,
+            pdf_bytes=pdf_bytes,
+            filename=filename,
+            pdf_url="",
+        )
 
     _run_in_background(f"task-review-{task_id}", _run)
 
 
 def schedule_return_authorized(item_id: int, actor_id: int) -> None:
-    """After representative authorizes a return item → notify ops, accountant, receiver."""
+    """After representative authorizes → notify receiver, accountant, ops, dept head."""
 
     def _run():
         from ops.models import ReturnRequest
-        from ops.whatsapp import notify_roles
 
         User = get_user_model()
         ret = (
@@ -404,52 +560,128 @@ def schedule_return_authorized(item_id: int, actor_id: int) -> None:
             .first()
         )
         actor = User.objects.filter(pk=actor_id).first()
-        if not ret or not actor:
+        if not ret or not actor or not ret.batch_id:
             return
-
-        batch_no = ret.return_number or (
-            ret.batch.return_number if ret.batch_id else "—"
-        )
-        body = "\n".join(
-            [
-                "════════════════════",
-                "عمليات الفرش | تعميد مندوب",
-                "════════════════════",
-                f"رقم الملف: {batch_no}",
-                f"الصنف: {ret.item_name}",
-                f"رقم الصنف: {ret.item_number or '—'}",
-                f"الكمية: {ret.quantity}",
-                f"النوع: {ret.get_return_type_display()}",
-                f"الفرع: {ret.batch.branch if ret.batch_id else '—'}",
-                f"المندوب: {ret.representative.display_name}",
-                f"عمّد بواسطة: {_actor_line(actor)}",
-                f"الوقت: {_now_str()}",
-                "────────────────────",
-                "المطلوب: متابعة القبول/الرفض من العمليات بعد التعميد.",
-                "════════════════════",
-            ]
-        )
-        result = notify_roles(
-            "تعميد مرتجع — للمحاسب والمستلم والعمليات",
-            body,
-            roles=User.RETURN_AUTHORIZE_NOTIFY_ROLES,
-        )
-        if result.get("error"):
-            logger.warning(
-                "Return authorize notify failed for item %s: %s",
-                item_id,
-                result.get("error"),
-            )
+        _notify_return_rep_decision(ret.batch, [ret], actor=actor, decision="authorized")
 
     _run_in_background(f"return-authorize-{item_id}", _run)
 
 
+def schedule_return_rep_rejected(item_id: int, actor_id: int) -> None:
+    """After representative rejects → notify receiver, accountant, ops, dept head."""
+
+    def _run():
+        from ops.models import ReturnRequest
+
+        User = get_user_model()
+        ret = (
+            ReturnRequest.objects.select_related(
+                "batch", "representative", "rep_decided_by", "created_by"
+            )
+            .filter(pk=item_id)
+            .first()
+        )
+        actor = User.objects.filter(pk=actor_id).first()
+        if not ret or not actor or not ret.batch_id:
+            return
+        _notify_return_rep_decision(ret.batch, [ret], actor=actor, decision="rejected")
+
+    _run_in_background(f"return-rep-reject-{item_id}", _run)
+
+
+def schedule_return_batch_rep_decision(
+    batch_id: int, actor_id: int, decision: str, item_ids: list[int] | None = None
+) -> None:
+    """Batch-level rep authorize/reject — one WhatsApp+PDF per action."""
+
+    def _run():
+        from ops.models import ReturnRequest
+
+        User = get_user_model()
+        batch = (
+            ReturnBatch.objects.select_related("representative", "created_by")
+            .prefetch_related("items")
+            .filter(pk=batch_id)
+            .first()
+        )
+        actor = User.objects.filter(pk=actor_id).first()
+        if not batch or not actor:
+            return
+        qs = batch.items.all()
+        if item_ids:
+            qs = qs.filter(pk__in=item_ids)
+        items = list(qs)
+        if not items:
+            return
+        _notify_return_rep_decision(batch, items, actor=actor, decision=decision)
+
+    _run_in_background(f"return-batch-{decision}-{batch_id}", _run)
+
+
+def _notify_return_rep_decision(batch, items, *, actor, decision: str) -> dict:
+    """
+    decision: 'authorized' | 'rejected'
+    Notifies: receiver, accountant, operations, dept head (+ PDF).
+    """
+    User = get_user_model()
+    if decision not in ("authorized", "rejected"):
+        return {"sent": 0, "total": 0, "phones": [], "error": "قرار غير معروف."}
+
+    try:
+        pdf_bytes, filename = build_return_batch_pdf(batch)
+    except Exception:
+        logger.exception("PDF build failed for return rep decision batch %s", batch.pk)
+        return {"sent": 0, "total": 0, "phones": [], "error": "تعذّر إنشاء PDF."}
+
+    batch.ensure_public_token()
+    if not batch.public_token:
+        batch.save(update_fields=["public_token"])
+    pdf_url = _return_pdf_url(batch)
+
+    item_lines = [
+        f"{it.item_name} × {it.quantity} — {it.get_return_type_display()}"
+        for it in items
+    ]
+    meta = f"{batch.branch} | {_now_str()} | {_actor_line(actor)}"
+
+    if decision == "authorized":
+        title = "تعميد مندوب — مرتجع"
+        note = "المستلم والمحاسب والعمليات ورئيس القسم: متابعة الاعتماد."
+    else:
+        title = "رفض مندوب — مرتجع"
+        note = "تم الرفض — للمستلم والمحاسب والعمليات ورئيس القسم."
+
+    body = _compact_wa(
+        title,
+        file_ref=batch.return_number,
+        meta=meta,
+        bullets=item_lines,
+        note=note,
+        pdf_url=pdf_url,
+    )
+
+    result = _notify_pdf_to_roles(
+        body,
+        pdf_bytes=pdf_bytes,
+        filename=filename,
+        pdf_url=pdf_url,
+        roles=User.RETURN_AUTHORIZE_NOTIFY_ROLES,
+    )
+    if result.get("error"):
+        logger.warning(
+            "Return rep %s notify failed for batch %s: %s",
+            decision,
+            batch.pk,
+            result.get("error"),
+        )
+    return result
+
+
 def schedule_daily_distribution_notify(row_ids: list[int], actor_id: int) -> None:
-    """After saving daily supply distribution → notify accountant, ops, receiver."""
+    """After saving daily supply distribution → PDF + notify accountant, ops, receiver."""
 
     def _run():
         from ops.models import DailySupplyDistribution
-        from ops.whatsapp import notify_roles
 
         User = get_user_model()
         actor = User.objects.filter(pk=actor_id).first()
@@ -461,34 +693,34 @@ def schedule_daily_distribution_notify(row_ids: list[int], actor_id: int) -> Non
         if not rows or not actor:
             return
 
-        dist_date = rows[0].distribution_date.strftime("%Y/%m/%d")
-        lines = [
-            f"  • {r.item_name} | {r.branch} | كمية {r.quantity}"
-            for r in rows[:20]
-        ]
-        if len(rows) > 20:
-            lines.append(f"  … و{len(rows) - 20} أصناف أخرى")
-
-        body = "\n".join(
-            [
-                "════════════════════",
-                "عمليات الفرش | توزيع توريد يومي",
-                "════════════════════",
-                f"التاريخ: {dist_date}",
-                f"عدد الأصناف: {len(rows)}",
-                f"بواسطة: {_actor_line(actor)}",
-                f"الوقت: {_now_str()}",
-                "────────────────────",
-                "التفاصيل:",
-                *lines,
-                "────────────────────",
-                "المستلمون: المحاسب · العمليات · المستلم",
-                "════════════════════",
-            ]
+        batch_ref = rows[0].batch_number or f"DIST-{rows[0].pk}"
+        token = _sync_batch_token(
+            DailySupplyDistribution,
+            batch_number=rows[0].batch_number or "",
+            pks=row_ids,
         )
-        result = notify_roles(
-            "توزيع توريد يومي — للمحاسب والعمليات والمستلم",
-            body,
+        try:
+            pdf_bytes, filename = build_distribution_batch_pdf(rows, actor=actor)
+        except Exception:
+            logger.exception("PDF build failed for distribution %s", row_ids)
+            return
+
+        pdf_url = _public_pdf_url("ops:distribution_batch_pdf_public_file", token)
+        dist_date = rows[0].distribution_date.strftime("%Y/%m/%d")
+        bullets = [f"{r.item_name} → {r.branch} × {r.quantity}" for r in rows]
+        msg = _compact_wa(
+            "توزيع توريد يومي",
+            file_ref=batch_ref,
+            meta=f"{dist_date} | {len(rows)} صنف | {_actor_line(actor)}",
+            bullets=bullets,
+            note="المحاسب · العمليات · المستلم",
+            pdf_url=pdf_url,
+        )
+        result = _notify_pdf_to_roles(
+            msg,
+            pdf_bytes=pdf_bytes,
+            filename=filename,
+            pdf_url=pdf_url,
             roles=User.RETURN_AUTHORIZE_NOTIFY_ROLES,
         )
         if result.get("error"):
@@ -502,11 +734,10 @@ def schedule_daily_distribution_notify(row_ids: list[int], actor_id: int) -> Non
 
 
 def schedule_variance_authorized(variance_id: int, actor_id: int) -> None:
-    """After receiver authorizes shortage/excess → WhatsApp the supplier."""
+    """After receiver authorizes shortage/excess → PDF + WhatsApp supplier."""
 
     def _run():
         from ops.models import DistributionVariance, Supplier
-        from ops.whatsapp import send_text
 
         User = get_user_model()
         row = DistributionVariance.objects.filter(pk=variance_id).first()
@@ -514,43 +745,68 @@ def schedule_variance_authorized(variance_id: int, actor_id: int) -> None:
         if not row or not actor:
             return
 
+        rows = list(
+            DistributionVariance.objects.filter(batch_number=row.batch_number).order_by("pk")
+            if row.batch_number
+            else [row]
+        )
+        token = _sync_batch_token(
+            DistributionVariance,
+            batch_number=row.batch_number or "",
+            pks=[r.pk for r in rows],
+        )
+        try:
+            pdf_bytes, filename = build_variance_batch_pdf(rows, actor=actor)
+        except Exception:
+            logger.exception("PDF build failed for variance %s", variance_id)
+            return
+
+        pdf_url = _public_pdf_url("ops:variance_batch_pdf_public_file", token)
+        batch_ref = row.batch_number or f"VAR-{row.pk}"
         kind = row.get_variance_type_display()
-        msg = "\n".join(
-            [
-                "════════════════════",
-                f"عمليات الفرش | إشعار {kind} توزيع",
-                "════════════════════",
-                f"النوع: {kind}",
-                f"الصنف: {row.item_name}",
-                f"رقم الصنف: {row.item_number or '—'}",
-                f"الكمية: {row.quantity}",
-                f"الفرع: {row.branch}",
-                f"المورد: {row.supplier}",
-                f"التاريخ: {row.record_date.strftime('%Y/%m/%d')}",
-                f"عمّد المستلم: {_actor_line(actor)}",
-                f"وقت التعميد: {_now_str()}",
-                "────────────────────",
-                f"يرجى مراجعة {kind} الكمية أعلاه والتنسيق مع العمليات.",
-                "════════════════════",
-            ]
+        bullets = [
+            f"{r.item_name} × {r.quantity} — {r.get_variance_type_display()} ({r.branch})"
+            for r in rows
+        ]
+        msg = _compact_wa(
+            f"{kind} توزيع — معتمد",
+            file_ref=batch_ref,
+            meta=f"{row.supplier} | {row.record_date.strftime('%Y/%m/%d')} | {_actor_line(actor)}",
+            bullets=bullets,
+            note="يرجى مراجعة الملف والتنسيق مع العمليات.",
+            pdf_url=pdf_url,
         )
 
         supplier = Supplier.objects.filter(name=row.supplier).first()
         phone = supplier.normalized_phone() if supplier else ""
-        if not phone:
+        extra = []
+        if phone:
+            extra.append({
+                "phone": phone,
+                "label": f"مورد — {row.supplier}",
+                "role": "supplier",
+                "message": msg,
+            })
+        else:
             logger.warning(
                 "No supplier WhatsApp for variance %s (supplier=%s)",
                 variance_id,
                 row.supplier,
             )
-            return
 
-        ok = send_text(phone, msg)
-        if not ok:
+        result = _notify_pdf_to_roles(
+            msg,
+            pdf_bytes=pdf_bytes,
+            filename=filename,
+            pdf_url=pdf_url,
+            roles=User.RETURN_AUTHORIZE_NOTIFY_ROLES,
+            extra=extra,
+        )
+        if result.get("error"):
             logger.warning(
-                "Failed supplier WhatsApp for variance %s → %s",
+                "Variance notify failed for %s: %s",
                 variance_id,
-                phone,
+                result.get("error"),
             )
 
     _run_in_background(f"variance-auth-{variance_id}", _run)
@@ -604,34 +860,20 @@ def schedule_daily_order_approved(order_id: int, actor_id: int) -> None:
 
         pdf_url = _daily_order_pdf_url(token)
         batch_ref = seed.batch_number or seed.order_number
-        item_lines = [
-            f"  {i}. {o.item_name} × {o.quantity} — السعر {o.unit_price}"
-            for i, o in enumerate(orders[:12], 1)
+        bullets = [
+            f"{o.item_name} × {o.quantity} — {o.unit_price}"
+            for o in orders
         ]
-        if len(orders) > 12:
-            item_lines.append(f"  … و{len(orders) - 12} أصناف أخرى")
-
-        msg = "\n".join(
-            [
-                "════════════════════",
-                "عمليات الفرش | طلب شراء معتمد",
-                "════════════════════",
-                f"رقم الملف: {batch_ref}",
-                f"التاريخ: {seed.order_date}",
-                f"الفرع: {seed.branch}",
-                f"المورد: {seed.supplier or '—'}",
-                f"المندوب: {seed.representative.display_name}",
-                f"الأصناف: {len(orders)}",
-                f"اعتمد بواسطة: {_actor_line(actor)}",
-                f"وقت الاعتماد: {_now_str()}",
-                "────────────────────",
-                "ملخص الأصناف:",
-                *(item_lines or ["  —"]),
-                "────────────────────",
-                "📄 ملف PDF للتحميل:",
-                pdf_url,
-                "════════════════════",
-            ]
+        msg = _compact_wa(
+            "طلب شراء معتمد",
+            file_ref=batch_ref,
+            meta=(
+                f"{seed.branch} | {seed.supplier or '—'} | "
+                f"{len(orders)} صنف | {_actor_line(actor)}"
+            ),
+            bullets=bullets,
+            note=f"المندوب: {seed.representative.display_name}",
+            pdf_url=pdf_url,
         )
 
         supplier = Supplier.objects.filter(name=seed.supplier).first()
@@ -653,7 +895,6 @@ def schedule_daily_order_approved(order_id: int, actor_id: int) -> None:
                 seed.supplier,
             )
 
-        # Also notify ops roles (same pattern as returns staff list)
         for entry in collect_recipient_entries(include_roles=True):
             recipients.append({**entry, "message": msg})
 
@@ -688,3 +929,106 @@ def _daily_order_pdf_url(token: str, request=None) -> str:
     if request is not None:
         return request.build_absolute_uri(path)
     return path
+
+
+def schedule_supply_batch_status(seed_pk: int, actor_id: int, status: str) -> None:
+    """إكمال/رفض ملف توريد → PDF + إشعار."""
+
+    def _run():
+        from ops.models import SupplyOrder
+
+        User = get_user_model()
+        actor = User.objects.filter(pk=actor_id).first()
+        seed = SupplyOrder.objects.select_related("representative", "created_by").filter(pk=seed_pk).first()
+        if not seed or not actor:
+            return
+        if seed.batch_number:
+            orders = list(
+                SupplyOrder.objects.filter(batch_number=seed.batch_number).order_by("pk")
+            )
+        else:
+            orders = [seed]
+        if not orders:
+            return
+
+        token = _sync_batch_token(
+            SupplyOrder,
+            batch_number=seed.batch_number or "",
+            pks=[o.pk for o in orders],
+        )
+        try:
+            pdf_bytes, filename = build_supply_orders_pdf(orders, actor=actor)
+        except Exception:
+            logger.exception("PDF build failed for supply status %s", seed_pk)
+            return
+
+        pdf_url = _public_pdf_url("ops:supply_batch_pdf_public_file", token)
+        batch_ref = seed.batch_number or seed.order_number
+        title = "توريد مكتمل" if status == "completed" else "توريد مرفوض"
+        bullets = [f"{o.item_name} × {o.quantity}" for o in orders]
+        msg = _compact_wa(
+            title,
+            file_ref=batch_ref,
+            meta=f"{len(orders)} صنف | {_actor_line(actor)} | {_now_str()}",
+            bullets=bullets,
+            pdf_url=pdf_url,
+        )
+        _notify_pdf_to_roles(
+            msg,
+            pdf_bytes=pdf_bytes,
+            filename=filename,
+            pdf_url=pdf_url,
+            roles=User.NOTIFY_ROLES,
+        )
+
+    _run_in_background(f"supply-status-{seed_pk}-{status}", _run)
+
+
+def schedule_return_ops_batch_decision(
+    batch_id: int, actor_id: int, decision: str, item_ids: list[int] | None = None
+) -> None:
+    """اعتماد/رفض العمليات لملف مرتجع → PDF + إشعار."""
+
+    def _run():
+        from ops.models import ReturnBatch
+
+        User = get_user_model()
+        actor = User.objects.filter(pk=actor_id).first()
+        batch = (
+            ReturnBatch.objects.select_related("representative")
+            .prefetch_related("items")
+            .filter(pk=batch_id)
+            .first()
+        )
+        if not batch or not actor:
+            return
+
+        if item_ids:
+            items = list(batch.items.filter(pk__in=item_ids))
+        else:
+            items = list(batch.items.all())
+        try:
+            pdf_bytes, filename = build_return_batch_pdf(batch)
+        except Exception:
+            logger.exception("PDF build failed for return ops %s", batch_id)
+            return
+
+        pdf_url = _return_pdf_url(batch)
+        title = "اعتماد مرتجع — العمليات" if decision == "accepted" else "رفض مرتجع — العمليات"
+        bullets = [f"{it.item_name} × {it.quantity}" for it in items[:5]]
+        msg = _compact_wa(
+            title,
+            file_ref=batch.return_number,
+            meta=f"{batch.branch} | {len(items)} صنف | {_actor_line(actor)}",
+            bullets=bullets,
+            pdf_url=pdf_url,
+        )
+        _notify_pdf_to_roles(
+            msg,
+            pdf_bytes=pdf_bytes,
+            filename=filename,
+            pdf_url=pdf_url,
+            roles=User.RETURN_AUTHORIZE_NOTIFY_ROLES,
+        )
+
+    _run_in_background(f"return-ops-{decision}-{batch_id}", _run)

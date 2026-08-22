@@ -121,15 +121,19 @@
 <div class="app-modal hidden" id="newItemModal">
     <div class="app-modal-panel app-modal-panel--md">
         <div class="app-modal-head">
-            <h3>إضافة صنف</h3>
-            <button type="button" class="app-modal-close" aria-label="إغلاق"
-                    onclick="document.getElementById('newItemModal').classList.add('hidden')">
-                <span class="material-symbols-outlined">close</span>
-            </button>
+            <div class="app-modal-head-main">
+                <h3>إضافة صنف</h3>
+            </div>
+            <div class="app-modal-head-actions">
+                <button type="button" class="app-modal-close" aria-label="إغلاق"
+                        onclick="document.getElementById('newItemModal').classList.add('hidden')">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
         </div>
         <form method="post" action="{% url 'ops:item_create' %}" class="flex flex-col overflow-hidden">
             {% csrf_token %}
-            <div class="p-lg overflow-y-auto flex flex-col gap-md">
+            <div class="app-modal-body flex flex-col gap-md">
                 <div class="flex flex-col gap-sm">
                     <label class="font-label-md text-label-md text-on-surface">الاسم</label>
                     <input name="name" required

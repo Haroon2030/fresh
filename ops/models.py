@@ -59,10 +59,15 @@ class SupplyOrder(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    public_token = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        editable=False,
+        verbose_name='رمز PDF',
+    )
 
     class Meta:
-        ordering = ['-created_at']
-        verbose_name = 'طلب توريد'
         verbose_name_plural = 'طلبات التوريد'
 
     def __str__(self):
@@ -72,7 +77,13 @@ class SupplyOrder(models.Model):
         if not self.order_number:
             last = SupplyOrder.objects.aggregate(Max('id'))['id__max'] or 0
             self.order_number = f'#ORD-{last + 1:03d}'
+        self.ensure_public_token()
         super().save(*args, **kwargs)
+
+    def ensure_public_token(self):
+        if not self.public_token:
+            import secrets
+            self.public_token = secrets.token_urlsafe(24)
 
     @property
     def total_amount(self):
@@ -154,6 +165,33 @@ class ReturnBatch(models.Model):
 
     def get_display_status_display(self):
         return dict(self.Status.choices).get(self.display_status, self.display_status)
+
+    def rep_pending_items(self):
+        return self.items.filter(
+            status=ReturnRequest.Status.PENDING,
+            rep_decision=ReturnRequest.RepDecision.PENDING,
+        )
+
+    def ops_pending_items(self):
+        return self.items.filter(
+            status=ReturnRequest.Status.PENDING,
+            rep_decision=ReturnRequest.RepDecision.AUTHORIZED,
+        )
+
+    def user_can_rep_decide(self, user) -> bool:
+        if not self.rep_pending_items().exists():
+            return False
+        if getattr(user, 'is_manager', False):
+            return True
+        return (
+            getattr(user, 'is_representative', False)
+            and self.representative_id == user.id
+        )
+
+    def user_can_delete(self, user) -> bool:
+        if getattr(user, 'is_manager', False):
+            return True
+        return self.representative_id == user.id or self.created_by_id == user.id
 
 
 class ReturnRequest(models.Model):
@@ -657,6 +695,13 @@ class DailySupplyDistribution(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    public_token = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        editable=False,
+        verbose_name='رمز PDF',
+    )
 
     class Meta:
         ordering = ['-distribution_date', '-created_at']
@@ -666,10 +711,16 @@ class DailySupplyDistribution(models.Model):
     def __str__(self):
         return f'{self.item_name} → {self.branch} × {self.quantity}'
 
+    def ensure_public_token(self):
+        if not self.public_token:
+            import secrets
+            self.public_token = secrets.token_urlsafe(24)
+
     def save(self, *args, **kwargs):
         if not self.distribution_date:
             from django.utils import timezone
             self.distribution_date = timezone.localdate()
+        self.ensure_public_token()
         super().save(*args, **kwargs)
 
 
@@ -726,6 +777,13 @@ class DistributionVariance(models.Model):
     authorized_at = models.DateTimeField(null=True, blank=True, verbose_name='وقت التعميد')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    public_token = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        editable=False,
+        verbose_name='رمز PDF',
+    )
 
     class Meta:
         ordering = ['-record_date', '-created_at']
@@ -735,10 +793,16 @@ class DistributionVariance(models.Model):
     def __str__(self):
         return f'{self.get_variance_type_display()} — {self.item_name} × {self.quantity}'
 
+    def ensure_public_token(self):
+        if not self.public_token:
+            import secrets
+            self.public_token = secrets.token_urlsafe(24)
+
     def save(self, *args, **kwargs):
         if not self.record_date:
             from django.utils import timezone
             self.record_date = timezone.localdate()
+        self.ensure_public_token()
         super().save(*args, **kwargs)
 
 

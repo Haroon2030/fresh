@@ -86,19 +86,21 @@
 <div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.seed_pk }}">
     <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
-            <div>
+            <div class="app-modal-head-main">
                 <h3>أصناف الملف {{ batch.batch_number }}</h3>
-                <p class="text-xs text-on-surface-variant font-bold m-0 mt-1">
+                <p class="app-modal-sub">
                     {{ batch.created_by.display_name }} · {{ batch.distribution_date|date:"Y/m/d" }} · {{ batch.items_count }} صنف
                 </p>
             </div>
-            <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch="{{ batch.seed_pk }}">
-                <span class="material-symbols-outlined">close</span>
-            </button>
+            <div class="app-modal-head-actions">
+                <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch="{{ batch.seed_pk }}">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
         </div>
-        <div class="p-lg overflow-y-auto">
-            <div class="app-table-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
-                <table class="excel-grid app-data-grid w-full">
+        <div class="app-modal-body">
+            <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+                <table class="excel-grid batch-detail-grid w-full">
                     <thead>
                     <tr>
                         <th>#</th>
@@ -125,9 +127,8 @@
                 </table>
             </div>
         </div>
-        <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
-            <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md"
-                    data-close-batch="{{ batch.seed_pk }}">إغلاق</button>
+        <div class="app-modal-foot">
+            <button type="button" class="btn-ghost-app" data-close-batch="{{ batch.seed_pk }}">إغلاق</button>
         </div>
     </div>
 </div>
@@ -136,11 +137,15 @@
 <div class="app-modal hidden" id="newDistModal">
     <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
-            <h3>ملف توزيع توريد يومي</h3>
-            <button type="button" class="app-modal-close" aria-label="إغلاق"
-                    onclick="document.getElementById('newDistModal').classList.add('hidden')">
-                <span class="material-symbols-outlined">close</span>
-            </button>
+            <div class="app-modal-head-main">
+                <h3>ملف توزيع توريد يومي</h3>
+            </div>
+            <div class="app-modal-head-actions">
+                <button type="button" class="app-modal-close" aria-label="إغلاق"
+                        onclick="document.getElementById('newDistModal').classList.add('hidden')">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
         </div>
         <form method="post" action="{% url 'ops:daily_distribution_create' %}" class="flex flex-col overflow-hidden" id="distMultiForm">
             {% csrf_token %}
@@ -179,12 +184,10 @@
                     كل حفظ = ملف واحد. بعد الحفظ تُرسل رسالة للمحاسب والعمليات والمستلم.
                 </p>
             </div>
-            <div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-sm">
-                <button type="button" class="px-6 py-2 border border-outline-variant rounded-lg font-label-md text-label-md"
+            <div class="app-modal-foot">
+                <button type="button" class="btn-ghost-app"
                         onclick="document.getElementById('newDistModal').classList.add('hidden')">إلغاء</button>
-                <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:bg-primary/90">
-                    حفظ الملف
-                </button>
+                <button type="submit" class="btn-primary-app">حفظ الملف</button>
             </div>
         </form>
     </div>

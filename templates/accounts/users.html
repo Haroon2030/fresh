@@ -157,15 +157,19 @@
 <div class="app-modal hidden" id="newUserModal">
     <div class="app-modal-panel app-modal-panel--lg">
         <div class="app-modal-head">
-            <h3>تسجيل مستخدم جديد</h3>
-            <button type="button" class="app-modal-close" aria-label="إغلاق"
-                    onclick="document.getElementById('newUserModal').classList.add('hidden')">
-                <span class="material-symbols-outlined">close</span>
-            </button>
+            <div class="app-modal-head-main">
+                <h3>تسجيل مستخدم جديد</h3>
+            </div>
+            <div class="app-modal-head-actions">
+                <button type="button" class="app-modal-close" aria-label="إغلاق"
+                        onclick="document.getElementById('newUserModal').classList.add('hidden')">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
         </div>
         <form method="post" action="{% url 'accounts:user_create' %}" class="flex flex-col overflow-hidden">
             {% csrf_token %}
-            <div class="overflow-y-auto">
+            <div class="app-modal-body">
                 <table class="user-form-grid w-full">
                     <tbody>
                     <tr>
@@ -221,11 +225,10 @@
                     </tbody>
                 </table>
             </div>
-            <div class="px-lg py-md border-t border-[#bfdbfe] bg-[#f8fbff] flex justify-end gap-sm">
-                <button type="button" class="px-5 py-2.5 border border-slate-300 rounded-lg font-bold text-[14px] text-slate-700 hover:bg-white"
-                        style="font-family:'Cairo',sans-serif"
+            <div class="app-modal-foot">
+                <button type="button" class="btn-ghost-app"
                         onclick="document.getElementById('newUserModal').classList.add('hidden')">إلغاء</button>
-                <button type="submit" class="btn-primary-app" style="font-family:'Cairo',sans-serif">
+                <button type="submit" class="btn-primary-app">
                     <span class="material-symbols-outlined text-[18px]">save</span>
                     حفظ المستخدم
                 </button>
