@@ -396,7 +396,7 @@ def _build_task_wa_message(
     review_note: str = "",
 ) -> str:
     """
-    رسالة واتساب احترافية للمهام (بدون الرابط — يُرسل في رسالة مستقلة).
+    رسالة واتساب احترافية للمهام (الرابط يُدمج في نفس الرسالة).
     kind: assigned | correction
     """
     assignee = task.assigned_to.display_name if task.assigned_to_id else "الموظف"

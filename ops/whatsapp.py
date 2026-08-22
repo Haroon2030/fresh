@@ -717,7 +717,7 @@ def send_clickable_link(
     button_text: str = "فتح صفحة الرد",
 ) -> bool:
     """
-    رسالة منسّقة + رابط في رسالة مستقلة مع linkPreview (قابل للنقر).
+    رسالة واحدة: النص + الرابط مع linkPreview (قابل للنقر).
     """
     link = to_whatsapp_clickable_url((url or "").strip())
     if not link.startswith("http"):
@@ -731,37 +731,17 @@ def send_clickable_link(
     detail = (detail_text or "").strip()
     if link in detail:
         detail = detail.replace(link, "").strip()
-    sent = False
 
+    parts: list[str] = []
     if detail:
-        sent = send_text(phone, detail) or sent
+        parts.append(detail)
+    parts.append(format_wa_link_block(link, label=f"🔗 *{button_text}*").strip())
+    message = "\n\n".join(p for p in parts if p).strip()
 
-    link_label = f"🔗 *{button_text}*"
-    link_msg = f"{link_label}\n{link}"
-    if send_text(phone, link_msg, link_preview=True):
-        sent = True
+    if not message:
+        message = link
 
-    if not sent:
-        logger.warning("WhatsApp link send failed for %s", phone)
-        return False
-
-    try:
-        title_line = "عمليات الفرش"
-        if detail.startswith("*🏢"):
-            first = detail.split("\n", 2)
-            if len(first) > 1:
-                title_line = first[1].strip("* ") or title_line
-        send_url_button(
-            number,
-            title=title_line[:60],
-            description=(detail or button_text)[:1024],
-            url=link,
-            button_text=button_text,
-        )
-    except Exception:
-        logger.debug("Optional sendButtons skipped", exc_info=True)
-
-    return True
+    return send_text(phone, message, link_preview=True)
 
 
 def send_text(number: str, text: str, *, link_preview: bool = False) -> bool:
