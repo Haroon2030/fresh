@@ -196,12 +196,12 @@ EVOLUTION_NOTIFY_ENABLED = env_bool(
 # شهادات sslip.io / self-signed — للمنفذ HTTP المحلي اترك False
 EVOLUTION_VERIFY_SSL = env_bool("EVOLUTION_VERIFY_SSL", False)
 
-# رابط عام للمهام (واتساب) — مثال: http://72.61.107.230:7080
-PUBLIC_BASE_URL = env_str("PUBLIC_BASE_URL", "http://72.61.107.230:7080").rstrip("/")
+# رابط عام للمهام والـ PDF (واتساب) — https://fresh.alrsheed.net
+PUBLIC_BASE_URL = env_str("PUBLIC_BASE_URL", "https://fresh.alrsheed.net").rstrip("/")
 
 
 def _public_url_hosts(base_url: str) -> list[str]:
-    """Hosts for ALLOWED_HOSTS — IP + sslip.io alias used in older WhatsApp links."""
+    """Hosts for ALLOWED_HOSTS — domain + sslip.io fallback if PUBLIC_BASE_URL is still an IP."""
     import re
     from urllib.parse import urlparse
 

@@ -1,7 +1,10 @@
-# نشر على Dokploy مع قاعدة MySQL الخارجية (خدمة قاعدة البيانات في Dokploy)
-# في Dokploy: Compose → هذا الملف، ثم افتح المنفذ المنشور (افتراضي 7080)
+# نشر على Dokploy — الموقع: https://fresh.alrsheed.net
+# في Dokploy: Compose → Environment:
+#   ALLOWED_HOSTS=fresh.alrsheed.net
+#   CSRF_TRUSTED_ORIGINS=https://fresh.alrsheed.net
+#   PUBLIC_BASE_URL=https://fresh.alrsheed.net
 #
-# واتساب (Evolution API) — أضف في Environment:
+# واتساب (Evolution API):
 #   EVOLUTION_SERVER_URL=http://72.61.107.230:8081
 #   EVOLUTION_API_KEY=...
 #   EVOLUTION_INSTANCE_NAME=hr
@@ -16,8 +19,8 @@ services:
     environment:
       DEBUG: ${DEBUG:-False}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
-      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-fresh.alrsheed.net,localhost,127.0.0.1}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-https://fresh.alrsheed.net}
       DB_ENGINE: mysql
       MYSQL_HOST: ${MYSQL_HOST:?Set MYSQL_HOST}
       MYSQL_PORT: ${MYSQL_PORT:-3306}
@@ -34,6 +37,6 @@ services:
       EVOLUTION_INSTANCE_NAME: ${EVOLUTION_INSTANCE_NAME:-${EVOLUTION_INSTANCE:-}}
       EVOLUTION_NOTIFY_ENABLED: ${EVOLUTION_NOTIFY_ENABLED:-True}
       EVOLUTION_VERIFY_SSL: ${EVOLUTION_VERIFY_SSL:-False}
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://fresh.alrsheed.net}
     ports:
       - "${APP_PORT:-7080}:8000"

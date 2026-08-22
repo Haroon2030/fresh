@@ -532,8 +532,8 @@ def recreate_instance() -> dict:
 
 def to_whatsapp_clickable_url(url: str) -> str:
     """
-    For WhatsApp: sslip.io hostname so the link is tappable (raw IP stays plain text).
-    ALLOWED_HOSTS/CSRF already include the sslip alias — page opens normally.
+    Normalize task/public links to PUBLIC_BASE_URL.
+    IP hosts → sslip.io (واتساب لا ينقر IP). النطاق الحقيقي يُستخدم كما هو.
     """
     import re
     from django.conf import settings

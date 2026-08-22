@@ -468,7 +468,7 @@ def _build_task_wa_message(
 
 
 def _send_whatsapp_link(phone: str, message: str, link: str, *, link_label: str = "فتح صفحة الرد") -> bool:
-    """زر URL + fallback برابط sslip.io (واتساب لا ينقر IP مباشرة)."""
+    """زر URL + رابط PUBLIC_BASE_URL (نطاق أو sslip.io للـ IP)."""
     from ops.whatsapp import send_clickable_link
 
     link = (link or "").strip()
