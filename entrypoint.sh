@@ -1,7 +1,10 @@
 #!/bin/sh
 set -e
 
+echo "[deploy] Running database migrations..."
 python manage.py migrate --noinput
+echo "[deploy] Migrations complete."
+
 mkdir -p "${MEDIA_ROOT:-/data/media}"
 python manage.py ensure_ops_schema
 python manage.py collectstatic --noinput

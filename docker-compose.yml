@@ -16,6 +16,7 @@ services:
   web:
     build: .
     restart: unless-stopped
+    entrypoint: ["/app/entrypoint.sh"]
     environment:
       DEBUG: ${DEBUG:-False}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
