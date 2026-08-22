@@ -483,57 +483,40 @@ def schedule_task_assigned(task_id: int, public_link: str = "") -> None:
     _run_in_background(f"task-assign-{task_id}", _run)
 
 
-def schedule_task_created_notify(
-    *,
-    exclude_phones: set | None = None,
-    action_url: str = "",
-) -> None:
-    """إشعار الأدوار بمهمة جديدة — في الخلفية حتى لا يتوقف حفظ المهمة."""
-    skip = set(exclude_phones or ())
-
-    def _run():
-        from ops.whatsapp import notify_roles
-
-        notify_roles(
-            'إشعار مهمة جديدة',
-            'تم إنشاء مهمة تشغيلية. يرجى المتابعة عبر الرابط أدناه.',
-            exclude_phones=skip,
-            action_url=action_url,
-        )
-
-    _run_in_background("task-created-notify", _run)
-
-
 def schedule_task_submitted(task_id: int) -> None:
+    """إشعار منشئ المهمة فقط عند وصول رد الموظف."""
+
     def _run():
         from ops.models import Task
 
         task = Task.objects.select_related("assigned_to", "created_by").filter(pk=task_id).first()
-        if not task:
+        if not task or not task.created_by_id:
             return
         try:
             pdf_bytes, filename = build_task_pdf(task, actor=task.assigned_to)
         except Exception:
             logger.exception("PDF build failed for task submit %s", task_id)
             return
+        creator = task.created_by
         msg = _pdf_caption(
             "إشعار رد مهمة",
-            instruction="نُرفق ملف الرد. يرجى المراجعة والاعتماد.",
+            instruction=(
+                f"رد من: {task.assigned_to.display_name if task.assigned_to_id else '—'}\n"
+                "نُرفق ملف الرد. يرجى المراجعة والاعتماد من لوحة المهام."
+            ),
         )
-        _notify_pdf_to_roles(
+        result = _notify_pdf_to_user(
+            creator,
             msg,
             pdf_bytes=pdf_bytes,
             filename=filename,
             pdf_url="",
-            roles=get_user_model().NOTIFY_ROLES,
         )
-        if task.created_by_id and getattr(task.created_by, "whatsapp", ""):
-            _notify_pdf_to_user(
-                task.created_by,
-                msg,
-                pdf_bytes=pdf_bytes,
-                filename=filename,
-                pdf_url="",
+        if not result.get("sent"):
+            logger.warning(
+                "Task %s submit notify to creator failed: %s",
+                task_id,
+                result.get("error"),
             )
 
     _run_in_background(f"task-submit-{task_id}", _run)
