@@ -2292,6 +2292,7 @@ def items_list(request):
 @login_required
 @require_POST
 def item_create(request):
+    from .catalog_units import merge_unit_strings
     name = (request.POST.get('name') or '').strip()
     item_number = (request.POST.get('item_number') or '').strip()
     unit = (request.POST.get('unit') or '').strip()
@@ -2301,15 +2302,16 @@ def item_create(request):
         messages.error(request, 'الاسم ورقم الصنف مطلوبان.')
         return redirect('ops:items')
 
-    if CatalogItem.objects.filter(item_number=item_number).exists():
-        messages.error(request, f'رقم الصنف «{item_number}» موجود مسبقاً.')
+    existing = CatalogItem.objects.filter(name=name).first()
+    if existing:
+        messages.error(request, f'الصنف «{name}» موجود مسبقاً.')
         return redirect('ops:items')
 
     CatalogItem.objects.create(
         name=name,
         item_number=item_number,
-        unit=unit,
-        package=package,
+        unit=merge_unit_strings(unit, package),
+        package='',
     )
     messages.success(request, f'تم إضافة الصنف «{name}».')
     return redirect('ops:items')
@@ -2328,6 +2330,7 @@ def item_delete(request, pk):
 @login_required
 @require_POST
 def items_import_excel(request):
+    from .catalog_units import merge_unit_strings
     from .excel_items import parse_items_workbook
 
     upload = request.FILES.get('excel_file')
@@ -2349,12 +2352,17 @@ def items_import_excel(request):
     created = 0
     updated = 0
     for row in rows:
+        existing = CatalogItem.objects.filter(name=row['name']).first()
+        merged_unit = merge_unit_strings(
+            existing.unit if existing else '',
+            row.get('unit') or '',
+        )
         obj, was_created = CatalogItem.objects.update_or_create(
-            item_number=row['item_number'],
+            name=row['name'],
             defaults={
-                'name': row['name'],
-                'unit': row['unit'],
-                'package': row['package'],
+                'item_number': row['item_number'],
+                'unit': merged_unit,
+                'package': '',
             },
         )
         if was_created:

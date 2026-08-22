@@ -478,8 +478,13 @@ class TaskResponsePhoto(models.Model):
 
 class CatalogItem(models.Model):
     name = models.CharField(max_length=255, verbose_name='الاسم')
-    item_number = models.CharField(max_length=100, unique=True, verbose_name='رقم الصنف')
-    unit = models.CharField(max_length=50, blank=True, verbose_name='الوحدة')
+    item_number = models.CharField(max_length=100, db_index=True, verbose_name='رقم الصنف')
+    unit = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name='الوحدة',
+        help_text='يمكن إدخال أكثر من وحدة مفصولة بفاصلة (مثل: جرم، كيس، كرتون)',
+    )
     package = models.CharField(max_length=100, blank=True, verbose_name='العبوة')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -488,9 +493,23 @@ class CatalogItem(models.Model):
         ordering = ['name']
         verbose_name = 'صنف'
         verbose_name_plural = 'الأصناف'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['name'],
+                name='ops_catalogitem_name_uniq',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.name} ({self.item_number})'
+
+    @property
+    def units_list(self):
+        from .catalog_units import split_units
+        parts = split_units(self.unit)
+        if parts:
+            return parts
+        return split_units(self.package)
 
 
 class Branch(models.Model):

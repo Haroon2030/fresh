@@ -41,7 +41,7 @@
         </div>
         <div>
             <p class="font-headline-md text-[18px] font-semibold text-on-surface">اسحب ملف Excel هنا</p>
-            <p class="font-body-md text-body-md text-on-surface-variant mt-xs">أو اضغط للاختيار — الأعمدة: الاسم · رقم الصنف · الوحدة · العبوة</p>
+            <p class="font-body-md text-body-md text-on-surface-variant mt-xs">أو اضغط للاختيار — ملف طلب الخضار: اسم الصنف + عبوات متعددة تحت نفس الاسم</p>
         </div>
         <input type="file" name="excel_file" id="excelFileInput" accept=".xlsx,.xlsm" class="hidden" required>
         <span id="selectedFileName" class="font-label-md text-label-md text-[#1d4ed8] hidden"></span>
@@ -65,8 +65,7 @@
             <tr>
                 <th>الاسم</th>
                 <th>رقم الصنف</th>
-                <th>الوحدة</th>
-                <th>العبوة</th>
+                <th>الوحدات</th>
                 <th>إجراء</th>
             </tr>
             </thead>
@@ -75,8 +74,7 @@
             <tr>
                 <td class="cell-strong">{{ item.name }}</td>
                 <td>{{ item.item_number }}</td>
-                <td>{% if item.unit %}{{ item.unit }}{% else %}—{% endif %}</td>
-                <td>{% if item.package %}{{ item.package }}{% else %}—{% endif %}</td>
+                <td>{% if item.units_list %}{{ item.units_list|join:"، " }}{% else %}—{% endif %}</td>
                 <td class="cell-center">
                     <form method="post" action="{% url 'ops:item_delete' item.pk %}" onsubmit="return confirm('حذف هذا الصنف؟');">
                         {% csrf_token %}
@@ -89,7 +87,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="5" class="empty-row">لا توجد أصناف بعد. اسحب ملف Excel أو أضف صنفاً يدوياً.</td>
+                <td colspan="4" class="empty-row">لا توجد أصناف بعد. اسحب ملف Excel أو أضف صنفاً يدوياً.</td>
             </tr>
             {% endfor %}
             </tbody>
@@ -146,19 +144,13 @@
                            class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md"
                            placeholder="مثال: CHR-001">
                 </div>
-                <div class="grid grid-cols-2 gap-md">
-                    <div class="flex flex-col gap-sm">
-                        <label class="font-label-md text-label-md text-on-surface">الوحدة</label>
-                        <input name="unit"
-                               class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md"
-                               placeholder="قطعة">
-                    </div>
-                    <div class="flex flex-col gap-sm">
-                        <label class="font-label-md text-label-md text-on-surface">العبوة</label>
-                        <input name="package"
-                               class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md"
-                               placeholder="كرتون">
-                    </div>
+                <div class="flex flex-col gap-sm md:col-span-2">
+                    <label class="font-label-md text-label-md text-on-surface">الوحدات</label>
+                    <input name="unit"
+                           class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md"
+                           placeholder="جرم، كيس، كرتون">
+                    <p class="font-body-sm text-body-sm text-on-surface-variant">يمكن إدخال أكثر من وحدة مفصولة بفاصلة.</p>
+                    <input type="hidden" name="package" value="">
                 </div>
             </div>
             <div class="app-modal-foot">

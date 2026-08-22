@@ -6,9 +6,17 @@ from io import BytesIO
 
 from openpyxl import Workbook, load_workbook
 
+from .catalog_units import aggregate_catalog_rows
+
 HEADER_ALIASES = {
-    'name': {'الاسم', 'اسم', 'name', 'item_name', 'الصنف'},
-    'item_number': {'رقم الصنف', 'رقم', 'item_number', 'رقمالصنف', 'كود', 'code', 'sku'},
+    'name': {
+        'الاسم', 'اسم', 'name', 'item_name', 'الصنف', 'اسمالصنف',
+        'اسم الصنف', 'اسم الصنف', 'اسمالصنف',
+    },
+    'item_number': {
+        'رقم الصنف', 'رقم الصنف', 'رقم', 'item_number', 'رقمالصنف',
+        'كود', 'code', 'sku',
+    },
     'unit': {'الوحدة', 'وحدة', 'unit'},
     'package': {'العبوة', 'عبوة', 'package', 'pack'},
 }
@@ -20,22 +28,61 @@ def _norm(value) -> str:
     return str(value).strip()
 
 
+def _header_key(cell) -> str:
+    return _norm(cell).lower().replace(' ', '').replace('_', '')
+
+
 def _map_headers(row) -> dict[str, int]:
     mapping = {}
     for idx, cell in enumerate(row):
-        key = _norm(cell).lower().replace(' ', '')
+        key = _header_key(cell)
+        if not key:
+            continue
         for field, aliases in HEADER_ALIASES.items():
-            normalized_aliases = {a.lower().replace(' ', '') for a in aliases}
+            normalized_aliases = {a.lower().replace(' ', '').replace('_', '') for a in aliases}
             if key in normalized_aliases and field not in mapping:
                 mapping[field] = idx
                 break
     return mapping
 
 
+def _detect_layout(header_row) -> dict[str, int] | None:
+    """اكتشاف تخطيط ملف طلب الخضار: اسم الصنف | العبوة | رقم الصنف."""
+    if not header_row:
+        return None
+    keys = [_header_key(c) for c in header_row]
+    has_name = any(k in {'اسمالصنف', 'الاسم', 'name', 'itemname'} or 'اسمالصن' in k for k in keys)
+    has_package = any(k in {'العبوة', 'package', 'pack', 'عبوة'} for k in keys)
+    has_number = any('رقمالصن' in k or k in {'رقم', 'itemnumber', 'sku', 'code'} for k in keys)
+
+    if has_name and has_package and has_number and len([k for k in keys if k]) <= 4:
+        name_idx = next(i for i, k in enumerate(keys) if k and ('اسمالصن' in k or k in {'الاسم', 'name', 'itemname'}))
+        package_idx = next(i for i, k in enumerate(keys) if k in {'العبوة', 'package', 'pack', 'عبوة'})
+        number_idx = next(
+            i for i, k in enumerate(keys)
+            if k and ('رقمالصن' in k or k in {'رقم', 'itemnumber', 'sku', 'code'})
+        )
+        return {'name': name_idx, 'package': package_idx, 'item_number': number_idx}
+
+    mapped = _map_headers(header_row)
+    if 'name' in mapped and 'item_number' in mapped:
+        return mapped
+    return None
+
+
+def _looks_like_header(row) -> bool:
+    keys = {_header_key(c) for c in (row or ()) if _norm(c)}
+    markers = {
+        'الاسم', 'name', 'itemname', 'اسمالصنف', 'اسمالصنف',
+        'رقمالصنف', 'رقمالصنف', 'itemnumber', 'العبوة', 'package',
+    }
+    return bool(keys & markers) or any('اسمالصن' in k for k in keys)
+
+
 def parse_items_workbook(file_obj) -> tuple[list[dict], list[str]]:
     """
     يقرأ ملف Excel ويعيد (صفوف صالحة, أخطاء).
-    الصف المتوقع: الاسم | رقم الصنف | الوحدة | العبوة
+    يدعم: اسم الصنف | العبوة | رقم الصنف (ملف طلب الخضار)
     """
     wb = load_workbook(file_obj, read_only=True, data_only=True)
     ws = wb.active
@@ -45,23 +92,20 @@ def parse_items_workbook(file_obj) -> tuple[list[dict], list[str]]:
     if not rows:
         return [], ['الملف فارغ.']
 
-    header_map = _map_headers(rows[0])
-    # إن لم تُعرف العناوين، نفترض الترتيب الثابت
-    if 'name' not in header_map or 'item_number' not in header_map:
+    header_row = rows[0]
+    header_map = _detect_layout(header_row)
+    if header_map is None:
         header_map = {'name': 0, 'item_number': 1, 'unit': 2, 'package': 3}
-        data_rows = rows
-        # تخطّي الصف الأول إن بدا كعناوين عربية/إنجليزية
-        first = [_norm(c).lower() for c in (rows[0] or ())]
-        if any(h in first for h in ('الاسم', 'name', 'رقم الصنف', 'item_number')):
-            data_rows = rows[1:]
-    else:
-        data_rows = rows[1:]
+
+    data_rows = rows[1:] if _looks_like_header(header_row) else rows
 
     items = []
     errors = []
-    seen_numbers = set()
+    seen_keys = set()
+    last_name = ''
+    last_number = ''
 
-    for i, row in enumerate(data_rows, start=2):
+    for i, row in enumerate(data_rows, start=2 if _looks_like_header(header_row) else 1):
         if not row or all(c is None or str(c).strip() == '' for c in row):
             continue
 
@@ -71,23 +115,32 @@ def parse_items_workbook(file_obj) -> tuple[list[dict], list[str]]:
                 return default
             return _norm(row[idx])
 
-        name = cell('name')
-        item_number = cell('item_number')
+        name = cell('name') or last_name
+        item_number = cell('item_number') or last_number
         unit = cell('unit')
         package = cell('package')
 
-        if not name and not item_number:
+        if not name and not package and not item_number:
             continue
         if not name:
-            errors.append(f'الصف {i}: الاسم مطلوب.')
+            errors.append(f'الصف {i}: الاسم مطلوب (أو اترك صفاً تحت اسم الصنف لنفس المنتج).')
+            continue
+        if not package:
+            errors.append(f'الصف {i}: العبوة مطلوبة.')
             continue
         if not item_number:
-            errors.append(f'الصف {i}: رقم الصنف مطلوب.')
+            errors.append(f'الصف {i}: رقم الصنف مطلوب (أو اتركه فارغاً تحت صف له رقم).')
             continue
-        if item_number in seen_numbers:
-            errors.append(f'الصف {i}: رقم الصنف مكرر في الملف ({item_number}).')
+
+        dedupe_key = (name.casefold(), package.casefold(), item_number.casefold())
+        if dedupe_key in seen_keys:
+            errors.append(f'الصف {i}: صف مكرر ({name} / {package}).')
             continue
-        seen_numbers.add(item_number)
+        seen_keys.add(dedupe_key)
+
+        last_name = name
+        last_number = item_number
+
         items.append({
             'name': name,
             'item_number': item_number,
@@ -95,16 +148,17 @@ def parse_items_workbook(file_obj) -> tuple[list[dict], list[str]]:
             'package': package,
         })
 
-    return items, errors
+    return aggregate_catalog_rows(items), errors
 
 
 def build_template_workbook() -> BytesIO:
     wb = Workbook()
     ws = wb.active
     ws.title = 'الأصناف'
-    ws.append(['الاسم', 'رقم الصنف', 'الوحدة', 'العبوة'])
-    ws.append(['كرسي مكتب', 'CHR-001', 'قطعة', 'كرتون'])
-    ws.append(['طاولة اجتماعات', 'DSK-100', 'قطعة', 'طبلية'])
+    ws.append(['اسم الصنف', 'العبوة', 'رقم الصنف'])
+    ws.append(['خيار', 'جرم', '06142'])
+    ws.append(['', 'كيس', ''])
+    ws.append(['فلفل شقراء', 'جرم', '06146'])
     for col in ws.columns:
         ws.column_dimensions[col[0].column_letter].width = 22
     stream = BytesIO()
