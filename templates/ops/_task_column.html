@@ -127,6 +127,16 @@
                 {% endif %}
             </div>
             {% endif %}
+
+            {% if user.is_manager %}
+            <div class="task-actions">
+                <form method="post" action="{% url 'ops:task_delete' task.pk %}"
+                      onsubmit="return confirm('حذف المهمة «{{ task.title|escapejs }}»؟ لا يمكن التراجع.');">
+                    {% csrf_token %}
+                    <button type="submit" class="task-act danger" title="حذف المهمة">حذف</button>
+                </form>
+            </div>
+            {% endif %}
         </article>
         {% empty %}
         <div class="task-col-empty">لا مهام في هذا العمود</div>

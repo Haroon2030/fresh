@@ -1945,6 +1945,16 @@ def task_review(request, pk):
     return redirect('ops:tasks')
 
 
+@manager_required
+@require_POST
+def task_delete(request, pk):
+    task = get_object_or_404(Task, pk=pk)
+    title = task.title
+    task.delete()
+    messages.success(request, f'تم حذف المهمة «{title}».')
+    return redirect('ops:tasks')
+
+
 @login_required
 @require_POST
 def task_move(request, pk):

@@ -30,7 +30,13 @@ from ops.models import ReturnBatch, WhatsAppRoleContact
 def _user_phone(user) -> str:
     if not user:
         return ""
-    return normalize_whatsapp(getattr(user, "whatsapp", "") or "")
+    phone = normalize_whatsapp(getattr(user, "whatsapp", "") or "")
+    if phone:
+        return phone
+    role = getattr(user, "role", "") or ""
+    if role:
+        return _role_contact_phone(role)
+    return ""
 
 
 def _role_contact_phone(role: str) -> str:

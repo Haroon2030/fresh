@@ -607,38 +607,51 @@ def send_clickable_link(
     button_text: str = "فتح صفحة الرد",
 ) -> bool:
     """
-    إرسال رابط مهمة قابل للنقر:
-    1) زر URL تفاعلي
-    2) وإلا رسالة تفاصيل + رابط sslip.io في رسالة مستقلة
+    إرسال رابط مهمة قابل للنقر عبر sendText (موثوق).
+    sendButtons على Baileys قد يُرجع 201 دون تسليم — لا نعتمد عليه وحده.
     """
     link = to_whatsapp_clickable_url((url or "").strip())
     if not link.startswith("http"):
         logger.warning("Invalid task link for WhatsApp: %s", url)
         return False
 
-    detail = (detail_text or "").strip()
-    title_line = "عمليات الفرش"
-    if detail.startswith("[عمليات الفرش]"):
-        bracket = detail.find("]")
-        if bracket > 0:
-            title_line = detail[1:bracket].strip() or title_line
-            detail = detail[bracket + 1 :].lstrip("\n").strip()
-
-    if send_url_button(
-        number,
-        title=title_line[:60],
-        description=detail,
-        url=link,
-        button_text=button_text,
-    ):
-        return True
-
     phone = normalize_whatsapp(number)
     if not phone:
         return False
+
+    detail = (detail_text or "").strip()
+    sent = False
+
     if detail:
-        send_text(phone, detail)
-    return send_text(phone, link, link_preview=True)
+        sent = send_text(phone, detail) or sent
+
+    # sslip.io + سطر مستقل — أوضح للنقر في واتساب
+    link_body = f"{button_text}\n{link}"
+    if send_text(phone, link_body, link_preview=True):
+        sent = True
+
+    if not sent:
+        logger.warning("Task WhatsApp text send failed for %s", phone)
+        return False
+
+    # زر اختياري إن دعمه السيرفر — لا يؤثر على نجاح الإرسال
+    try:
+        title_line = "عمليات الفرش"
+        if detail.startswith("[عمليات الفرش]"):
+            bracket = detail.find("]")
+            if bracket > 0:
+                title_line = detail[1:bracket].strip() or title_line
+        send_url_button(
+            number,
+            title=title_line[:60],
+            description=(detail or button_text)[:1024],
+            url=link,
+            button_text=button_text,
+        )
+    except Exception:
+        logger.debug("Optional sendButtons skipped", exc_info=True)
+
+    return True
 
 
 def send_text(number: str, text: str, *, link_preview: bool = False) -> bool:
