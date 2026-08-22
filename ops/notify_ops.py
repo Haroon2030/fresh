@@ -412,7 +412,13 @@ def _format_due_at(task) -> str:
     return timezone.localtime(task.due_at).strftime("%Y/%m/%d %H:%M")
 
 
-def _build_task_wa_message(task, *, kind: str = "assigned", review_note: str = "") -> str:
+def _build_task_wa_message(
+    task,
+    *,
+    kind: str = "assigned",
+    review_note: str = "",
+    link: str = "",
+) -> str:
     """
     رسالة واتساب احترافية للمهام (بدون الرابط — يُرسل في سطر مستقل).
     kind: assigned | correction
@@ -453,11 +459,14 @@ def _build_task_wa_message(task, *, kind: str = "assigned", review_note: str = "
     if note and kind == "correction":
         lines.extend(["", "💬 *ملاحظة المراجعة:*", note])
     lines.extend(["", action])
+    clean_link = (link or "").strip()
+    if clean_link:
+        lines.extend(["", clean_link])
     return "\n".join(lines)
 
 
-def _send_whatsapp_link(phone: str, message: str, link: str, *, link_label: str = "🔗 رابط الرد") -> bool:
-    """رسالة نصية + رابط في سطر مستقل (قابل للنقر في واتساب)."""
+def _send_whatsapp_link(phone: str, message: str, link: str, *, link_label: str = "رابط الرد") -> bool:
+    """رسالة + رابط في سطر مستقل، ثم رسالة ثانية بالرابط فقط (لضمان النقر في واتساب)."""
     from ops.whatsapp import send_text
 
     link = (link or "").strip()
@@ -465,12 +474,18 @@ def _send_whatsapp_link(phone: str, message: str, link: str, *, link_label: str 
         return False
     if not link.startswith("http"):
         logger.warning("Task link is not absolute — set PUBLIC_BASE_URL: %s", link)
+
     body = (message or "").strip()
-    if body:
-        text = f"{body}\n\n{link_label}\n{link}"
+    if link not in body:
+        first = f"{body}\n\n{link_label}:\n{link}" if body else f"{link_label}:\n{link}"
     else:
-        text = f"{link_label}\n{link}"
-    return send_text(phone, text)
+        first = body
+
+    ok_detail = send_text(phone, first, link_preview=True)
+    ok_link = send_text(phone, link, link_preview=True)
+    if not ok_detail and not ok_link:
+        logger.warning("Task WhatsApp link send failed for %s", phone)
+    return bool(ok_detail or ok_link)
 
 
 def send_task_link_now(task, *, public_link: str = "", kind: str = "assigned") -> dict:
@@ -492,11 +507,11 @@ def send_task_link_now(task, *, public_link: str = "", kind: str = "assigned") -
             "ok": False,
             "error": "رابط غير كامل — اضبط PUBLIC_BASE_URL في إعدادات النشر.",
         }
-    msg = _build_task_wa_message(task, kind=kind)
+    msg = _build_task_wa_message(task, kind=kind, link=link)
     label = (
-        "🔗 رابط الرد على المهمة"
+        "رابط الرد على المهمة"
         if kind == "assigned"
-        else "🔗 رابط إعادة الرد"
+        else "رابط إعادة الرد"
     )
     ok = _send_whatsapp_link(phone, msg, link, link_label=label)
     if not ok:

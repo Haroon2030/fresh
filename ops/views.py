@@ -1811,17 +1811,23 @@ def task_create(request):
         task.created_by = request.user
         task.status = Task.Status.TODO
         task.save()
+        link = _public_task_url(task, request=request)
         messages.success(
             request,
             'تم إنشاء المهمة وإرسال رابط الرد للموظف عبر واتساب إن وُجد الرقم.',
         )
-        schedule_task_assigned(task.pk, public_link=_public_task_url(task, request=request))
+        schedule_task_assigned(task.pk, public_link=link)
+        assignee_phone = ""
+        if task.assigned_to_id and getattr(task.assigned_to, "whatsapp", ""):
+            assignee_phone = normalize_whatsapp(task.assigned_to.whatsapp)
         notify_roles(
             'مهمة جديدة',
             f'{task.title}\n'
             f'الفرع: {task.branch or "—"}\n'
             f'الموظف: {task.assigned_to.display_name if task.assigned_to_id else "—"}\n'
-            f'بواسطة: {request.user.display_name}',
+            f'بواسطة: {request.user.display_name}\n\n'
+            f'رابط الرد:\n{link}',
+            exclude_phones={assignee_phone} if assignee_phone else set(),
         )
     else:
         messages.error(request, 'تعذر حفظ المهمة. تحقق من العنوان والموظف والفرع.')

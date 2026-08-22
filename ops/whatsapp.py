@@ -530,7 +530,7 @@ def recreate_instance() -> dict:
     }
 
 
-def send_text(number: str, text: str) -> bool:
+def send_text(number: str, text: str, *, link_preview: bool = False) -> bool:
     if not notify_enabled():
         logger.warning("WhatsApp notify disabled or incomplete settings")
         return False
@@ -543,12 +543,30 @@ def send_text(number: str, text: str) -> bool:
         logger.warning("No Evolution instance for send")
         return False
 
+    json_body: dict = {"number": phone, "text": text}
+    if link_preview:
+        json_body["linkPreview"] = True
+
     status, data = _api(
         f"/message/sendText/{instance}",
         method="POST",
-        json_body={"number": phone, "text": text},
+        json_body=json_body,
         timeout=15,
     )
+    if status >= 400 or status == 0:
+        # بعض نسخ Evolution تتوقع textMessage.text
+        alt_body = {
+            "number": phone,
+            "textMessage": {"text": text},
+        }
+        if link_preview:
+            alt_body["linkPreview"] = True
+        status, data = _api(
+            f"/message/sendText/{instance}",
+            method="POST",
+            json_body=alt_body,
+            timeout=15,
+        )
     if status >= 400 or status == 0:
         msg = str(data)
         logger.warning("Evolution send failed (%s): %s", status, msg[:500])
@@ -723,7 +741,13 @@ def collect_notify_phones() -> list[str]:
     return [e["phone"] for e in collect_recipient_entries(include_roles=True)]
 
 
-def notify_roles(title: str, body: str = "", *, roles: set | None = None) -> dict:
+def notify_roles(
+    title: str,
+    body: str = "",
+    *,
+    roles: set | None = None,
+    exclude_phones: set | None = None,
+) -> dict:
     """
     Send WhatsApp to role contact numbers + active users in NOTIFY_ROLES
     (or a custom roles set).
@@ -733,7 +757,8 @@ def notify_roles(title: str, body: str = "", *, roles: set | None = None) -> dic
         return {"sent": 0, "total": 0, "phones": [], "error": "الإشعارات غير مفعّلة أو الإعدادات ناقصة."}
 
     entries = collect_recipient_entries(include_roles=True, roles=roles)
-    phones = [e["phone"] for e in entries]
+    skip = {normalize_whatsapp(p) for p in (exclude_phones or set()) if p}
+    phones = [e["phone"] for e in entries if e.get("phone") and e["phone"] not in skip]
     if not phones:
         return {
             "sent": 0,
