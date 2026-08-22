@@ -153,6 +153,24 @@ MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", _default_media))
 # رفع صور ردود المهام (عدة صور في طلب واحد)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
+
+# ─── Cloudflare R2 (S3-compatible) ─────────────────────────────────────────
+USE_R2 = env_bool("USE_R2", False)
+R2_ACCESS_KEY_ID = env_str("R2_ACCESS_KEY_ID")
+R2_SECRET_ACCESS_KEY = env_str("R2_SECRET_ACCESS_KEY")
+R2_BUCKET_NAME = env_str("R2_BUCKET_NAME", "erphr")
+R2_ENDPOINT_URL = env_str(
+    "R2_ENDPOINT_URL",
+    "https://75fa3746ce94b772172774f8c659552a.r2.cloudflarestorage.com",
+).rstrip("/")
+R2_REGION = env_str("R2_REGION", "auto") or "auto"
+R2_PUBLIC_DOMAIN = env_str("R2_PUBLIC_DOMAIN").rstrip("/")
+R2_SIGNED_URLS = env_bool("R2_SIGNED_URLS", True)
+R2_SIGNED_URL_EXPIRE = int(os.environ.get("R2_SIGNED_URL_EXPIRE", "3600") or "3600")
+R2_PROXY_MEDIA = env_bool("R2_PROXY_MEDIA", True)
+# مجلد داخل الـ bucket — منفصل عن ملفات ERP
+R2_LOCATION = env_str("R2_LOCATION", "media/fresh").strip("/")
+
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
@@ -161,6 +179,23 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }
+
+if USE_R2 and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY and R2_BUCKET_NAME:
+    # django-storages also reads these AWS_* aliases
+    AWS_ACCESS_KEY_ID = R2_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY = R2_SECRET_ACCESS_KEY
+    AWS_STORAGE_BUCKET_NAME = R2_BUCKET_NAME
+    AWS_S3_ENDPOINT_URL = R2_ENDPOINT_URL
+    AWS_S3_REGION_NAME = R2_REGION
+    AWS_S3_SIGNATURE_VERSION = "s3v4"
+    AWS_S3_ADDRESSING_STYLE = "path"
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = R2_SIGNED_URLS
+    AWS_QUERYSTRING_EXPIRE = R2_SIGNED_URL_EXPIRE
+    AWS_S3_FILE_OVERWRITE = False
+    STORAGES["default"] = {
+        "BACKEND": "ops.storage.R2MediaStorage",
+    }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
