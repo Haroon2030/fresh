@@ -1483,7 +1483,6 @@ def daily_order_create(request):
     item_names = request.POST.getlist('item_name')
     item_numbers = request.POST.getlist('item_number')
     quantities = request.POST.getlist('quantity')
-    prices = request.POST.getlist('unit_price')
 
     import secrets
     last_batch = (
@@ -1513,15 +1512,6 @@ def daily_order_create(request):
             quantity = max(1, int(qty_raw or 1))
         except (TypeError, ValueError):
             quantity = 1
-        price_raw = prices[i] if i < len(prices) else '0'
-        try:
-            unit_price = Decimal(str(price_raw or '0').strip() or '0')
-        except (InvalidOperation, TypeError, ValueError):
-            messages.error(request, f'سعر غير صالح للصنف «{item_name}».')
-            return redirect('ops:daily_orders')
-        if unit_price < 0:
-            messages.error(request, f'السعر يجب ألا يكون سالباً للصنف «{item_name}».')
-            return redirect('ops:daily_orders')
         DailyOrder.objects.create(
             order_date=order_date,
             batch_number=batch_number,
@@ -1529,7 +1519,7 @@ def daily_order_create(request):
             item_name=item_name,
             item_number=(item_numbers[i] if i < len(item_numbers) else '').strip(),
             quantity=quantity,
-            unit_price=unit_price,
+            unit_price=Decimal('0'),
             representative=representative,
             branch=branch,
             supplier=supplier,
@@ -1538,7 +1528,7 @@ def daily_order_create(request):
         created += 1
 
     if not created:
-        messages.error(request, 'أضف صنفاً واحداً على الأقل مع الاسم والسعر.')
+        messages.error(request, 'أضف صنفاً واحداً على الأقل مع اسم الصنف.')
         return redirect('ops:daily_orders')
 
     messages.success(request, f'تم تسجيل ملف طلبية {batch_number} بـ {created} صنف.')

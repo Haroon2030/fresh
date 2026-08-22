@@ -497,14 +497,11 @@ def build_daily_orders_pdf(orders: list, *, actor=None) -> tuple[bytes, str]:
     )
     story.append(Spacer(1, 0.3 * cm))
     story.append(Paragraph(_ar("بيان الأصناف"), styles["h"]))
-    headers = ["الإجمالي", "السعر", "الكمية", "رقم الصنف", "اسم الصنف", "طلب", "#"]
+    headers = ["الكمية", "رقم الصنف", "اسم الصنف", "طلب", "#"]
     rows = []
     for i, o in enumerate(orders, 1):
-        total = o.quantity * o.unit_price
         rows.append(
             [
-                f"{total:.2f}",
-                f"{o.unit_price:.2f}",
                 str(o.quantity),
                 o.item_number or "—",
                 o.item_name,

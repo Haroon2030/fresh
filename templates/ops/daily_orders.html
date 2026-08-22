@@ -205,8 +205,6 @@
                         <th>رقم الصنف</th>
                         <th>اسم الصنف</th>
                         <th>الكمية</th>
-                        <th>السعر</th>
-                        <th>الإجمالي</th>
                         <th>الحالة</th>
                     </tr>
                     </thead>
@@ -218,8 +216,6 @@
                         <td dir="ltr">{{ order.item_number|default:"—" }}</td>
                         <td class="cell-strong">{{ order.item_name }}</td>
                         <td class="cell-center">{{ order.quantity }}</td>
-                        <td class="cell-center" dir="ltr">{{ order.unit_price }}</td>
-                        <td class="cell-center cell-strong" dir="ltr">{{ order.line_total }}</td>
                         <td class="cell-center">
                             {% if order.status == 'approved' %}
                             <span class="status-chip status-ok">معتمد</span>
@@ -231,7 +227,7 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="8" class="empty-row">لا أصناف.</td></tr>
+                    <tr><td colspan="6" class="empty-row">لا أصناف.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
@@ -331,14 +327,13 @@
                             <th>رقم الصنف</th>
                             <th>اسم الصنف</th>
                             <th style="width:90px">الكمية</th>
-                            <th style="width:100px">السعر</th>
                             <th style="width:90px">إجراء</th>
                         </tr>
                         </thead>
                         <tbody id="orderRows"></tbody>
                     </table>
                 </div>
-                <p class="text-xs text-on-surface-variant font-bold m-0">أضف عدة صفوف ثم احفظ دفعة واحدة. السعر مطلوب لكل صف.</p>
+                <p class="text-xs text-on-surface-variant font-bold m-0">أضف عدة صفوف ثم احفظ دفعة واحدة.</p>
             </div>
             <div class="app-modal-foot">
                 <button type="button" class="btn-ghost-app"
@@ -388,7 +383,6 @@
             <td><input class="cell-input" name="item_number" type="text" list="catalogNumbers" placeholder="رقم الصنف" dir="ltr"></td>
             <td><input class="cell-input" name="item_name" type="text" list="catalogNames" required placeholder="اسم الصنف"></td>
             <td><input class="cell-input num-entry" name="quantity" type="number" min="1" required placeholder="1"></td>
-            <td><input class="cell-input num-entry" name="unit_price" type="number" min="0" step="0.01" required placeholder="0.00" dir="ltr"></td>
             <td class="cell-action">
                 <div class="row-actions">
                     <button type="button" class="remove-row" title="حذف الصف">حذف</button>
