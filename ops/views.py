@@ -1801,9 +1801,12 @@ def _public_task_url(task, request=None) -> str:
 def _is_allowed_task_image(uploaded) -> bool:
     name = (getattr(uploaded, 'name', '') or '').lower()
     content = (getattr(uploaded, 'content_type', '') or '').lower()
+    allowed_ext = ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif')
     if content.startswith('image/'):
         return True
-    return name.endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic'))
+    if content in ('application/octet-stream', 'binary/octet-stream', ''):
+        return name.endswith(allowed_ext)
+    return name.endswith(allowed_ext)
 
 
 @manager_required
@@ -1903,21 +1906,35 @@ def task_public(request, token):
                             if not text and not files:
                                 error = 'أدخل نص الرد أو أرفق صورة واحدة على الأقل.'
                             else:
-                                with transaction.atomic():
-                                    for f in files:
-                                        TaskResponsePhoto.objects.create(
-                                            task=task, image=f,
-                                        )
-                                    task.submit_for_review(text)
-                                task.refresh_from_db()
-                                submitted = True
-                                schedule_task_submitted(task.pk)
+                                try:
+                                    with transaction.atomic():
+                                        for f in files:
+                                            TaskResponsePhoto.objects.create(
+                                                task=task, image=f,
+                                            )
+                                        task.submit_for_review(text)
+                                    task.refresh_from_db()
+                                    submitted = True
+                                    schedule_task_submitted(task.pk)
+                                except Exception:
+                                    import logging
+                                    logging.getLogger(__name__).exception(
+                                        'task_public photo upload failed token=%s',
+                                        token,
+                                    )
+                                    error = (
+                                        'تعذّر حفظ الصور. استخدم JPG أو PNG '
+                                        'بحجم أقل من 8MB لكل صورة.'
+                                    )
         else:
             error = 'إجراء غير معروف.'
 
+    if submitted:
+        return redirect(f"{reverse('ops:task_public', kwargs={'token': token})}?sent=1")
+
     return render(request, 'ops/task_public.html', {
         'task': task,
-        'just_submitted': submitted,
+        'just_submitted': request.GET.get('sent') == '1',
         'error': error,
         'can_respond': task.status in (
             Task.Status.TODO,

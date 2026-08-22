@@ -125,9 +125,18 @@
                 </div>
                 <div>
                     <label class="text-[13px] font-extrabold text-slate-800">صور من الموقع</label>
-                    <input type="file" name="photos" accept="image/*" multiple capture="environment"
-                           class="mt-1 block w-full text-[13px] font-semibold file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-sky-600 file:text-white">
-                    <p class="text-[11px] text-slate-500 mt-1 font-bold">يمكن إرسال صور فقط أو نص فقط — حتى 8 صور، 8MB لكل صورة</p>
+                    <input type="file" id="taskPhotoInput" name="photos" accept="image/*,.heic,.heif" multiple
+                           class="sr-only">
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        <button type="button" id="taskPickPhotosBtn"
+                                class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-[14px] font-extrabold">
+                            <span class="material-symbols-outlined text-[18px]">add_photo_alternate</span>
+                            إضافة صور
+                        </button>
+                        <span id="taskPhotoCount" class="self-center text-[12px] font-bold text-slate-500 hidden"></span>
+                    </div>
+                    <div id="taskPhotoPreview" class="mt-3 grid grid-cols-3 gap-2 hidden"></div>
+                    <p class="text-[11px] text-slate-500 mt-2 font-bold">صور فقط — حتى 8 صور، 8MB لكل صورة. يمكن من الكاميرا أو المعرض.</p>
                 </div>
                 <button type="submit" id="taskSubmitBtn"
                         class="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[16px] flex items-center justify-center gap-2 disabled:opacity-60">
@@ -140,17 +149,164 @@
                 const form = document.getElementById('taskResponseForm');
                 const btn = document.getElementById('taskSubmitBtn');
                 const label = document.getElementById('taskSubmitLabel');
-                form?.addEventListener('submit', function (e) {
-                    const text = (form.response_text?.value || '').trim();
-                    const files = form.photos?.files?.length || 0;
-                    if (!text && !files) {
-                        e.preventDefault();
-                        alert('أدخل نص الرد أو اختر صورة واحدة على الأقل.');
+                const pickBtn = document.getElementById('taskPickPhotosBtn');
+                const fileInput = document.getElementById('taskPhotoInput');
+                const preview = document.getElementById('taskPhotoPreview');
+                const countEl = document.getElementById('taskPhotoCount');
+                const MAX_FILES = 8;
+                const MAX_BYTES = 8 * 1024 * 1024;
+                let selectedFiles = [];
+
+                pickBtn?.addEventListener('click', () => fileInput?.click());
+
+                function renderPreview() {
+                    if (!preview || !countEl) return;
+                    preview.innerHTML = '';
+                    if (!selectedFiles.length) {
+                        preview.classList.add('hidden');
+                        countEl.classList.add('hidden');
                         return;
                     }
-                    if (btn) {
-                        btn.disabled = true;
-                        if (label) label.textContent = 'جاري الرفع…';
+                    preview.classList.remove('hidden');
+                    countEl.classList.remove('hidden');
+                    countEl.textContent = selectedFiles.length + ' / ' + MAX_FILES + ' صورة';
+                    selectedFiles.forEach((file, idx) => {
+                        const wrap = document.createElement('div');
+                        wrap.className = 'relative rounded-lg overflow-hidden border border-sky-100 bg-slate-50 aspect-square';
+                        const img = document.createElement('img');
+                        img.className = 'w-full h-full object-cover';
+                        img.alt = file.name;
+                        if (file.type.startsWith('image/') && !/heic|heif/i.test(file.name)) {
+                            img.src = URL.createObjectURL(file);
+                        } else {
+                            img.src = 'data:image/svg+xml,' + encodeURIComponent(
+                                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#0284c7"><path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2ZM8.5 13.5l2.5 3 3.5-4.5 4.5 6H5l3.5-4.5Z"/></svg>'
+                            );
+                        }
+                        const rm = document.createElement('button');
+                        rm.type = 'button';
+                        rm.className = 'absolute top-1 left-1 w-7 h-7 rounded-full bg-red-600 text-white text-xs font-bold';
+                        rm.textContent = '×';
+                        rm.title = 'حذف';
+                        rm.addEventListener('click', () => {
+                            selectedFiles.splice(idx, 1);
+                            renderPreview();
+                        });
+                        wrap.appendChild(img);
+                        wrap.appendChild(rm);
+                        preview.appendChild(wrap);
+                    });
+                }
+
+                function compressImage(file) {
+                    return new Promise((resolve, reject) => {
+                        if (/heic|heif/i.test(file.name) || /heic|heif/i.test(file.type)) {
+                            if (file.size > MAX_BYTES) {
+                                reject(new Error('صورة HEIC كبيرة — حوّلها إلى JPG من الاستوديو ثم أعد الرفع.'));
+                            } else {
+                                resolve(file);
+                            }
+                            return;
+                        }
+                        if (!file.type.startsWith('image/')) {
+                            reject(new Error('يُسمح بصور فقط (JPG/PNG).'));
+                            return;
+                        }
+                        if (file.size <= 900 * 1024) {
+                            resolve(file);
+                            return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            const img = new Image();
+                            img.onload = () => {
+                                const maxDim = 1600;
+                                let w = img.width;
+                                let h = img.height;
+                                if (w > maxDim || h > maxDim) {
+                                    if (w >= h) { h = Math.round(h * maxDim / w); w = maxDim; }
+                                    else { w = Math.round(w * maxDim / h); h = maxDim; }
+                                }
+                                const canvas = document.createElement('canvas');
+                                canvas.width = w;
+                                canvas.height = h;
+                                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                                canvas.toBlob((blob) => {
+                                    if (!blob) { resolve(file); return; }
+                                    const base = (file.name || 'photo.jpg').replace(/\.[^.]+$/, '');
+                                    resolve(new File([blob], base + '.jpg', { type: 'image/jpeg' }));
+                                }, 'image/jpeg', 0.82);
+                            };
+                            img.onerror = () => reject(new Error('تعذّر قراءة الصورة «' + file.name + '».'));
+                            img.src = reader.result;
+                        };
+                        reader.onerror = () => reject(new Error('تعذّر فتح الملف.'));
+                        reader.readAsDataURL(file);
+                    });
+                }
+
+                fileInput?.addEventListener('change', async () => {
+                    const incoming = Array.from(fileInput.files || []);
+                    fileInput.value = '';
+                    if (!incoming.length) return;
+                    const room = MAX_FILES - selectedFiles.length;
+                    if (room <= 0) {
+                        alert('حد أقصى ' + MAX_FILES + ' صور.');
+                        return;
+                    }
+                    for (const f of incoming.slice(0, room)) {
+                        try {
+                            const out = await compressImage(f);
+                            if (out.size > MAX_BYTES) {
+                                alert('«' + f.name + '» أكبر من 8MB حتى بعد الضغط.');
+                                continue;
+                            }
+                            selectedFiles.push(out);
+                        } catch (err) {
+                            alert(err.message || 'تعذّر إضافة الصورة.');
+                        }
+                    }
+                    renderPreview();
+                });
+
+                form?.addEventListener('submit', async function (e) {
+                    e.preventDefault();
+                    const text = (form.querySelector('[name=response_text]')?.value || '').trim();
+                    if (!text && !selectedFiles.length) {
+                        alert('أدخل نص الرد أو أضف صورة واحدة على الأقل.');
+                        return;
+                    }
+                    if (btn) { btn.disabled = true; }
+                    if (label) { label.textContent = 'جاري الرفع…'; }
+
+                    const fd = new FormData();
+                    fd.append('csrfmiddlewaretoken', form.querySelector('[name=csrfmiddlewaretoken]').value);
+                    fd.append('action', 'submit_response');
+                    fd.append('response_text', text);
+                    selectedFiles.forEach((f) => fd.append('photos', f, f.name));
+
+                    try {
+                        const resp = await fetch(window.location.href, {
+                            method: 'POST',
+                            body: fd,
+                            credentials: 'same-origin',
+                            redirect: 'follow',
+                        });
+                        if (resp.redirected) {
+                            window.location.href = resp.url;
+                            return;
+                        }
+                        if (resp.ok) {
+                            window.location.href = window.location.pathname + '?sent=1';
+                            return;
+                        }
+                        alert('تعذّر إرسال الرد. تحقق من الاتصال وحجم الصور.');
+                        if (btn) btn.disabled = false;
+                        if (label) label.textContent = 'إرسال الرد للمراجعة';
+                    } catch (err) {
+                        alert('فشل الرفع — تحقق من الإنترنت وحاول مرة أخرى.');
+                        if (btn) btn.disabled = false;
+                        if (label) label.textContent = 'إرسال الرد للمراجعة';
                     }
                 });
             })();

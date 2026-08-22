@@ -2,6 +2,7 @@
 set -e
 
 python manage.py migrate --noinput
+mkdir -p "${MEDIA_ROOT:-/data/media}"
 python manage.py ensure_ops_schema
 python manage.py collectstatic --noinput
 python manage.py ensure_admin
