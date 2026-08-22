@@ -599,6 +599,37 @@ def format_wa_link_block(url: str, *, label: str = "🔗 *فتح الرابط*")
     return f"\n\n{label}\n{link}"
 
 
+def build_wa_pdf_caption(
+    title: str,
+    *,
+    instruction: str = "",
+    closing: str = "مع التقدير — *عمليات الفرش*",
+) -> str:
+    """Caption قصير لمرفق PDF — بدون تفاصيل الملف (التفاصيل داخل PDF)."""
+    title_line = format_wa_title((title or "").strip())
+    body = (instruction or "").strip() or (
+        "نُرفق ملف العملية. يرجى مراجعته واتخاذ الإجراء المناسب."
+    )
+    lines = [WA_BRAND]
+    if title_line:
+        lines.extend(["", title_line])
+    lines.extend(["", body])
+    closing = (closing or "").strip()
+    if closing:
+        lines.extend(["", closing])
+    return "\n".join(lines).strip()
+
+
+def build_wa_notice(
+    title: str,
+    *,
+    body: str = "",
+    closing: str = "مع التقدير — *عمليات الفرش*",
+) -> str:
+    """إشعار نصي مختصر — مهني وعملي."""
+    return build_wa_pdf_caption(title, instruction=body, closing=closing)
+
+
 def build_wa_message(
     title: str,
     *,
@@ -933,7 +964,7 @@ def notify_user(user, title: str, body: str = "") -> bool:
     if not phone:
         logger.info("Skip WhatsApp: user %s has no whatsapp number", getattr(user, "pk", "?"))
         return False
-    message = build_wa_message(title, note=body)
+    message = build_wa_notice(title, body=body)
     return send_text(phone, message)
 
 
@@ -969,9 +1000,7 @@ def notify_roles(
             "error": "لا توجد أرقام واتساب. احفظ أرقام الأدوار في شاشة واتساب أولاً.",
         }
 
-    message = build_wa_message(title, note=body)
-
-    sent = 0
+    message = build_wa_notice(title, body=body)
     for phone in phones:
         ok = False
         if (action_url or "").strip():
@@ -1071,4 +1100,7 @@ def notify_with_pdf(
 
 
 def send_test_to_roles() -> dict:
-    return notify_roles("اختبار إشعار", "هذه رسالة تجريبية من عمليات الفرش.")
+    return notify_roles(
+        "اختبار إشعار",
+        "هذه رسالة تجريبية من نظام عمليات الفرش.",
+    )

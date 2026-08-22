@@ -1331,9 +1331,8 @@ def return_accept(request, pk):
     ret.save(update_fields=['status', 'reviewed_by', 'updated_at'])
     messages.success(request, f'تم قبول الصنف «{ret.item_name}».')
     notify_roles(
-        'قبول مرتجع',
-        f'{ret.return_number or (ret.batch.return_number if ret.batch_id else "")} — {ret.item_name}\n'
-        f'بواسطة: {request.user.display_name}',
+        'إشعار قبول مرتجع',
+        'تم قبول صنف مرتجع. يرجى متابعة الإجراء.',
     )
     return _redirect_returns(ret.batch_id)
 
@@ -1347,9 +1346,8 @@ def return_reject(request, pk):
     ret.save(update_fields=['status', 'reviewed_by', 'updated_at'])
     messages.success(request, f'تم رفض الصنف «{ret.item_name}».')
     notify_roles(
-        'رفض مرتجع',
-        f'{ret.return_number or (ret.batch.return_number if ret.batch_id else "")} — {ret.item_name}\n'
-        f'بواسطة: {request.user.display_name}',
+        'إشعار رفض مرتجع',
+        'تم رفض صنف مرتجع. يرجى الاطلاع.',
     )
     return _redirect_returns(ret.batch_id)
 
@@ -1828,11 +1826,8 @@ def task_create(request):
         if task.assigned_to_id and getattr(task.assigned_to, "whatsapp", ""):
             assignee_phone = normalize_whatsapp(task.assigned_to.whatsapp)
         notify_roles(
-            'مهمة جديدة',
-            f'{task.title}\n'
-            f'الفرع: {task.branch or "—"}\n'
-            f'الموظف: {task.assigned_to.display_name if task.assigned_to_id else "—"}\n'
-            f'بواسطة: {request.user.display_name}',
+            'إشعار مهمة جديدة',
+            'تم إنشاء مهمة تشغيلية. يرجى المتابعة عبر الرابط أدناه.',
             exclude_phones={assignee_phone} if assignee_phone else set(),
             action_url=link,
         )

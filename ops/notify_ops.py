@@ -20,7 +20,8 @@ from ops.pdf_docs import (
     role_label,
 )
 from ops.whatsapp import (
-    build_wa_message,
+    build_wa_notice,
+    build_wa_pdf_caption,
     collect_recipient_entries,
     notify_with_pdf,
     normalize_whatsapp,
@@ -130,6 +131,11 @@ def _actor_line(user) -> str:
     return f"{user.display_name} | {role_label(user)}"
 
 
+def _pdf_caption(title: str, *, instruction: str = "") -> str:
+    """رسالة واتساب لمرفق PDF — بدون تفاصيل (يكفي الملف)."""
+    return build_wa_pdf_caption(title, instruction=instruction)
+
+
 def _compact_wa(
     title: str,
     *,
@@ -139,14 +145,10 @@ def _compact_wa(
     note: str = "",
     pdf_url: str = "",
 ) -> str:
-    return build_wa_message(
-        title,
-        file_ref=file_ref,
-        meta=meta,
-        bullets=bullets,
-        note=note,
-        include_pdf_note=bool(pdf_url),
-    )
+    """Legacy wrapper — PDF captions are short; details live in the attachment."""
+    if pdf_url or not (file_ref or meta or bullets):
+        return _pdf_caption(title, instruction=note)
+    return build_wa_notice(title, body=note or meta)
 
 
 def _public_pdf_url(route_name: str, token: str, request=None) -> str:
@@ -245,28 +247,14 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
         return {"sent": 0, "total": 0, "phones": [], "error": "تعذّر إنشاء PDF للمرتجع."}
 
     pdf_url = _return_pdf_url(batch, request=request)
-    items = list(batch.items.all())
-    bullets = [
-        f"{it.item_name} × {it.quantity} — {it.get_return_type_display()}"
-        for it in items
-    ]
-    meta = f"{batch.branch} | {len(items)} صنف | {_now_str()}"
 
-    follow_msg = _compact_wa(
-        "مرتجع جديد — للمتابعة",
-        file_ref=batch.return_number,
-        meta=meta,
-        bullets=bullets,
-        note="مدير النظام · رئيس القسم · المحاسب · العمليات: المتابعة حتى التعميد.",
-        pdf_url=pdf_url,
+    follow_msg = _pdf_caption(
+        "إشعار مرتجع — للمتابعة",
+        instruction="نُرفق ملف المرتجع. يرجى متابعة الإجراء حتى الاكتمال.",
     )
-    rep_msg = _compact_wa(
-        "مرتجع — مطلوب التعميد",
-        file_ref=batch.return_number,
-        meta=f"{batch.branch} | {len(items)} صنف",
-        bullets=bullets,
-        note="المندوب: راجع PDF ثم عمّد أو ارفض.",
-        pdf_url=pdf_url,
+    rep_msg = _pdf_caption(
+        "إشعار مرتجع — مطلوب تعميدكم",
+        instruction="نُرفق ملف المرتجع. يرجى المراجعة والتعميد أو الرفض.",
     )
 
     follow_roles = {User.Role.MANAGER, User.Role.ACCOUNTANT}
@@ -348,18 +336,9 @@ def notify_supply_orders_saved(orders: list, *, actor, representative) -> dict:
         token = _sync_batch_token(SupplyOrder, pks=[o.pk for o in orders])
     pdf_url = _public_pdf_url("ops:supply_batch_pdf_public_file", token)
 
-    bullets = [f"{o.item_name} × {o.quantity}" for o in orders]
-    meta = (
-        f"{first.branch or '—'} | {first.supplier or '—'} | "
-        f"{len(orders)} صنف | {_now_str()}"
-    )
-    msg = _compact_wa(
-        "توريد جديد",
-        file_ref=batch_ref,
-        meta=meta,
-        bullets=bullets,
-        note=f"المندوب: {representative.display_name} — المرسل: {_actor_line(actor)}",
-        pdf_url=pdf_url,
+    msg = _pdf_caption(
+        "إشعار توريد",
+        instruction="نُرفق ملف التوريد. يرجى المراجعة والتنسيق.",
     )
 
     rep_phone = _user_phone(representative) or _role_contact_phone("representative")
@@ -421,40 +400,30 @@ def _build_task_wa_message(
     kind: assigned | correction
     """
     assignee = task.assigned_to.display_name if task.assigned_to_id else "الموظف"
-    creator = task.created_by.display_name if task.created_by_id else "—"
-    branch = (task.branch or "").strip() or "—"
-    priority = task.get_priority_display()
-    desc = (task.description or "").strip()
-    if desc and len(desc) > 280:
-        desc = desc[:277].rstrip() + "…"
 
     if kind == "correction":
-        title = "مهمة — مطلوب تصحيح"
-        intro = f"مرحباً *{assignee}*،\nتمت مراجعة ردك ويُطلب تعديله قبل الإغلاق."
-        note = (review_note or task.review_note or "").strip() or "—"
-        action = "لإعادة إرسال الرد (نص + صور) استخدم الرابط أدناه:"
+        title = "إشعار مهمة — مطلوب تصحيح"
+        intro = f"السلام عليكم *{assignee}*،"
+        instruction = (
+            "تمت مراجعة ردكم ويُطلب التعديل قبل الإغلاق."
+            + (
+                f"\nملاحظة المراجعة: {(review_note or task.review_note or '').strip()}"
+                if (review_note or task.review_note or "").strip()
+                else ""
+            )
+            + "\nيرجى الرد عبر الرابط أدناه."
+        )
     else:
-        title = "مهمة جديدة"
-        intro = f"مرحباً *{assignee}*،\nتم إسناد مهمة عمل جديدة إليك."
-        note = ""
-        action = "للرد على المهمة (نص + صور) استخدم الرابط أدناه:"
+        title = "إشعار مهمة تشغيلية"
+        intro = f"السلام عليكم *{assignee}*،"
+        instruction = (
+            f"تم إسناد مهمة: *{task.title}*\n"
+            f"الموعد: {_format_due_at(task)}\n"
+            "يرجى الرد عبر الرابط أدناه."
+        )
 
-    meta = f"#{task.pk} | {priority} | {branch} | موعد: {_format_due_at(task)} | من: {creator}"
-    bullets = [f"📋 *{task.title}*"]
-    if desc:
-        bullets.append(f"📝 {desc}")
-    if note and kind == "correction":
-        bullets.append(f"💬 ملاحظة المراجعة: {note}")
-
-    body = build_wa_message(
-        title,
-        meta=meta,
-        bullets=bullets,
-        note=action,
-    )
-    if intro:
-        body = f"{intro}\n\n{body}"
-    return body
+    body = build_wa_pdf_caption(title, instruction=instruction)
+    return f"{intro}\n\n{body}"
 
 
 def _send_whatsapp_link(phone: str, message: str, link: str, *, link_label: str = "فتح صفحة الرد") -> bool:
@@ -526,16 +495,9 @@ def schedule_task_submitted(task_id: int) -> None:
         except Exception:
             logger.exception("PDF build failed for task submit %s", task_id)
             return
-        bullets = [
-            task.title,
-            (task.response_text or "—")[:120],
-        ]
-        msg = _compact_wa(
-            "رد مهمة — للمراجعة",
-            file_ref=f"#{task.pk}",
-            meta=f"{task.branch or '—'} | {task.assigned_to.display_name if task.assigned_to_id else '—'}",
-            bullets=bullets,
-            note=_portal_hint(),
+        msg = _pdf_caption(
+            "إشعار رد مهمة",
+            instruction="نُرفق ملف الرد. يرجى المراجعة والاعتماد.",
         )
         _notify_pdf_to_roles(
             msg,
@@ -581,12 +543,9 @@ def schedule_task_review_result(task_id: int, approved: bool) -> None:
         except Exception:
             logger.exception("PDF build failed for task review %s", task_id)
             return
-        msg = _compact_wa(
-            "مهمة معتمدة",
-            file_ref=f"#{task.pk}",
-            meta=task.branch or "—",
-            bullets=[task.title],
-            note=task.review_note or "—",
+        msg = _pdf_caption(
+            "إشعار اعتماد مهمة",
+            instruction="نُرفق ملف المهمة المعتمدة.",
         )
         _notify_pdf_to_user(
             task.assigned_to,
@@ -692,27 +651,14 @@ def _notify_return_rep_decision(batch, items, *, actor, decision: str) -> dict:
         batch.save(update_fields=["public_token"])
     pdf_url = _return_pdf_url(batch)
 
-    item_lines = [
-        f"{it.item_name} × {it.quantity} — {it.get_return_type_display()}"
-        for it in items
-    ]
-    meta = f"{batch.branch} | {_now_str()} | {_actor_line(actor)}"
-
     if decision == "authorized":
-        title = "تعميد مندوب — مرتجع"
-        note = "مدير النظام · رئيس القسم · المستلم · المحاسب · العمليات: متابعة الاعتماد."
+        title = "إشعار تعميد مرتجع"
+        instruction = "نُرفق ملف المرتجع بعد تعميد المندوب. يرجى متابعة الإجراء."
     else:
-        title = "رفض مندوب — مرتجع"
-        note = "تم الرفض — مدير النظام · رئيس القسم · المستلم · المحاسب · العمليات."
+        title = "إشعار رفض مرتجع"
+        instruction = "نُرفق ملف المرتجع. يرجى الاطلاع والمتابعة."
 
-    body = _compact_wa(
-        title,
-        file_ref=batch.return_number,
-        meta=meta,
-        bullets=item_lines,
-        note=note,
-        pdf_url=pdf_url,
-    )
+    body = _pdf_caption(title, instruction=instruction)
 
     result = _notify_pdf_to_roles(
         body,
@@ -760,15 +706,9 @@ def schedule_daily_distribution_notify(row_ids: list[int], actor_id: int) -> Non
             return
 
         pdf_url = _public_pdf_url("ops:distribution_batch_pdf_public_file", token)
-        dist_date = rows[0].distribution_date.strftime("%Y/%m/%d")
-        bullets = [f"{r.item_name} → {r.branch} × {r.quantity}" for r in rows]
-        msg = _compact_wa(
-            "توزيع توريد يومي",
-            file_ref=batch_ref,
-            meta=f"{dist_date} | {len(rows)} صنف | {_actor_line(actor)}",
-            bullets=bullets,
-            note="مدير النظام · رئيس القسم · المحاسب · العمليات · المستلم",
-            pdf_url=pdf_url,
+        msg = _pdf_caption(
+            "إشعار توزيع يومي",
+            instruction="نُرفق ملف التوزيع. يرجى المراجعة والتنفيذ.",
         )
         result = _notify_pdf_to_roles(
             msg,
@@ -817,18 +757,9 @@ def schedule_variance_authorized(variance_id: int, actor_id: int) -> None:
 
         pdf_url = _public_pdf_url("ops:variance_batch_pdf_public_file", token)
         batch_ref = row.batch_number or f"VAR-{row.pk}"
-        kind = row.get_variance_type_display()
-        bullets = [
-            f"{r.item_name} × {r.quantity} — {r.get_variance_type_display()} ({r.branch})"
-            for r in rows
-        ]
-        msg = _compact_wa(
-            f"{kind} توزيع — معتمد",
-            file_ref=batch_ref,
-            meta=f"{row.supplier} | {row.record_date.strftime('%Y/%m/%d')} | {_actor_line(actor)}",
-            bullets=bullets,
-            note="يرجى مراجعة الملف والتنسيق مع العمليات.",
-            pdf_url=pdf_url,
+        msg = _pdf_caption(
+            "إشعار فروقات توزيع",
+            instruction="نُرفق ملف الفروقات المعتمد. يرجى المراجعة والتنسيق.",
         )
 
         supplier = Supplier.objects.filter(name=row.supplier).first()
@@ -914,20 +845,9 @@ def schedule_daily_order_approved(order_id: int, actor_id: int) -> None:
 
         pdf_url = _daily_order_pdf_url(token)
         batch_ref = seed.batch_number or seed.order_number
-        bullets = [
-            f"{o.item_name} × {o.quantity} — {o.unit_price}"
-            for o in orders
-        ]
-        msg = _compact_wa(
-            "طلب شراء معتمد",
-            file_ref=batch_ref,
-            meta=(
-                f"{seed.branch} | {seed.supplier or '—'} | "
-                f"{len(orders)} صنف | {_actor_line(actor)}"
-            ),
-            bullets=bullets,
-            note=f"المندوب: {seed.representative.display_name}",
-            pdf_url=pdf_url,
+        msg = _pdf_caption(
+            "أمر شراء معتمد",
+            instruction="نُرفق ملف الطلبية. يرجى التنفيذ وفق البيانات الواردة.",
         )
 
         supplier = Supplier.objects.filter(name=seed.supplier).first()
@@ -1018,15 +938,13 @@ def schedule_supply_batch_status(seed_pk: int, actor_id: int, status: str) -> No
 
         pdf_url = _public_pdf_url("ops:supply_batch_pdf_public_file", token)
         batch_ref = seed.batch_number or seed.order_number
-        title = "توريد مكتمل" if status == "completed" else "توريد مرفوض"
-        bullets = [f"{o.item_name} × {o.quantity}" for o in orders]
-        msg = _compact_wa(
-            title,
-            file_ref=batch_ref,
-            meta=f"{len(orders)} صنف | {_actor_line(actor)} | {_now_str()}",
-            bullets=bullets,
-            pdf_url=pdf_url,
+        title = "إشعار إكمال توريد" if status == "completed" else "إشعار رفض توريد"
+        instruction = (
+            "نُرفق ملف التوريد المعتمد."
+            if status == "completed"
+            else "نُرفق ملف التوريد. يرجى الاطلاع."
         )
+        msg = _pdf_caption(title, instruction=instruction)
         _notify_pdf_to_roles(
             msg,
             pdf_bytes=pdf_bytes,
@@ -1068,15 +986,17 @@ def schedule_return_ops_batch_decision(
             return
 
         pdf_url = _return_pdf_url(batch)
-        title = "اعتماد مرتجع — العمليات" if decision == "accepted" else "رفض مرتجع — العمليات"
-        bullets = [f"{it.item_name} × {it.quantity}" for it in items[:5]]
-        msg = _compact_wa(
-            title,
-            file_ref=batch.return_number,
-            meta=f"{batch.branch} | {len(items)} صنف | {_actor_line(actor)}",
-            bullets=bullets,
-            pdf_url=pdf_url,
+        title = (
+            "إشعار اعتماد مرتجع"
+            if decision == "accepted"
+            else "إشعار رفض مرتجع"
         )
+        instruction = (
+            "نُرفق ملف المرتجع بعد اعتماد العمليات."
+            if decision == "accepted"
+            else "نُرفق ملف المرتجع. يرجى الاطلاع."
+        )
+        msg = _pdf_caption(title, instruction=instruction)
         _notify_pdf_to_roles(
             msg,
             pdf_bytes=pdf_bytes,
