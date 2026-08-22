@@ -100,7 +100,7 @@
                 <td class="cell-strong">{{ item.name }}</td>
                 <td dir="ltr">{{ item.item_number }}</td>
                 <td class="units-cell">
-                    <form method="post" action="{% url 'ops:item_update_units' item.pk }}" class="item-units-form">
+                    <form method="post" action="{% url 'ops:item_update_units' item.pk %}" class="item-units-form">
                         {% csrf_token %}
                         <select name="unit" required class="cell-input cell-select app-select w-full item-unit-select">
                             <option value="">اختر...</option>
