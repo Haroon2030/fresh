@@ -50,6 +50,7 @@ urlpatterns = [
     path('orders/p/<str:token>/document.pdf', views.daily_order_pdf_public, name='daily_order_pdf_public_file'),
     path('tasks/', views.tasks_board, name='tasks'),
     path('tasks/create/', views.task_create, name='task_create'),
+    path('tasks/<int:pk>/send-whatsapp/', views.task_send_whatsapp, name='task_send_whatsapp'),
     path('tasks/<int:pk>/move/', views.task_move, name='task_move'),
     path('tasks/<int:pk>/review/', views.task_review, name='task_review'),
     path('tasks/p/<str:token>/', views.task_public, name='task_public'),

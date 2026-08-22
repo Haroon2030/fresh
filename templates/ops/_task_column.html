@@ -58,10 +58,20 @@
             {% endif %}
 
             {% if task.public_token %}
-            <a href="{% url 'ops:task_public' task.public_token %}" class="task-link" target="_blank" rel="noopener">
+            <a href="{% if public_base_url %}{{ public_base_url }}{% url 'ops:task_public' task.public_token %}{% else %}{% url 'ops:task_public' task.public_token %}{% endif %}" class="task-link" target="_blank" rel="noopener">
                 <span class="material-symbols-outlined text-[14px]">link</span>
-                رابط الموظف
+                رابط الرد
             </a>
+            {% endif %}
+
+            {% if user.is_manager and task.assigned_to and status_key != 'done' %}
+            <form method="post" action="{% url 'ops:task_send_whatsapp' task.pk %}" class="task-actions" style="padding-top:4px;border-top:none">
+                {% csrf_token %}
+                <button type="submit" class="task-act run" title="إرسال رسالة واتساب مع رابط الرد">
+                    <span class="material-symbols-outlined text-[14px]" style="vertical-align:middle">send</span>
+                    إرسال واتساب
+                </button>
+            </form>
             {% endif %}
 
             <div class="task-card-foot">

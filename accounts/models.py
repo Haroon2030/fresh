@@ -18,20 +18,23 @@ class User(AbstractUser):
         Role.MANAGER,
     }
 
-    NOTIFY_ROLES = {
+    # يُضاف تلقائياً لكل إشعار عمليات (حتى لو كانت قائمة الأدوار أ narrower)
+    ALWAYS_NOTIFY_ROLES = {
         Role.SYSTEM_ADMIN,
         Role.DEPT_MANAGER,
+    }
+
+    NOTIFY_ROLES = ALWAYS_NOTIFY_ROLES | {
         Role.MANAGER,
         Role.ACCOUNTANT,
         Role.RECEIVER,
     }
 
-    # بعد تعميد/رفض المندوب → المستلم، المحاسب، العمليات، رئيس القسم
-    RETURN_AUTHORIZE_NOTIFY_ROLES = {
+    # بعد تعميد/رفض المندوب → المستلم، المحاسب، العمليات، رئيس القسم، مدير النظام
+    RETURN_AUTHORIZE_NOTIFY_ROLES = ALWAYS_NOTIFY_ROLES | {
         Role.MANAGER,       # العمليات
         Role.ACCOUNTANT,    # المحاسب
         Role.RECEIVER,      # المستلم
-        Role.DEPT_MANAGER,  # رئيس القسم
     }
 
     role = models.CharField(

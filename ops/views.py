@@ -56,6 +56,7 @@ from .notify_ops import (
     schedule_task_review_result,
     schedule_task_submitted,
     schedule_variance_authorized,
+    send_task_link_now,
 )
 
 User = get_user_model()
@@ -1779,6 +1780,7 @@ def tasks_board(request):
         'form': form,
         'q': q,
         'active_nav': 'tasks',
+        'public_base_url': getattr(settings, 'PUBLIC_BASE_URL', ''),
     })
 
 
@@ -1823,6 +1825,28 @@ def task_create(request):
         )
     else:
         messages.error(request, 'تعذر حفظ المهمة. تحقق من العنوان والموظف والفرع.')
+    return redirect('ops:tasks')
+
+
+@manager_required
+@require_POST
+def task_send_whatsapp(request, pk):
+    task = get_object_or_404(
+        Task.objects.select_related('assigned_to', 'created_by'),
+        pk=pk,
+    )
+    if task.status == Task.Status.DONE:
+        messages.error(request, 'المهمة مغلقة ولا يمكن إرسال رابط جديد.')
+        return redirect('ops:tasks')
+    link = _public_task_url(task, request=request)
+    result = send_task_link_now(task, public_link=link, kind='assigned')
+    if result.get('ok'):
+        messages.success(
+            request,
+            f'تم إرسال رابط المهمة إلى {task.assigned_to.display_name} عبر واتساب.',
+        )
+    else:
+        messages.error(request, result.get('error') or 'تعذّر إرسال الرابط عبر واتساب.')
     return redirect('ops:tasks')
 
 

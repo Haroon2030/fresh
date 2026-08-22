@@ -259,7 +259,7 @@ def notify_return_batch_saved(batch, *, actor, request=None) -> dict:
         file_ref=batch.return_number,
         meta=meta,
         bullets=bullets,
-        note="المحاسب والعمليات: المتابعة حتى التعميد.",
+        note="مدير النظام · رئيس القسم · المحاسب · العمليات: المتابعة حتى التعميد.",
         pdf_url=pdf_url,
     )
     rep_msg = _compact_wa(
@@ -406,7 +406,57 @@ def _task_public_url(task, request=None) -> str:
     return _absolute_public_url(path, request=request)
 
 
-def _send_whatsapp_link(phone: str, message: str, link: str) -> bool:
+def _format_due_at(task) -> str:
+    if not task.due_at:
+        return "—"
+    return timezone.localtime(task.due_at).strftime("%Y/%m/%d %H:%M")
+
+
+def _build_task_wa_message(task, *, kind: str = "assigned", review_note: str = "") -> str:
+    """
+    رسالة واتساب احترافية للمهام (بدون الرابط — يُرسل في سطر مستقل).
+    kind: assigned | correction
+    """
+    assignee = task.assigned_to.display_name if task.assigned_to_id else "الموظف"
+    creator = task.created_by.display_name if task.created_by_id else "—"
+    branch = (task.branch or "").strip() or "—"
+    priority = task.get_priority_display()
+    desc = (task.description or "").strip()
+    if desc and len(desc) > 280:
+        desc = desc[:277].rstrip() + "…"
+
+    if kind == "correction":
+        header = "*عمليات الفرش*\n*مهمة — مطلوب تصحيح*"
+        intro = f"مرحباً *{assignee}*،\n\nتمت مراجعة ردك ويُطلب تعديله قبل الإغلاق:"
+        note = (review_note or task.review_note or "").strip() or "—"
+        action = "لإعادة إرسال الرد (نص + صور) استخدم الرابط أدناه:"
+    else:
+        header = "*عمليات الفرش*\n*مهمة جديدة*"
+        intro = f"مرحباً *{assignee}*،\n\nتم إسناد مهمة عمل جديدة إليك:"
+        note = ""
+        action = "للرد على المهمة (نص + صور) استخدم الرابط أدناه:"
+
+    lines = [
+        header,
+        "",
+        intro,
+        "",
+        f"📋 *{task.title}*",
+        f"🔢 الرقم: #{task.pk}",
+        f"⚡ الأولوية: {priority}",
+        f"📍 الفرع: {branch}",
+        f"📅 الموعد: {_format_due_at(task)}",
+        f"👤 من: {creator}",
+    ]
+    if desc:
+        lines.extend(["", "📝 *التفاصيل:*", desc])
+    if note and kind == "correction":
+        lines.extend(["", "💬 *ملاحظة المراجعة:*", note])
+    lines.extend(["", action])
+    return "\n".join(lines)
+
+
+def _send_whatsapp_link(phone: str, message: str, link: str, *, link_label: str = "🔗 رابط الرد") -> bool:
     """رسالة نصية + رابط في سطر مستقل (قابل للنقر في واتساب)."""
     from ops.whatsapp import send_text
 
@@ -417,10 +467,44 @@ def _send_whatsapp_link(phone: str, message: str, link: str) -> bool:
         logger.warning("Task link is not absolute — set PUBLIC_BASE_URL: %s", link)
     body = (message or "").strip()
     if body:
-        text = f"{body}\n\n{link}"
+        text = f"{body}\n\n{link_label}\n{link}"
     else:
-        text = link
+        text = f"{link_label}\n{link}"
     return send_text(phone, text)
+
+
+def send_task_link_now(task, *, public_link: str = "", kind: str = "assigned") -> dict:
+    """إرسال رسالة المهمة + رابط الرد فوراً (للإنشاء أو إعادة الإرسال)."""
+    task.ensure_public_token()
+    if not task.public_token:
+        task.save(update_fields=["public_token"])
+    if not task.assigned_to_id:
+        return {"ok": False, "error": "لا يوجد موظف معيّن للمهمة."}
+    phone = _user_phone(task.assigned_to)
+    if not phone:
+        return {
+            "ok": False,
+            "error": "الموظف بلا رقم واتساب — أضف الرقم من شاشة المستخدمين.",
+        }
+    link = (public_link or "").strip() or _task_public_url(task)
+    if not link.startswith("http"):
+        return {
+            "ok": False,
+            "error": "رابط غير كامل — اضبط PUBLIC_BASE_URL في إعدادات النشر.",
+        }
+    msg = _build_task_wa_message(task, kind=kind)
+    label = (
+        "🔗 رابط الرد على المهمة"
+        if kind == "assigned"
+        else "🔗 رابط إعادة الرد"
+    )
+    ok = _send_whatsapp_link(phone, msg, link, link_label=label)
+    if not ok:
+        return {
+            "ok": False,
+            "error": "فشل الإرسال — تحقق من اتصال واتساب في شاشة الإعدادات.",
+        }
+    return {"ok": True, "link": link, "phone": phone}
 
 
 def schedule_task_assigned(task_id: int, public_link: str = "") -> None:
@@ -430,24 +514,9 @@ def schedule_task_assigned(task_id: int, public_link: str = "") -> None:
         task = Task.objects.select_related("assigned_to", "created_by").filter(pk=task_id).first()
         if not task or not task.assigned_to_id:
             return
-        task.ensure_public_token()
-        if not task.public_token:
-            task.save(update_fields=["public_token"])
-        link = (public_link or "").strip() or _task_public_url(task)
-        msg = _compact_wa(
-            "مهمة جديدة",
-            file_ref=f"#{task.pk}",
-            meta=f"{task.branch or '—'} | {task.get_priority_display()}",
-            bullets=[task.title],
-            note="اضغط الرابط للدخول وإرسال الرد (نص + صور):",
-        )
-        phone = _user_phone(task.assigned_to)
-        if not phone:
-            logger.warning("Task %s: assignee has no WhatsApp number", task_id)
-            return
-        ok = _send_whatsapp_link(phone, msg, link)
-        if not ok:
-            logger.warning("Failed to send task link WhatsApp for task %s", task_id)
+        result = send_task_link_now(task, public_link=public_link, kind="assigned")
+        if not result.get("ok"):
+            logger.warning("Task %s WhatsApp: %s", task_id, result.get("error"))
 
     _run_in_background(f"task-assign-{task_id}", _run)
 
@@ -506,21 +575,13 @@ def schedule_task_review_result(task_id: int, approved: bool) -> None:
             if not task.public_token:
                 task.save(update_fields=["public_token"])
             link = _task_public_url(task)
-            note = task.review_note or "—"
-            msg = _compact_wa(
-                "مهمة — مطلوب تصحيح",
-                file_ref=f"#{task.pk}",
-                meta=task.branch or "—",
-                bullets=[task.title, note],
-                note="اضغط الرابط لإعادة إرسال الرد:",
-            )
-            phone = _user_phone(task.assigned_to)
-            if not phone:
-                logger.warning("Task %s: assignee has no WhatsApp for correction link", task_id)
-                return
-            ok = _send_whatsapp_link(phone, msg, link)
-            if not ok:
-                logger.warning("Failed to send task correction link for task %s", task_id)
+            result = send_task_link_now(task, public_link=link, kind="correction")
+            if not result.get("ok"):
+                logger.warning(
+                    "Failed to send task correction link for task %s: %s",
+                    task_id,
+                    result.get("error"),
+                )
             return
         try:
             pdf_bytes, filename = build_task_pdf(task, actor=task.reviewed_by)
@@ -646,10 +707,10 @@ def _notify_return_rep_decision(batch, items, *, actor, decision: str) -> dict:
 
     if decision == "authorized":
         title = "تعميد مندوب — مرتجع"
-        note = "المستلم والمحاسب والعمليات ورئيس القسم: متابعة الاعتماد."
+        note = "مدير النظام · رئيس القسم · المستلم · المحاسب · العمليات: متابعة الاعتماد."
     else:
         title = "رفض مندوب — مرتجع"
-        note = "تم الرفض — للمستلم والمحاسب والعمليات ورئيس القسم."
+        note = "تم الرفض — مدير النظام · رئيس القسم · المستلم · المحاسب · العمليات."
 
     body = _compact_wa(
         title,
@@ -713,7 +774,7 @@ def schedule_daily_distribution_notify(row_ids: list[int], actor_id: int) -> Non
             file_ref=batch_ref,
             meta=f"{dist_date} | {len(rows)} صنف | {_actor_line(actor)}",
             bullets=bullets,
-            note="المحاسب · العمليات · المستلم",
+            note="مدير النظام · رئيس القسم · المحاسب · العمليات · المستلم",
             pdf_url=pdf_url,
         )
         result = _notify_pdf_to_roles(

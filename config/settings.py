@@ -201,4 +201,4 @@ EVOLUTION_NOTIFY_ENABLED = env_bool(
 EVOLUTION_VERIFY_SSL = env_bool("EVOLUTION_VERIFY_SSL", False)
 
 # رابط عام للمهام (واتساب) — مثال: http://72.61.107.230:7080
-PUBLIC_BASE_URL = env_str("PUBLIC_BASE_URL", "").rstrip("/")
+PUBLIC_BASE_URL = env_str("PUBLIC_BASE_URL", "http://72.61.107.230:7080").rstrip("/")

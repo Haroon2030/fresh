@@ -669,6 +669,8 @@ def collect_recipient_entries(*, include_roles: bool = True, roles: set | None =
     from ops.models import WhatsAppRoleContact
 
     role_set = roles if roles is not None else (User.NOTIFY_ROLES if include_roles else set())
+    if role_set:
+        role_set = set(role_set) | User.ALWAYS_NOTIFY_ROLES
     entries = []
     seen = set()
 
