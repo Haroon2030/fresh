@@ -751,7 +751,7 @@ def send_document(
 
     url_media = ""
     if media_url and str(media_url).startswith(("http://", "https://")):
-        url_media = str(media_url)
+        url_media = to_whatsapp_clickable_url(str(media_url))
         if not url_media.lower().endswith(".pdf"):
             url_media = url_media.rstrip("/") + "/document.pdf"
 
@@ -916,7 +916,7 @@ def notify_roles(
             ok = send_clickable_link(
                 phone,
                 message,
-                action_url.strip(),
+                to_whatsapp_clickable_url(action_url.strip()),
                 button_text="فتح صفحة الرد",
             )
         else:
@@ -955,6 +955,9 @@ def notify_with_pdf(
         }
     if not pdf_bytes and not media_url:
         return {"sent": 0, "total": len(recipients), "phones": [], "error": "تعذّر إنشاء ملف PDF."}
+
+    if media_url:
+        media_url = to_whatsapp_clickable_url(media_url)
 
     # Deduplicate by phone so the same number never gets multiple bubbles
     unique: list[dict] = []

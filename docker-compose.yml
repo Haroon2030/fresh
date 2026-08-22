@@ -1,6 +1,6 @@
 # نشر على Dokploy — الموقع: https://fresh.alrsheed.net
 # في Dokploy: Compose → Environment:
-#   ALLOWED_HOSTS=fresh.alrsheed.net
+#   ALLOWED_HOSTS=fresh.alrsheed.net,web
 #   CSRF_TRUSTED_ORIGINS=https://fresh.alrsheed.net
 #   PUBLIC_BASE_URL=https://fresh.alrsheed.net
 #
@@ -19,7 +19,7 @@ services:
     environment:
       DEBUG: ${DEBUG:-False}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-fresh.alrsheed.net,localhost,127.0.0.1}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-fresh.alrsheed.net,www.fresh.alrsheed.net,web,localhost,127.0.0.1}
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-https://fresh.alrsheed.net}
       DB_ENGINE: mysql
       MYSQL_HOST: ${MYSQL_HOST:?Set MYSQL_HOST}

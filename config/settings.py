@@ -256,7 +256,15 @@ def _merge_allowed_hosts() -> list[str]:
         if host and host != "*":
             merged.append(host)
     merged.extend(_public_url_hosts(PUBLIC_BASE_URL))
-    for host in ("localhost", "127.0.0.1", "fresh.alrsheed.net", "www.fresh.alrsheed.net"):
+    # Dokploy/nginx often forwards with Host=Compose service name (web) without X-Forwarded-Host.
+    for host in (
+        "localhost",
+        "127.0.0.1",
+        "fresh.alrsheed.net",
+        "www.fresh.alrsheed.net",
+        ".alrsheed.net",
+        "web",
+    ):
         if host not in merged:
             merged.append(host)
     return list(dict.fromkeys(merged))
