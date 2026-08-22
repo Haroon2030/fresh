@@ -46,10 +46,6 @@ SECRET_KEY = os.environ.get(
 
 DEBUG = env_bool("DEBUG", True)
 
-ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "*")
-
-CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", "")
-
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -202,3 +198,49 @@ EVOLUTION_VERIFY_SSL = env_bool("EVOLUTION_VERIFY_SSL", False)
 
 # رابط عام للمهام (واتساب) — مثال: http://72.61.107.230:7080
 PUBLIC_BASE_URL = env_str("PUBLIC_BASE_URL", "http://72.61.107.230:7080").rstrip("/")
+
+
+def _public_url_hosts(base_url: str) -> list[str]:
+    """Hosts for ALLOWED_HOSTS — IP + sslip.io alias used in older WhatsApp links."""
+    import re
+    from urllib.parse import urlparse
+
+    host = (urlparse(base_url).hostname or "").strip()
+    if not host:
+        return []
+    hosts = [host]
+    match = re.fullmatch(r"(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})", host)
+    if match:
+        hosts.append("-".join(match.groups()) + ".sslip.io")
+    return hosts
+
+
+def _public_url_origins(base_url: str) -> list[str]:
+    """CSRF origins for public task reply form (GET/POST)."""
+    from urllib.parse import urlparse
+
+    if not base_url:
+        return []
+    parsed = urlparse(base_url)
+    if not parsed.scheme or not parsed.netloc:
+        return [base_url.rstrip("/")]
+    origins = [f"{parsed.scheme}://{parsed.netloc}".rstrip("/")]
+    port = f":{parsed.port}" if parsed.port else ""
+    for host in _public_url_hosts(base_url):
+        if host != parsed.hostname:
+            origins.append(f"{parsed.scheme}://{host}{port}".rstrip("/"))
+    return origins
+
+
+_allowed_hosts = env_list("ALLOWED_HOSTS", "*")
+if "*" not in _allowed_hosts:
+    for _host in _public_url_hosts(PUBLIC_BASE_URL):
+        if _host not in _allowed_hosts:
+            _allowed_hosts.append(_host)
+ALLOWED_HOSTS = _allowed_hosts
+
+_csrf_origins = env_list("CSRF_TRUSTED_ORIGINS", "")
+for _origin in _public_url_origins(PUBLIC_BASE_URL):
+    if _origin not in _csrf_origins:
+        _csrf_origins.append(_origin)
+CSRF_TRUSTED_ORIGINS = _csrf_origins

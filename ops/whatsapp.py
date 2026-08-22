@@ -532,26 +532,26 @@ def recreate_instance() -> dict:
 
 def to_whatsapp_clickable_url(url: str) -> str:
     """
-    واتساب لا ينقر روابط IP مباشرة (72.61.107.230).
-    نحوّلها إلى sslip.io ليُعرَف كرابط حقيقي.
+    Normalize public links to PUBLIC_BASE_URL (IP) so the reply page opens in the browser.
+    sslip.io was used for WhatsApp linkify but broke ALLOWED_HOSTS on some deploys.
     """
-    import re
-    from urllib.parse import urlparse, urlunparse
+    from django.conf import settings
+    from urllib.parse import urlparse
 
     raw = (url or "").strip()
     if not raw:
         return raw
-    parsed = urlparse(raw)
-    host = (parsed.hostname or "").strip()
-    match = re.fullmatch(r"(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})", host)
-    if not match:
+    base = (getattr(settings, "PUBLIC_BASE_URL", "") or "").strip().rstrip("/")
+    if not base:
         return raw
-    sslip_host = "-".join(match.groups()) + ".sslip.io"
-    port = parsed.port
-    netloc = f"{sslip_host}:{port}" if port else sslip_host
-    return urlunparse(
-        (parsed.scheme or "http", netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
-    )
+    path = urlparse(raw).path or ""
+    if not path:
+        return raw
+    query = urlparse(raw).query
+    out = f"{base}{path}"
+    if query:
+        out = f"{out}?{query}"
+    return out
 
 
 def send_url_button(
@@ -625,8 +625,8 @@ def send_clickable_link(
     if detail:
         sent = send_text(phone, detail) or sent
 
-    # sslip.io + سطر مستقل — أوضح للنقر في واتساب
-    link_body = f"{button_text}\n{link}"
+    # الرابط الرسمي (IP) — يفتح صفحة الرد في المتصفح
+    link_body = f"{button_text}:\n{link}"
     if send_text(phone, link_body, link_preview=True):
         sent = True
 
