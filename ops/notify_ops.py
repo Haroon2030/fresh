@@ -417,7 +417,6 @@ def _build_task_wa_message(
     *,
     kind: str = "assigned",
     review_note: str = "",
-    link: str = "",
 ) -> str:
     """
     رسالة واتساب احترافية للمهام (بدون الرابط — يُرسل في سطر مستقل).
@@ -459,33 +458,20 @@ def _build_task_wa_message(
     if note and kind == "correction":
         lines.extend(["", "💬 *ملاحظة المراجعة:*", note])
     lines.extend(["", action])
-    clean_link = (link or "").strip()
-    if clean_link:
-        lines.extend(["", clean_link])
     return "\n".join(lines)
 
 
-def _send_whatsapp_link(phone: str, message: str, link: str, *, link_label: str = "رابط الرد") -> bool:
-    """رسالة + رابط في سطر مستقل، ثم رسالة ثانية بالرابط فقط (لضمان النقر في واتساب)."""
-    from ops.whatsapp import send_text
+def _send_whatsapp_link(phone: str, message: str, link: str, *, link_label: str = "فتح صفحة الرد") -> bool:
+    """زر URL + fallback برابط sslip.io (واتساب لا ينقر IP مباشرة)."""
+    from ops.whatsapp import send_clickable_link
 
     link = (link or "").strip()
     if not phone or not link:
         return False
-    if not link.startswith("http"):
-        logger.warning("Task link is not absolute — set PUBLIC_BASE_URL: %s", link)
-
     body = (message or "").strip()
-    if link not in body:
-        first = f"{body}\n\n{link_label}:\n{link}" if body else f"{link_label}:\n{link}"
-    else:
-        first = body
-
-    ok_detail = send_text(phone, first, link_preview=True)
-    ok_link = send_text(phone, link, link_preview=True)
-    if not ok_detail and not ok_link:
-        logger.warning("Task WhatsApp link send failed for %s", phone)
-    return bool(ok_detail or ok_link)
+    if link in body:
+        body = body.replace(link, "").strip()
+    return send_clickable_link(phone, body, link, button_text=link_label)
 
 
 def send_task_link_now(task, *, public_link: str = "", kind: str = "assigned") -> dict:
@@ -507,12 +493,8 @@ def send_task_link_now(task, *, public_link: str = "", kind: str = "assigned") -
             "ok": False,
             "error": "رابط غير كامل — اضبط PUBLIC_BASE_URL في إعدادات النشر.",
         }
-    msg = _build_task_wa_message(task, kind=kind, link=link)
-    label = (
-        "رابط الرد على المهمة"
-        if kind == "assigned"
-        else "رابط إعادة الرد"
-    )
+    msg = _build_task_wa_message(task, kind=kind)
+    label = "فتح صفحة الرد" if kind == "assigned" else "إعادة إرسال الرد"
     ok = _send_whatsapp_link(phone, msg, link, link_label=label)
     if not ok:
         return {

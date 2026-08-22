@@ -1825,9 +1825,9 @@ def task_create(request):
             f'{task.title}\n'
             f'الفرع: {task.branch or "—"}\n'
             f'الموظف: {task.assigned_to.display_name if task.assigned_to_id else "—"}\n'
-            f'بواسطة: {request.user.display_name}\n\n'
-            f'رابط الرد:\n{link}',
+            f'بواسطة: {request.user.display_name}',
             exclude_phones={assignee_phone} if assignee_phone else set(),
+            action_url=link,
         )
     else:
         messages.error(request, 'تعذر حفظ المهمة. تحقق من العنوان والموظف والفرع.')

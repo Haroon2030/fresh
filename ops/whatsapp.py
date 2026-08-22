@@ -530,6 +530,117 @@ def recreate_instance() -> dict:
     }
 
 
+def to_whatsapp_clickable_url(url: str) -> str:
+    """
+    واتساب لا ينقر روابط IP مباشرة (72.61.107.230).
+    نحوّلها إلى sslip.io ليُعرَف كرابط حقيقي.
+    """
+    import re
+    from urllib.parse import urlparse, urlunparse
+
+    raw = (url or "").strip()
+    if not raw:
+        return raw
+    parsed = urlparse(raw)
+    host = (parsed.hostname or "").strip()
+    match = re.fullmatch(r"(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})", host)
+    if not match:
+        return raw
+    sslip_host = "-".join(match.groups()) + ".sslip.io"
+    port = parsed.port
+    netloc = f"{sslip_host}:{port}" if port else sslip_host
+    return urlunparse(
+        (parsed.scheme or "http", netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
+    )
+
+
+def send_url_button(
+    number: str,
+    *,
+    title: str,
+    description: str,
+    url: str,
+    button_text: str = "فتح صفحة الرد",
+    footer: str = "عمليات الفرش",
+) -> bool:
+    """زر URL تفاعلي — أوضح من نص IP في واتساب."""
+    if not notify_enabled():
+        return False
+    phone = normalize_whatsapp(number)
+    link = to_whatsapp_clickable_url(url)
+    if not phone or not link.startswith("http"):
+        return False
+    instance = resolve_instance_name()
+    if not instance:
+        return False
+
+    payload = {
+        "number": phone,
+        "title": (title or "عمليات الفرش")[:60],
+        "description": (description or "")[:1024],
+        "footer": (footer or "")[:60],
+        "buttons": [
+            {
+                "type": "url",
+                "displayText": (button_text or "فتح الرابط")[:25],
+                "url": link,
+            }
+        ],
+    }
+    status, data = _api(
+        f"/message/sendButtons/{instance}",
+        method="POST",
+        json_body=payload,
+        timeout=20,
+    )
+    if status >= 400 or status == 0:
+        logger.info("sendButtons unavailable (%s): %s", status, str(data)[:200])
+        return False
+    return True
+
+
+def send_clickable_link(
+    number: str,
+    detail_text: str,
+    url: str,
+    *,
+    button_text: str = "فتح صفحة الرد",
+) -> bool:
+    """
+    إرسال رابط مهمة قابل للنقر:
+    1) زر URL تفاعلي
+    2) وإلا رسالة تفاصيل + رابط sslip.io في رسالة مستقلة
+    """
+    link = to_whatsapp_clickable_url((url or "").strip())
+    if not link.startswith("http"):
+        logger.warning("Invalid task link for WhatsApp: %s", url)
+        return False
+
+    detail = (detail_text or "").strip()
+    title_line = "عمليات الفرش"
+    if detail.startswith("[عمليات الفرش]"):
+        bracket = detail.find("]")
+        if bracket > 0:
+            title_line = detail[1:bracket].strip() or title_line
+            detail = detail[bracket + 1 :].lstrip("\n").strip()
+
+    if send_url_button(
+        number,
+        title=title_line[:60],
+        description=detail,
+        url=link,
+        button_text=button_text,
+    ):
+        return True
+
+    phone = normalize_whatsapp(number)
+    if not phone:
+        return False
+    if detail:
+        send_text(phone, detail)
+    return send_text(phone, link, link_preview=True)
+
+
 def send_text(number: str, text: str, *, link_preview: bool = False) -> bool:
     if not notify_enabled():
         logger.warning("WhatsApp notify disabled or incomplete settings")
@@ -747,6 +858,7 @@ def notify_roles(
     *,
     roles: set | None = None,
     exclude_phones: set | None = None,
+    action_url: str = "",
 ) -> dict:
     """
     Send WhatsApp to role contact numbers + active users in NOTIFY_ROLES
@@ -773,7 +885,17 @@ def notify_roles(
 
     sent = 0
     for phone in phones:
-        if send_text(phone, message):
+        ok = False
+        if (action_url or "").strip():
+            ok = send_clickable_link(
+                phone,
+                message,
+                action_url.strip(),
+                button_text="فتح صفحة الرد",
+            )
+        else:
+            ok = send_text(phone, message)
+        if ok:
             sent += 1
     err = None
     if sent == 0:
