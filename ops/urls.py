@@ -57,6 +57,7 @@ urlpatterns = [
     path('tasks/p/<str:token>/', views.task_public, name='task_public'),
     path('items/', views.items_list, name='items'),
     path('items/create/', views.item_create, name='item_create'),
+    path('items/<int:pk>/units/', views.item_update_units, name='item_update_units'),
     path('items/<int:pk>/delete/', views.item_delete, name='item_delete'),
     path('items/import/', views.items_import_excel, name='items_import'),
     path('items/template/', views.items_template_download, name='items_template'),

@@ -2285,6 +2285,7 @@ def items_list(request):
         'page_obj': page,
         'q': q,
         'total_items': CatalogItem.objects.count(),
+        'unit_choices': DAILY_ORDER_PACKAGES,
         'active_nav': 'items',
     })
 
@@ -2292,11 +2293,11 @@ def items_list(request):
 @login_required
 @require_POST
 def item_create(request):
-    from .catalog_units import merge_unit_strings
     name = (request.POST.get('name') or '').strip()
     item_number = (request.POST.get('item_number') or '').strip()
     unit = (request.POST.get('unit') or '').strip()
     package = (request.POST.get('package') or '').strip()
+    selected_units = [u.strip() for u in request.POST.getlist('units') if u.strip()]
 
     if not name or not item_number:
         messages.error(request, 'الاسم ورقم الصنف مطلوبان.')
@@ -2307,13 +2308,32 @@ def item_create(request):
         messages.error(request, f'الصنف «{name}» موجود مسبقاً.')
         return redirect('ops:items')
 
+    merged_units = unit or (selected_units[0] if selected_units else '') or package
+    if not merged_units:
+        messages.error(request, 'اختر وحدة.')
+        return redirect('ops:items')
+
     CatalogItem.objects.create(
         name=name,
         item_number=item_number,
-        unit=merge_unit_strings(unit, package),
+        unit=merged_units,
         package='',
     )
     messages.success(request, f'تم إضافة الصنف «{name}».')
+    return redirect('ops:items')
+
+
+@login_required
+@require_POST
+def item_update_units(request, pk):
+    item = get_object_or_404(CatalogItem, pk=pk)
+    unit = (request.POST.get('unit') or '').strip()
+    if not unit:
+        messages.error(request, 'اختر وحدة.')
+        return redirect('ops:items')
+    item.unit = unit
+    item.save(update_fields=['unit', 'updated_at'])
+    messages.success(request, f'تم تحديث وحدة «{item.name}» إلى {unit}.')
     return redirect('ops:items')
 
 

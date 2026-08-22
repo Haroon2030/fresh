@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from .daily_order_packages import DAILY_ORDER_PACKAGES
+
 UNIT_SEP = '، '
+PACKAGE_NAMES = frozenset(DAILY_ORDER_PACKAGES)
 
 
 def split_units(value: str) -> list[str]:
@@ -30,6 +33,87 @@ def merge_unit_strings(*values: str) -> str:
     return join_units(parts)
 
 
+def looks_like_item_number(value: str) -> bool:
+    value = (value or '').strip()
+    if not value:
+        return False
+    digits = value.replace('.', '').replace('-', '')
+    return digits.isdigit() and len(digits) >= 3
+
+
+def split_item_number(value: str) -> tuple[str, list[str]]:
+    """يفصل رقم الصنf عن قيم عبوة/وحدة إن وُجدت في نفس الخانة."""
+    value = (value or '').strip()
+    if not value:
+        return '', []
+    if '،' not in value and ',' not in value:
+        return value, []
+
+    parts = split_units(value)
+    sku = ''
+    extras: list[str] = []
+    for part in parts:
+        if looks_like_item_number(part):
+            if not sku:
+                sku = part
+            else:
+                extras.append(part)
+        else:
+            extras.append(part)
+    if not sku and parts:
+        sku = parts[0]
+    return sku, extras
+
+
+def sanitize_catalog_row(
+    name: str,
+    package: str,
+    item_number: str,
+    *,
+    last_name: str = '',
+) -> tuple[str, str, str, list[str]]:
+    """
+    يصحّح الحقول الشائعة الخاطئة من Excel:
+    - اسم = عبوة (فلين) مع رقم في عمود العبوة
+    - رقم الصنf يحتوي «06139، فلين»
+    """
+    name = (name or '').strip()
+    package = (package or '').strip()
+    item_number = (item_number or '').strip()
+    extra_units: list[str] = []
+
+    item_number, num_extras = split_item_number(item_number)
+    extra_units.extend(num_extras)
+
+    if looks_like_item_number(package) and not looks_like_item_number(item_number):
+        item_number = package
+        package = ''
+    elif looks_like_item_number(package) and looks_like_item_number(item_number):
+        package = ''
+
+    if name in PACKAGE_NAMES:
+        if last_name:
+            extra_units.append(name)
+            name = last_name
+        elif looks_like_item_number(package):
+            extra_units.append(name)
+            item_number = item_number or package
+            package = ''
+        elif package in PACKAGE_NAMES:
+            extra_units.append(name)
+            name = package
+            package = ''
+
+    if package in PACKAGE_NAMES:
+        extra_units.append(package)
+        package = ''
+    elif package:
+        extra_units.append(package)
+        package = ''
+
+    return name, item_number, package, extra_units
+
+
 def aggregate_catalog_rows(rows: list[dict]) -> list[dict]:
     """صف واحد لكل اسم — العبوات/الوحدات في حقل unit."""
     merged: dict[str, dict] = {}
@@ -41,17 +125,23 @@ def aggregate_catalog_rows(rows: list[dict]) -> list[dict]:
             continue
         key = name.casefold()
         if key not in merged:
+            clean_number, num_extras = split_item_number((row.get('item_number') or '').strip())
             merged[key] = {
                 'name': name,
-                'item_number': (row.get('item_number') or '').strip(),
-                'units': [],
+                'item_number': clean_number,
+                'units': list(num_extras),
             }
             order.append(key)
 
         entry = merged[key]
         item_number = (row.get('item_number') or '').strip()
-        if item_number and not entry['item_number']:
-            entry['item_number'] = item_number
+        if item_number:
+            clean_number, num_extras = split_item_number(item_number)
+            if clean_number and not entry['item_number']:
+                entry['item_number'] = clean_number
+            for unit in num_extras:
+                if unit not in entry['units']:
+                    entry['units'].append(unit)
 
         for field in ('package', 'unit'):
             value = (row.get(field) or '').strip()

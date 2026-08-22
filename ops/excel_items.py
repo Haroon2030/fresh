@@ -6,7 +6,12 @@ from io import BytesIO
 
 from openpyxl import Workbook, load_workbook
 
-from .catalog_units import aggregate_catalog_rows
+from .catalog_units import (
+    PACKAGE_NAMES,
+    aggregate_catalog_rows,
+    merge_unit_strings,
+    sanitize_catalog_row,
+)
 
 HEADER_ALIASES = {
     'name': {
@@ -115,12 +120,24 @@ def parse_items_workbook(file_obj) -> tuple[list[dict], list[str]]:
                 return default
             return _norm(row[idx])
 
-        name = cell('name') or last_name
+        raw_name = cell('name')
+        name = raw_name or last_name
         item_number = cell('item_number') or last_number
         unit = cell('unit')
         package = cell('package')
 
+        name, item_number, package, extra_units = sanitize_catalog_row(
+            name,
+            package,
+            item_number,
+            last_name=last_name,
+        )
+        package = merge_unit_strings(package, *extra_units, unit)
+
         if not name and not package and not item_number:
+            continue
+        if name in PACKAGE_NAMES:
+            errors.append(f'الصف {i}: «{name}» عبوة وليس اسم صنف — ضع اسم الصنف في الصف الأول.')
             continue
         if not name:
             errors.append(f'الصف {i}: الاسم مطلوب (أو اترك صفاً تحت اسم الصنف لنفس المنتج).')
