@@ -8,8 +8,8 @@
                 <th>رقم الصنف</th>
                 <th>الاسم</th>
                 <th>الوحدة</th>
-                <th>سعر الشراء</th>
                 <th>الكمية</th>
+                <th>سعر الشراء</th>
                 <th>الإجمالي</th>
                 <th>الحالة</th>
                 <th>ملاحظات</th>
@@ -23,8 +23,8 @@
                 <td dir="ltr">{{ order.item_number|default:"—" }}</td>
                 <td class="cell-strong">{{ order.item_name }}</td>
                 <td>{{ order.unit|default:"—" }}</td>
-                <td class="cell-center" dir="ltr">{{ order.unit_price|floatformat:2 }}</td>
                 <td class="cell-center cell-strong">{{ order.quantity }}</td>
+                <td class="cell-center" dir="ltr">{{ order.unit_price|floatformat:2 }}</td>
                 <td class="cell-center cell-strong" dir="ltr">{{ order.total_amount|floatformat:2 }}</td>
                 <td class="cell-center">
                     {% if order.status == 'completed' %}

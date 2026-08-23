@@ -423,7 +423,7 @@ def build_supply_orders_pdf(orders: list, *, actor) -> tuple[bytes, str]:
     )
     story.append(Spacer(1, 0.3 * cm))
     story.append(Paragraph(_ar("بيان الأصناف"), styles["h"]))
-    headers = ["ملاحظات", "الإجمالي", "كمية", "سعر", "وحدة", "الصنف", "رقم", "طلب"]
+    headers = ["ملاحظات", "الإجمالي", "سعر", "كمية", "وحدة", "الصنف", "رقم", "طلب"]
     rows = []
     grand_total = 0
     for o in orders:
@@ -433,8 +433,8 @@ def build_supply_orders_pdf(orders: list, *, actor) -> tuple[bytes, str]:
             [
                 (o.notes or "")[:50] or "—",
                 f"{line_total:.2f}",
-                str(o.quantity),
                 f"{o.unit_price:.2f}",
+                str(o.quantity),
                 o.unit or "—",
                 o.item_name,
                 o.item_number or "—",

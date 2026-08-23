@@ -401,8 +401,8 @@
                             <th>رقم الصنف</th>
                             <th>الاسم</th>
                             <th>الوحدة</th>
-                            <th>سعر الشراء</th>
                             <th>الكمية</th>
+                            <th>سعر الشراء</th>
                             <th>الإجمالي</th>
                             <th>الحالة</th>
                             <th>ملاحظات</th>
@@ -420,8 +420,8 @@
                             </td>
                             <td><input name="item_name" type="text" value="{{ order.item_name }}" required class="cell-input" placeholder="اسم الصنف"></td>
                             <td><input name="unit" type="text" value="{{ order.unit }}" class="cell-input" placeholder="الوحدة"></td>
-                            <td><input name="unit_price" type="number" min="0" step="0.01" value="{{ order.unit_price }}" required class="cell-input num-entry" dir="ltr" data-edit-price></td>
                             <td><input name="quantity" type="number" min="1" value="{{ order.quantity }}" required class="cell-input num-entry" data-edit-qty></td>
+                            <td><input name="unit_price" type="number" min="0" step="0.01" value="{{ order.unit_price }}" required class="cell-input num-entry" dir="ltr" data-edit-price></td>
                             <td class="cell-center cell-strong" dir="ltr" data-edit-total>{{ order.total_amount|floatformat:2 }}</td>
                             <td class="cell-center"><span class="status-chip status-pending">قيد الانتظار</span></td>
                             <td><input name="notes" type="text" value="{{ order.notes }}" class="cell-input" placeholder="—"></td>
@@ -429,8 +429,8 @@
                             <td dir="ltr">{{ order.item_number|default:"—" }}</td>
                             <td class="cell-strong">{{ order.item_name }}</td>
                             <td>{{ order.unit|default:"—" }}</td>
-                            <td class="cell-center" dir="ltr">{{ order.unit_price|floatformat:2 }}</td>
                             <td class="cell-center cell-strong">{{ order.quantity }}</td>
+                            <td class="cell-center" dir="ltr">{{ order.unit_price|floatformat:2 }}</td>
                             <td class="cell-center cell-strong" dir="ltr">{{ order.total_amount|floatformat:2 }}</td>
                             <td class="cell-center">
                                 {% if order.status == 'completed' %}
@@ -557,8 +557,8 @@
                             <th>رقم الصنف</th>
                             <th>الاسم</th>
                             <th style="width:90px">الوحدة</th>
-                            <th style="width:100px">سعر الشراء</th>
                             <th style="width:80px">الكمية</th>
+                            <th style="width:100px">سعر الشراء</th>
                             <th style="width:72px">إجراء</th>
                         </tr>
                         </thead>
@@ -608,8 +608,8 @@
             <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: inputClass + ' catalog-suggest-input' })}</td>
             <td>${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: inputClass + ' catalog-suggest-input' })}</td>
             <td><input name="unit" type="text" placeholder="كرتون / قطعة" class="${inputClass}"></td>
-            <td><input name="unit_price" type="number" min="0" step="0.01" required placeholder="0.00" class="${inputClass} num-entry" dir="ltr"></td>
             <td><input name="quantity" type="number" min="1" required placeholder="1" class="${inputClass} num-entry"></td>
+            <td><input name="unit_price" type="number" min="0" step="0.01" required placeholder="0.00" class="${inputClass} num-entry" dir="ltr"></td>
             <td class="cell-action">
                 <div class="row-actions">
                     <button type="button" class="remove-row" title="حذف الصف">حذف</button>
@@ -620,7 +620,7 @@
         renumber();
         CS.bindRow(tr, {
             unitField: 'input[name="unit"]',
-            onApply: () => tr.querySelector('input[name="unit_price"]')?.focus(),
+            onApply: () => tr.querySelector('input[name="quantity"]')?.focus(),
         });
         tr.querySelector('input[name="item_number"]')?.focus();
     }
