@@ -910,6 +910,14 @@ class OfferItem(models.Model):
         default=Status.PENDING,
         verbose_name='الحالة',
     )
+    representative = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='offer_items',
+        verbose_name='المندوب',
+        null=True,
+        blank=True,
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,

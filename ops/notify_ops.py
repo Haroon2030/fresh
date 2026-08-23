@@ -918,12 +918,14 @@ def schedule_offers_approved(seed_pk: int, actor_id: int) -> None:
 
         User = get_user_model()
         actor = User.objects.filter(pk=actor_id).first()
-        seed = OfferItem.objects.select_related("created_by").filter(pk=seed_pk).first()
+        seed = OfferItem.objects.select_related(
+            "created_by", "representative"
+        ).filter(pk=seed_pk).first()
         if not seed or not actor:
             return
         if seed.batch_number:
             items = list(
-                OfferItem.objects.select_related("created_by")
+                OfferItem.objects.select_related("created_by", "representative")
                 .filter(batch_number=seed.batch_number)
                 .order_by("pk")
             )
@@ -957,14 +959,15 @@ def schedule_offers_approved(seed_pk: int, actor_id: int) -> None:
             User.Role.ACCOUNTANT,
         }
         extra = []
-        creator = items[0].created_by
-        phone = _user_phone(creator)
+        first = items[0]
+        rep = first.representative or first.created_by
+        phone = _user_phone(rep) or _role_contact_phone("representative")
         if phone:
             extra.append({
                 "phone": phone,
-                "label": f"مندوب — {creator.display_name}",
-                "role": getattr(creator, "role", "representative"),
-                "user_id": creator.pk,
+                "label": f"مندوب — {rep.display_name}",
+                "role": "representative",
+                "user_id": getattr(rep, "pk", None),
                 "message": msg,
             })
         result = _notify_pdf_to_roles(

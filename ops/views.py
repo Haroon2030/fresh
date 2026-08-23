@@ -2555,15 +2555,15 @@ def items_template_download(request):
 
 
 def _offer_queryset(user):
-    qs = OfferItem.objects.select_related('created_by')
+    qs = OfferItem.objects.select_related('created_by', 'representative')
     if user.is_representative:
-        qs = qs.filter(created_by=user)
+        qs = qs.filter(Q(representative=user) | Q(created_by=user))
     return qs
 
 
 def _group_offer_batches(qs):
     batches_map = {}
-    for row in qs.select_related('created_by').order_by('-created_at', 'pk'):
+    for row in qs.select_related('created_by', 'representative').order_by('-created_at', 'pk'):
         key = row.batch_number or f'single-{row.pk}'
         if key not in batches_map:
             batches_map[key] = {
@@ -2571,6 +2571,7 @@ def _group_offer_batches(qs):
                 'batch_number': row.batch_number or f'#OFF-{row.pk}',
                 'seed_pk': row.pk,
                 'created_by': row.created_by,
+                'representative': row.representative or row.created_by,
                 'created_at': row.created_at,
                 'items': [],
                 'statuses': set(),
@@ -2593,13 +2594,16 @@ def _group_offer_batches(qs):
 def _offer_batch_items(seed: OfferItem):
     if seed.batch_number:
         return OfferItem.objects.filter(batch_number=seed.batch_number).select_related(
-            'created_by'
+            'created_by', 'representative'
         ).order_by('pk')
-    return OfferItem.objects.filter(pk=seed.pk).select_related('created_by')
+    return OfferItem.objects.filter(pk=seed.pk).select_related('created_by', 'representative')
 
 
 @login_required
 def offers_list(request):
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
     q = (request.GET.get('q') or '').strip()
     qs = _offer_queryset(request.user)
     if q:
@@ -2608,15 +2612,26 @@ def offers_list(request):
             | Q(item_number__icontains=q)
             | Q(package__icontains=q)
             | Q(batch_number__icontains=q)
+            | Q(representative__first_name__icontains=q)
+            | Q(representative__last_name__icontains=q)
+            | Q(representative__username__icontains=q)
         )
     batches = _group_offer_batches(qs)
     paginator = Paginator(batches, 12)
     page = paginator.get_page(request.GET.get('page'))
+
+    reps = User.objects.filter(role=User.Role.REPRESENTATIVE, is_active=True)
+    if not reps.exists():
+        representatives = User.objects.filter(is_active=True).order_by('first_name', 'username')
+    else:
+        representatives = reps.order_by('first_name', 'username')
+
     ctx = {
         'batches': page,
         'page_obj': page,
         'q': q,
         'open_batch': (request.GET.get('open') or '').strip(),
+        'representatives': representatives,
         'package_choices': DAILY_ORDER_PACKAGES,
         'package_choices_json': json.dumps(DAILY_ORDER_PACKAGES, ensure_ascii=False),
         'active_nav': 'offers',
@@ -2628,6 +2643,18 @@ def offers_list(request):
 @login_required
 @require_POST
 def offers_create(request):
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
+    if request.user.is_representative:
+        representative = request.user
+    else:
+        rep_id = request.POST.get('representative')
+        representative = User.objects.filter(pk=rep_id, is_active=True).first()
+        if not representative:
+            messages.error(request, 'اختر المندوب أولاً.')
+            return redirect('ops:offers')
+
     item_names = request.POST.getlist('item_name')
     item_numbers = request.POST.getlist('item_number')
     quantities = request.POST.getlist('quantity')
@@ -2665,6 +2692,7 @@ def offers_create(request):
             item_number=(item_numbers[i] if i < len(item_numbers) else '').strip(),
             quantity=quantity,
             package=(packages[i] if i < len(packages) else '').strip(),
+            representative=representative,
             created_by=request.user,
         )
         row.save()
@@ -2673,7 +2701,7 @@ def offers_create(request):
     if created:
         messages.success(
             request,
-            f'تم إنشاء ملف عروض {batch_number} بـ {len(created)} صنف.',
+            f'تم إنشاء ملف عروض {batch_number} بـ {len(created)} صنف للمندوب {representative.display_name}.',
         )
         return redirect(f"{reverse('ops:offers')}?open={created[0].pk}")
     messages.error(request, 'أضف صفاً واحداً على الأقل مع اسم الصنف.')
@@ -2771,7 +2799,7 @@ def offers_batch_approve(request, pk):
     schedule_offers_approved(seed.pk, request.user.pk)
     messages.info(
         request,
-        'جاري إرسال ملف PDF عبر واتساب إلى المندوب ومسؤول القسم والعمليات والمحاسب.',
+        'جاري إرسال ملف PDF عبر واتساب إلى المندوب المحدد ومسؤول القسم والعمليات والمحاسب.',
     )
     return redirect('ops:offers')
 
@@ -2779,7 +2807,7 @@ def offers_batch_approve(request, pk):
 @require_http_methods(['GET'])
 def offers_batch_pdf_public(request, token):
     items = list(
-        OfferItem.objects.select_related('created_by')
+        OfferItem.objects.select_related('created_by', 'representative')
         .filter(public_token=token)
         .order_by('pk')
     )

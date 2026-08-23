@@ -66,11 +66,11 @@ class SupplyOrderAdmin(admin.ModelAdmin):
 class OfferItemAdmin(admin.ModelAdmin):
     list_display = (
         'batch_number', 'item_number', 'item_name', 'quantity', 'package',
-        'status', 'created_by', 'created_at',
+        'status', 'representative', 'created_by', 'created_at',
     )
     search_fields = ('batch_number', 'item_number', 'item_name', 'package')
     list_filter = ('status', 'created_at')
-    raw_id_fields = ('created_by', 'reviewed_by')
+    raw_id_fields = ('representative', 'created_by', 'reviewed_by')
 
 
 @admin.register(ReturnRequest)

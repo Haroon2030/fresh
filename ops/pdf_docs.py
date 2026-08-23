@@ -564,11 +564,13 @@ def build_offers_batch_pdf(items: list, *, actor=None) -> tuple[bytes, str]:
             dated=created,
         )
     )
+    rep = getattr(first, "representative", None) or first.created_by
     story.append(
         _meta_grid(
             [
                 ("رقم الملف", batch_ref),
                 ("عدد الأصناف", str(len(items))),
+                ("المندوب", f"{rep.display_name} — {role_label(rep)}" if rep else "—"),
                 ("أنشئ بواسطة", f"{first.created_by.display_name} — {role_label(first.created_by)}"),
                 ("المُصدِر", f"{actor.display_name} — {role_label(actor)}" if actor else "—"),
             ],

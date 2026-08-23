@@ -7,7 +7,7 @@
     <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
     <input name="q" value="{{ q }}" type="text"
            class="w-full bg-surface-container-low border border-outline-variant rounded-full py-2 pr-10 pl-4 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-           placeholder="بحث: ملف، رقم صنف، اسم، عبوة...">
+           placeholder="بحث: ملف، مندوب، رقم صنف، اسم، عبوة...">
 </form>
 {% endblock %}
 
@@ -77,6 +77,7 @@
                 <th>#</th>
                 <th>رقم الملف</th>
                 <th>الأصناف</th>
+                <th>المندوب</th>
                 <th>بواسطة</th>
                 <th>التاريخ</th>
                 <th>الحالة</th>
@@ -89,6 +90,7 @@
                 <td class="row-num cell-center">{{ forloop.counter }}</td>
                 <td class="cell-strong" dir="ltr">{{ batch.batch_number }}</td>
                 <td class="cell-center cell-strong">{{ batch.items_count }}</td>
+                <td class="cell-strong">{{ batch.representative.display_name }}</td>
                 <td>{{ batch.created_by.display_name }}</td>
                 <td>{{ batch.created_at|date:"Y/m/d" }}</td>
                 <td class="cell-center">
@@ -119,7 +121,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="7" class="empty-row">لا ملفات عروض — اضغط «ملف عروض جديد».</td>
+                <td colspan="8" class="empty-row">لا ملفات عروض — اضغط «ملف عروض جديد».</td>
             </tr>
             {% endfor %}
             </tbody>
@@ -159,7 +161,7 @@
             <div class="app-modal-head-main">
                 <h3>تعديل أصناف الملف {{ batch.batch_number }}</h3>
                 <p class="app-modal-sub">
-                    {{ batch.created_by.display_name }} · {{ batch.created_at|date:"Y/m/d" }} · {{ batch.items_count }} صنف
+                    المندوب: {{ batch.representative.display_name }} · {{ batch.created_by.display_name }} · {{ batch.created_at|date:"Y/m/d" }} · {{ batch.items_count }} صنف
                 </p>
             </div>
             <div class="app-modal-head-actions">
@@ -237,6 +239,26 @@
         <form method="post" action="{% url 'ops:offers_create' %}" class="flex flex-col overflow-hidden" id="offerMultiForm">
             {% csrf_token %}
             <div class="app-modal-body flex flex-col gap-md">
+                {% if user.is_representative %}
+                <input type="hidden" name="representative" value="{{ user.pk }}">
+                {% else %}
+                <div class="flex flex-col gap-sm max-w-md">
+                    <label class="font-label-md text-label-md text-on-surface filter-field-label" for="offerRep">
+                        <span class="material-symbols-outlined">badge</span>
+                        المندوب
+                    </label>
+                    <select name="representative" id="offerRep" required
+                            class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface app-select">
+                        <option value="">اختر المندوب...</option>
+                        {% for rep in representatives %}
+                        <option value="{{ rep.pk }}">{{ rep.display_name }}</option>
+                        {% empty %}
+                        <option value="" disabled>لا يوجد مناديب — أضفهم من شاشة المستخدمين</option>
+                        {% endfor %}
+                    </select>
+                    <p class="font-body-md text-body-md text-on-surface-variant text-xs">بعد الاعتماد يُرسل PDF العرض عبر واتساب لهذا المندوب.</p>
+                </div>
+                {% endif %}
                 <div class="flex items-center justify-between gap-sm">
                     <span class="font-label-md text-label-md font-bold text-on-surface">أصناف العرض</span>
                     <button type="button" id="addOfferRow"
