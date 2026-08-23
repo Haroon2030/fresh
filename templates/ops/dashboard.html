@@ -162,6 +162,171 @@
 {% endblock %}
 
 {% block content %}
+{% if is_rep_home %}
+<section class="dash-welcome mb-lg">
+    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-md">
+        <div>
+            <h1>{{ greeting }}، {{ user.display_name }}</h1>
+            <p>هذه صفحتك الرئيسية. أنشئ الطلبيات والتوريد والمرتجعات، وتابع المهام المكلّف بها من هنا.</p>
+            <div class="meta">
+                <span class="material-symbols-outlined text-[18px]">calendar_today</span>
+                <span>{{ weekday_ar }} — {{ today_label }}</span>
+                <span class="opacity-40">|</span>
+                <span>{{ user.get_role_display }}</span>
+            </div>
+        </div>
+        <div class="flex flex-wrap gap-sm">
+            <a href="{% url 'ops:daily_orders' %}" class="btn-primary-app">
+                <span class="material-symbols-outlined text-[18px]">receipt_long</span>
+                طلبية جديدة
+            </a>
+            <a href="{% url 'ops:supply' %}" class="px-5 py-2.5 rounded-lg border border-[#93c5fd] bg-white text-[#1d4ed8] font-bold text-[14px] hover:bg-[#eff6ff]" style="font-family:'Cairo',sans-serif">
+                التوريد
+            </a>
+            <a href="{% url 'ops:offers' %}" class="px-5 py-2.5 rounded-lg border border-[#93c5fd] bg-white text-[#1d4ed8] font-bold text-[14px] hover:bg-[#eff6ff]" style="font-family:'Cairo',sans-serif">
+                أصناف العروض
+            </a>
+            <a href="{% url 'ops:returns' %}" class="px-5 py-2.5 rounded-lg border border-[#93c5fd] bg-white text-[#1d4ed8] font-bold text-[14px] hover:bg-[#eff6ff]" style="font-family:'Cairo',sans-serif">
+                المرتجعات
+            </a>
+            <a href="{% url 'ops:items' %}" class="px-5 py-2.5 rounded-lg border border-[#93c5fd] bg-white text-[#1d4ed8] font-bold text-[14px] hover:bg-[#eff6ff]" style="font-family:'Cairo',sans-serif">
+                الأصناف
+            </a>
+        </div>
+    </div>
+</section>
+
+<section class="grid grid-cols-1 sm:grid-cols-3 gap-md mb-lg">
+    <a href="{% url 'ops:daily_orders' %}" class="kpi-card kpi-sky block no-underline hover:no-underline">
+        <div class="flex items-start justify-between">
+            <div>
+                <div class="kpi-label">طلبيات قيد الاعتماد</div>
+                <div class="kpi-value">{{ stats.orders_open }}</div>
+                <div class="kpi-sub">افتح الطلبيات اليومية</div>
+            </div>
+            <div class="kpi-icon"><span class="material-symbols-outlined">receipt_long</span></div>
+        </div>
+    </a>
+    <a href="{% url 'ops:supply' %}" class="kpi-card kpi-emerald block no-underline hover:no-underline">
+        <div class="flex items-start justify-between">
+            <div>
+                <div class="kpi-label">التوريد</div>
+                <div class="kpi-value">{{ stats.supply_total }}</div>
+                <div class="kpi-sub">{{ stats.supply_pending }} بانتظار المراجعة</div>
+            </div>
+            <div class="kpi-icon"><span class="material-symbols-outlined">shopping_cart</span></div>
+        </div>
+    </a>
+    <a href="{% url 'ops:returns' %}" class="kpi-card kpi-amber block no-underline hover:no-underline">
+        <div class="flex items-start justify-between">
+            <div>
+                <div class="kpi-label">المرتجعات</div>
+                <div class="kpi-value">{{ stats.returns_total }}</div>
+                <div class="kpi-sub">{{ stats.returns_pending }} صنفاً معلّقاً</div>
+            </div>
+            <div class="kpi-icon"><span class="material-symbols-outlined">assignment_return</span></div>
+        </div>
+    </a>
+</section>
+
+<section class="dash-list mb-lg">
+    <div class="panel-head chart-panel" style="border:0;border-radius:0;border-bottom:1px solid #dbeafe">
+        <h3>مهامي{% if stats.tasks_open %} ({{ stats.tasks_open }}){% endif %}</h3>
+        <span class="text-[12px] font-bold text-slate-500" style="font-family:'Cairo',sans-serif">تظهر هنا عند تكليفك بمهمة</span>
+    </div>
+    {% for task in my_open_tasks %}
+    <div class="row-item">
+        <div class="min-w-0">
+            <div class="font-bold text-[15px] text-slate-900 truncate">{{ task.title }}</div>
+            <div class="text-[12px] text-slate-500 mt-0.5">
+                {% if task.branch %}{{ task.branch }} · {% endif %}
+                {% if task.due_at %}استحقاق {{ task.due_at|date:"Y/m/d H:i" }}{% else %}بدون موعد{% endif %}
+            </div>
+            {% if task.visit_details or task.description %}
+            <div class="text-[13px] text-slate-600 mt-1 line-clamp-2">{{ task.visit_details|default:task.description }}</div>
+            {% endif %}
+        </div>
+        <div class="flex flex-col items-end gap-2 shrink-0">
+            {% if task.status == 'todo' %}
+            <span class="status-chip status-wait">انتظار</span>
+            {% elif task.status == 'in_progress' %}
+            <span class="status-chip" style="background:#e0f2fe;color:#075985;border-color:#7dd3fc">تنفيذ</span>
+            {% elif task.status == 'pending_review' %}
+            <span class="status-chip" style="background:#f0fdfa;color:#115e59;border-color:#99f6e4">مراجعة</span>
+            {% endif %}
+            {% if task.public_token and task.status != 'pending_review' %}
+            <a href="{% if public_base_url %}{{ public_base_url }}{% url 'ops:task_public' task.public_token %}{% else %}{% url 'ops:task_public' task.public_token %}{% endif %}"
+               class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1d4ed8] text-white text-[12px] font-bold no-underline"
+               target="_blank" rel="noopener">
+                <span class="material-symbols-outlined text-[16px]">reply</span>
+                الرد بالمهمة
+            </a>
+            {% elif task.status == 'pending_review' %}
+            <span class="text-[12px] font-bold text-teal-700">بانتظار اعتماد الإدارة</span>
+            {% endif %}
+        </div>
+    </div>
+    {% empty %}
+    <div class="dash-empty">
+        لا مهام مكلّف بها حالياً.<br>
+        عند إرسال مهمة لك ستظهر في هذه الصفحة مع رابط الرد.
+    </div>
+    {% endfor %}
+</section>
+
+<section class="grid grid-cols-1 xl:grid-cols-2 gap-md">
+    <div class="dash-list">
+        <div class="panel-head chart-panel" style="border:0;border-radius:0;border-bottom:1px solid #dbeafe">
+            <h3>أحدث التوريدات</h3>
+            <a href="{% url 'ops:supply' %}" class="text-[12px] font-bold text-[#1d4ed8]" style="font-family:'Cairo',sans-serif">عرض الكل</a>
+        </div>
+        {% for order in recent_supply %}
+        <a href="{% url 'ops:supply_detail' order.pk %}" class="row-item no-underline hover:no-underline">
+            <div class="min-w-0">
+                <div class="font-bold text-[14px] text-slate-900 truncate">{{ order.item_name }}</div>
+                <div class="text-[12px] text-slate-500 mt-0.5">{{ order.order_number }} · {{ order.created_at|date:"Y/m/d" }}</div>
+            </div>
+            {% if order.status == 'pending' %}
+            <span class="status-chip status-wait">انتظار</span>
+            {% elif order.status == 'completed' %}
+            <span class="status-chip status-ok">مكتمل</span>
+            {% else %}
+            <span class="status-chip status-bad">مرفوض</span>
+            {% endif %}
+        </a>
+        {% empty %}
+        <div class="dash-empty">لا توريدات حديثة</div>
+        {% endfor %}
+    </div>
+    <div class="dash-list">
+        <div class="panel-head chart-panel" style="border:0;border-radius:0;border-bottom:1px solid #dbeafe">
+            <h3>أحدث المرتجعات</h3>
+            <a href="{% url 'ops:returns' %}" class="text-[12px] font-bold text-[#1d4ed8]" style="font-family:'Cairo',sans-serif">عرض الكل</a>
+        </div>
+        {% for batch in recent_returns %}
+        <a href="{% url 'ops:returns' %}?open={{ batch.pk }}" class="row-item no-underline hover:no-underline">
+            <div class="min-w-0">
+                <div class="font-bold text-[14px] text-slate-900 truncate">{{ batch.return_number }} · {{ batch.branch }}</div>
+                <div class="text-[12px] text-slate-500 mt-0.5">{{ batch.created_at|date:"Y/m/d" }}</div>
+            </div>
+            {% with st=batch.display_status %}
+            {% if st == 'pending' %}
+            <span class="status-chip status-wait">انتظار</span>
+            {% elif st == 'accepted' %}
+            <span class="status-chip status-ok">مقبول</span>
+            {% elif st == 'rejected' %}
+            <span class="status-chip status-bad">مرفوض</span>
+            {% else %}
+            <span class="status-chip status-wait">متعدد</span>
+            {% endif %}
+            {% endwith %}
+        </a>
+        {% empty %}
+        <div class="dash-empty">لا مرتجعات حديثة</div>
+        {% endfor %}
+    </div>
+</section>
+{% else %}
 <section class="dash-welcome mb-lg">
     <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-md">
         <div>
@@ -474,4 +639,5 @@
     });
 })();
 </script>
+{% endif %}
 {% endblock %}

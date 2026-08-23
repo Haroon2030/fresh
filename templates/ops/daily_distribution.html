@@ -104,6 +104,7 @@
                     <thead>
                     <tr>
                         <th>#</th>
+                        <th>رقم الصنف</th>
                         <th>اسم الصنف</th>
                         <th>اسم الفرع</th>
                         <th>الكمية الموزعة</th>
@@ -113,10 +114,8 @@
                     {% for row in batch.items %}
                     <tr>
                         <td class="cell-center">{{ forloop.counter }}</td>
-                        <td class="cell-strong">
-                            {{ row.item_name }}
-                            {% if row.item_number %}<span class="text-xs text-on-surface-variant block" dir="ltr">{{ row.item_number }}</span>{% endif %}
-                        </td>
+                        <td dir="ltr">{{ row.item_number|default:"—" }}</td>
+                        <td class="cell-strong">{{ row.item_name }}</td>
                         <td>{{ row.branch }}</td>
                         <td class="cell-center cell-strong">{{ row.quantity }}</td>
                     </tr>
@@ -170,8 +169,8 @@
                         <thead class="bg-surface-container-low">
                         <tr>
                             <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-10">#</th>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">اسم الصنف</th>
                             <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">رقم الصنف</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">اسم الصنف</th>
                             <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">اسم الفرع</th>
                             <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-28">الكمية الموزعة</th>
                             <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-14"></th>
@@ -195,11 +194,17 @@
 {% endblock %}
 
 {% block extra_js %}
+{% include "ops/_catalog_suggest.html" %}
 <script>
 (function () {
     const tbody = document.getElementById('distRows');
     const addBtn = document.getElementById('addDistRow');
     if (!tbody || !addBtn) return;
+
+    let catalog = [];
+    try { catalog = JSON.parse('{{ catalog_json|escapejs }}') || []; } catch (e) { catalog = []; }
+    window.FarshCatalogSuggest.setCatalog(catalog);
+    const CS = window.FarshCatalogSuggest;
 
     const inputClass = 'w-full bg-surface border border-outline-variant rounded-lg py-2 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface';
     const branchOptions = `{% for b in branches %}<option value="{{ b|escapejs }}" {% if b == default_branch %}selected{% endif %}>{{ b|escapejs }}</option>{% endfor %}`;
@@ -216,8 +221,8 @@
         tr.className = 'bg-surface-container-lowest';
         tr.innerHTML = `
             <td class="p-2 text-on-surface-variant font-label-md text-label-md text-center" data-row-num></td>
-            <td class="p-2"><input name="item_name" type="text" required list="catalogNames" placeholder="اسم الصنف" class="${inputClass}"></td>
-            <td class="p-2"><input name="item_number" type="text" list="catalogNumbers" placeholder="رقم الصنف" class="${inputClass}" dir="ltr"></td>
+            <td class="p-2">${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: inputClass + ' catalog-suggest-input' })}</td>
+            <td class="p-2">${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: inputClass + ' catalog-suggest-input' })}</td>
             <td class="p-2">
                 <select name="branch" required class="${inputClass} app-select">
                     <option value="">اختر الفرع...</option>
@@ -233,6 +238,10 @@
         `;
         tbody.appendChild(tr);
         renumber();
+        CS.bindRow(tr, {
+            onApply: () => tr.querySelector('select[name="branch"]')?.focus(),
+        });
+        tr.querySelector('input[name="item_number"]')?.focus();
     }
 
     addBtn.addEventListener('click', addRow);
@@ -281,10 +290,4 @@
     if (openId) openBatch(openId);
 })();
 </script>
-<datalist id="catalogNumbers">
-{% for c in catalog %}<option value="{{ c.item_number }}"></option>{% endfor %}
-</datalist>
-<datalist id="catalogNames">
-{% for c in catalog %}<option value="{{ c.name }}"></option>{% endfor %}
-</datalist>
 {% endblock %}

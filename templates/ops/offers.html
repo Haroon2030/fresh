@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+
+{% block title %}أصناف العروض - عمليات الفرش{% endblock %}
+
+{% block header_search %}
+<form method="get" class="relative w-full">
+    <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+    <input name="q" value="{{ q }}" type="text"
+           class="w-full bg-surface-container-low border border-outline-variant rounded-full py-2 pr-10 pl-4 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+           placeholder="بحث: ملف، رقم صنف، اسم، عبوة...">
+</form>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    .excel-grid .cell-input,
+    .excel-grid .cell-select {
+        width: 100%;
+        border: 0;
+        outline: none;
+        background: transparent;
+        padding: 8px 6px;
+        font: inherit;
+        text-align: right;
+    }
+    .excel-grid .cell-input:focus,
+    .excel-grid .cell-select:focus {
+        background: #eff6ff;
+    }
+    .excel-grid .row-num {
+        text-align: center;
+        color: #64748b;
+        font-weight: 700;
+        padding: 6px !important;
+    }
+    .excel-grid .cell-action { text-align: center; padding: 4px !important; }
+    .excel-grid .row-actions { display: inline-flex; gap: 4px; }
+    .excel-grid .remove-row {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 8px;
+        border-radius: 6px;
+        border: 1px solid #fda4af;
+        background: #fff1f2;
+        color: #be123c;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row md:items-center justify-between mb-lg gap-md">
+    <div>
+        <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">أصناف العروض</h2>
+        <p class="text-on-surface-variant font-body-md text-body-md mt-xs">
+            ملفات عروض الأصناف — اضغط الملف لعرض وتعديل الأصناف.
+        </p>
+    </div>
+    <button type="button" class="btn-primary-app"
+            onclick="document.getElementById('newOfferModal').classList.remove('hidden')">
+        <span class="material-symbols-outlined">add</span>
+        ملف عروض جديد
+    </button>
+</div>
+
+<div class="app-table-frame w-full">
+    <div class="app-toolbar">
+        <span class="font-label-md text-label-md font-bold text-on-surface flex items-center gap-sm">
+            <span class="material-symbols-outlined">local_offer</span>
+            ملفات العروض ({{ page_obj.paginator.count }})
+        </span>
+    </div>
+    <div class="app-table-sheet overflow-x-auto">
+        <table class="excel-grid app-data-grid w-full">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>رقم الملف</th>
+                <th>الأصناف</th>
+                <th>بواسطة</th>
+                <th>التاريخ</th>
+                <th>الحالة</th>
+                <th>إجراء</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for batch in batches %}
+            <tr class="batch-row {% if batch.display_status == 'approved' %}row-done{% endif %}" data-open-batch="{{ batch.seed_pk }}" style="cursor:pointer">
+                <td class="row-num cell-center">{{ forloop.counter }}</td>
+                <td class="cell-strong" dir="ltr">{{ batch.batch_number }}</td>
+                <td class="cell-center cell-strong">{{ batch.items_count }}</td>
+                <td>{{ batch.created_by.display_name }}</td>
+                <td>{{ batch.created_at|date:"Y/m/d" }}</td>
+                <td class="cell-center">
+                    {% if batch.display_status == 'approved' %}
+                    <span class="status-chip status-ok">معتمد</span>
+                    {% elif batch.display_status == 'mixed' %}
+                    <span class="status-chip status-wait">متعدد</span>
+                    {% else %}
+                    <span class="status-chip status-pending">قيد الانتظار</span>
+                    {% endif %}
+                </td>
+                <td class="cell-center" onclick="event.stopPropagation()">
+                    <div class="flex flex-wrap gap-1 justify-center">
+                        {% if user.is_manager and batch.display_status != 'approved' %}
+                        <form method="post" action="{% url 'ops:offers_batch_approve' batch.seed_pk %}" class="inline"
+                              onsubmit="return confirm('اعتماد ملف {{ batch.batch_number }} وإرسال PDF عبر واتساب؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-approve">اعتماد</button>
+                        </form>
+                        {% endif %}
+                        <form method="post" action="{% url 'ops:offers_batch_delete' batch.seed_pk %}" class="inline"
+                              onsubmit="return confirm('حذف ملف {{ batch.batch_number }} وجميع أصنافه؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-delete">حذف</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="empty-row">لا ملفات عروض — اضغط «ملف عروض جديد».</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="pt-md flex justify-between items-center">
+        <span class="font-body-md text-body-md text-on-surface-variant">
+            {% if page_obj.paginator.count %}
+            عرض {{ page_obj.start_index }}-{{ page_obj.end_index }} من {{ page_obj.paginator.count }}
+            {% else %}
+            لا نتائج
+            {% endif %}
+        </span>
+        <div class="flex gap-sm">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}&q={{ q }}"
+               class="p-2 border border-[#bfdbfe] rounded-lg text-[#1d4ed8] hover:bg-[#eff6ff]">
+                <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+            </a>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&q={{ q }}"
+               class="p-2 border border-[#bfdbfe] rounded-lg text-[#1d4ed8] hover:bg-[#eff6ff]">
+                <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% for batch in batches %}
+<div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.seed_pk }}">
+    <div class="app-modal-panel app-modal-panel--xl">
+        <div class="app-modal-head">
+            <div class="app-modal-head-main">
+                <h3>تعديل أصناف الملف {{ batch.batch_number }}</h3>
+                <p class="app-modal-sub">
+                    {{ batch.created_by.display_name }} · {{ batch.created_at|date:"Y/m/d" }} · {{ batch.items_count }} صنف
+                </p>
+            </div>
+            <div class="app-modal-head-actions">
+                <a href="{% url 'ops:offers_batch_pdf' batch.seed_pk %}" class="app-modal-head-btn">
+                    <span class="material-symbols-outlined">download</span>
+                    تحميل PDF
+                </a>
+                <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch="{{ batch.seed_pk }}">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+        </div>
+        <form method="post" action="{% url 'ops:offers_batch_update' batch.seed_pk %}" class="flex flex-col overflow-hidden flex-1 min-h-0">
+            {% csrf_token %}
+            <div class="app-modal-body">
+                <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+                    <table class="excel-grid batch-detail-grid w-full" data-offer-edit>
+                        <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>رقم الصنف</th>
+                            <th>الاسم</th>
+                            <th>الكمية</th>
+                            <th>العبوة</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for item in batch.items %}
+                        <tr>
+                            <td class="cell-center">{{ forloop.counter }}</td>
+                            <td>
+                                <input type="hidden" name="order_id" value="{{ item.pk }}">
+                                <input name="item_number" type="text" value="{{ item.item_number }}" class="cell-input" dir="ltr" placeholder="رقم الصنف">
+                            </td>
+                            <td><input name="item_name" type="text" value="{{ item.item_name }}" required class="cell-input" placeholder="اسم الصنف"></td>
+                            <td><input name="quantity" type="number" min="1" value="{{ item.quantity }}" required class="cell-input num-entry"></td>
+                            <td>
+                                <select name="package" class="cell-input cell-select app-select">
+                                    <option value="">اختر...</option>
+                                    {% for p in package_choices %}
+                                    <option value="{{ p }}" {% if item.package == p %}selected{% endif %}>{{ p }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="empty-row">لا أصناف.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="app-modal-foot">
+                <button type="button" class="btn-ghost-app" data-close-batch="{{ batch.seed_pk }}">إلغاء</button>
+                <button type="submit" class="btn-primary-app">حفظ التعديلات</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endfor %}
+
+<div class="app-modal hidden" id="newOfferModal">
+    <div class="app-modal-panel app-modal-panel--xl">
+        <div class="app-modal-head">
+            <div class="app-modal-head-main">
+                <h3>ملف عروض جديد</h3>
+            </div>
+            <div class="app-modal-head-actions">
+                <button type="button" class="app-modal-close" aria-label="إغلاق"
+                        onclick="document.getElementById('newOfferModal').classList.add('hidden')">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+        </div>
+        <form method="post" action="{% url 'ops:offers_create' %}" class="flex flex-col overflow-hidden" id="offerMultiForm">
+            {% csrf_token %}
+            <div class="app-modal-body flex flex-col gap-md">
+                <div class="flex items-center justify-between gap-sm">
+                    <span class="font-label-md text-label-md font-bold text-on-surface">أصناف العرض</span>
+                    <button type="button" id="addOfferRow"
+                            class="flex items-center gap-xs px-md py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface hover:bg-surface-container-low transition-colors">
+                        <span class="material-symbols-outlined text-[18px]">add</span>
+                        إضافة صف
+                    </button>
+                </div>
+                <div class="excel-sheet overflow-x-auto border border-[#b4b4b4] rounded-sm bg-white shadow-sm">
+                    <table class="excel-grid w-full text-right border-collapse">
+                        <thead>
+                        <tr>
+                            <th style="width:44px">#</th>
+                            <th>رقم الصنف</th>
+                            <th>الاسم</th>
+                            <th style="width:90px">الكمية</th>
+                            <th style="width:120px">العبوة</th>
+                            <th style="width:72px">إجراء</th>
+                        </tr>
+                        </thead>
+                        <tbody id="offerRows"></tbody>
+                    </table>
+                </div>
+                <p class="font-body-md text-body-md text-on-surface-variant text-xs">الأعمدة: رقم الصنف · الاسم · الكمية · العبوة — حفظ الملف يجمع الصفوف برقم واحد.</p>
+            </div>
+            <div class="app-modal-foot">
+                <button type="button" class="btn-ghost-app"
+                        onclick="document.getElementById('newOfferModal').classList.add('hidden')">إلغاء</button>
+                <button type="submit" class="btn-primary-app">حفظ الملف</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% include "ops/_catalog_suggest.html" %}
+<script>
+(function () {
+    const tbody = document.getElementById('offerRows');
+    const addBtn = document.getElementById('addOfferRow');
+    if (!tbody || !addBtn) return;
+
+    let catalog = [];
+    let packageOptions = [];
+    try { catalog = JSON.parse('{{ catalog_json|escapejs }}') || []; } catch (e) { catalog = []; }
+    try { packageOptions = JSON.parse('{{ package_choices_json|escapejs }}') || []; } catch (e) { packageOptions = []; }
+    window.FarshCatalogSuggest.setCatalog(catalog);
+    const CS = window.FarshCatalogSuggest;
+
+    function packageSelectHtml() {
+        const opts = ['<option value="">اختر...</option>']
+            .concat(packageOptions.map((p) => `<option value="${p}">${p}</option>`));
+        return `<select class="cell-input cell-select app-select" name="package">${opts.join('')}</select>`;
+    }
+
+    function renumber() {
+        tbody.querySelectorAll('tr').forEach((tr, i) => {
+            const num = tr.querySelector('[data-row-num]');
+            if (num) num.textContent = String(i + 1);
+        });
+    }
+
+    function addRow() {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="row-num" data-row-num></td>
+            <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: 'cell-input catalog-suggest-input' })}</td>
+            <td>${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: 'cell-input catalog-suggest-input' })}</td>
+            <td><input class="cell-input num-entry" name="quantity" type="number" min="1" required value="1" placeholder="1"></td>
+            <td>${packageSelectHtml()}</td>
+            <td class="cell-action">
+                <div class="row-actions">
+                    <button type="button" class="remove-row" title="حذف الصف">حذف</button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        renumber();
+        CS.bindRow(tr, {
+            packageField: 'select[name="package"]',
+            packageChoices: packageOptions,
+            onApply: () => tr.querySelector('input[name="quantity"]')?.focus(),
+        });
+        tr.querySelector('input[name="item_number"]')?.focus();
+    }
+
+    addBtn.addEventListener('click', addRow);
+    tbody.addEventListener('click', (e) => {
+        const btn = e.target.closest('.remove-row');
+        if (!btn) return;
+        if (tbody.querySelectorAll('tr').length <= 1) return;
+        btn.closest('tr').remove();
+        renumber();
+    });
+    addRow();
+})();
+</script>
+<script>
+(function () {
+    function openBatch(id) {
+        const modal = document.getElementById('batchModal-' + id);
+        if (modal) modal.classList.remove('hidden');
+    }
+    function closeBatch(id) {
+        const modal = document.getElementById('batchModal-' + id);
+        if (modal) modal.classList.add('hidden');
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('open')) {
+            url.searchParams.delete('open');
+            window.history.replaceState({}, '', url.pathname + url.search);
+        }
+    }
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('td[onclick], .act-btn, form.inline')) return;
+        const openBtn = e.target.closest('[data-open-batch]');
+        if (openBtn) {
+            openBatch(openBtn.getAttribute('data-open-batch'));
+            return;
+        }
+        const closeBtn = e.target.closest('[data-close-batch]');
+        if (closeBtn) {
+            closeBatch(closeBtn.getAttribute('data-close-batch'));
+            return;
+        }
+        if (e.target.classList.contains('batch-detail-modal')) {
+            e.target.classList.add('hidden');
+        }
+    });
+    const openId = '{{ open_batch|default:""|escapejs }}';
+    if (openId) openBatch(openId);
+})();
+</script>
+{% endblock %}

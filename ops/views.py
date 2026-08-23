@@ -24,6 +24,7 @@ from .models import (
     DailyOrder,
     DailySupplyDistribution,
     DistributionVariance,
+    OfferItem,
     ReturnBatch,
     ReturnRequest,
     SupplyOrder,
@@ -47,6 +48,7 @@ from .whatsapp import (
 from .notify_ops import (
     schedule_daily_distribution_notify,
     schedule_daily_order_approved,
+    schedule_offers_approved,
     schedule_return_authorized,
     schedule_return_batch_rep_decision,
     schedule_return_notify,
@@ -69,7 +71,18 @@ def manager_required(view_func):
     def wrapper(request, *args, **kwargs):
         if not request.user.is_manager:
             messages.error(request, 'هذه العملية متاحة لمدير العمليات فقط.')
-            return redirect('ops:supply')
+            return redirect('ops:dashboard' if request.user.is_representative else 'ops:supply')
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
+def rep_forbidden(view_func):
+    """منع المندوب من شاشات التشغيل الداخلية غير المسموح بها."""
+    @login_required
+    def wrapper(request, *args, **kwargs):
+        if request.user.is_representative:
+            messages.error(request, 'هذه الشاشة غير متاحة لدور المندوب.')
+            return redirect('ops:dashboard')
         return view_func(request, *args, **kwargs)
     return wrapper
 
@@ -100,6 +113,16 @@ def _redirect_returns(batch_id=None):
     if batch_id:
         return redirect(f'{url}?open={batch_id}')
     return redirect(url)
+
+
+def _catalog_context():
+    catalog = list(
+        CatalogItem.objects.order_by('name').values('item_number', 'name', 'unit')[:2000]
+    )
+    return {
+        'catalog': catalog,
+        'catalog_json': json.dumps(catalog, ensure_ascii=False),
+    }
 
 
 def _greeting_for(now):
@@ -169,6 +192,12 @@ def dashboard(request):
 
     recent_supply = supply_qs.order_by('-created_at')[:5]
     recent_tasks = tasks_qs.select_related('assigned_to').order_by('-created_at')[:5]
+    my_open_tasks = list(
+        tasks_qs.exclude(status=Task.Status.DONE)
+        .prefetch_related('response_photos')
+        .order_by('due_at', '-created_at')[:12]
+    )
+    public_base = getattr(settings, 'PUBLIC_BASE_URL', '') or ''
 
     return render(request, 'ops/dashboard.html', {
         'active_nav': 'dashboard',
@@ -177,6 +206,7 @@ def dashboard(request):
         'weekday_ar': [
             'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد',
         ][now.weekday()],
+        'is_rep_home': user.is_representative,
         'stats': {
             'supply_total': supply_total,
             'supply_pending': supply_pending,
@@ -188,11 +218,17 @@ def dashboard(request):
             'users_total': users_total,
             'returns_accepted': returns_accepted,
             'returns_rejected': returns_rejected,
+            'orders_open': DailyOrder.objects.filter(
+                representative=user,
+                status=DailyOrder.Status.PENDING,
+            ).count() if user.is_representative else 0,
         },
         'charts': charts,
         'recent_supply': recent_supply,
         'recent_returns': returns_qs.prefetch_related('items').order_by('-created_at')[:5],
         'recent_tasks': recent_tasks,
+        'my_open_tasks': my_open_tasks,
+        'public_base_url': public_base,
     })
 
 
@@ -294,7 +330,7 @@ def supply_list(request):
 
     open_batch = (request.GET.get('open') or '').strip()
 
-    return render(request, 'ops/supply.html', {
+    ctx = {
         'batches': page,
         'page_obj': page,
         'representatives': representatives,
@@ -308,7 +344,9 @@ def supply_list(request):
         'budget_pct': budget_pct,
         'open_batch': open_batch,
         'active_nav': 'supply',
-    })
+    }
+    ctx.update(_catalog_context())
+    return render(request, 'ops/supply.html', ctx)
 
 
 @login_required
@@ -462,6 +500,73 @@ def supply_batch_delete(request, pk):
 
 
 @login_required
+@require_POST
+def supply_batch_update(request, pk):
+    seed = get_object_or_404(_supply_queryset(request.user), pk=pk)
+    can_edit = request.user.is_manager or seed.representative_id == request.user.id
+    if not can_edit:
+        messages.error(request, 'لا يمكنك تعديل هذا الملف.')
+        return redirect('ops:supply')
+
+    pending = {
+        o.pk: o
+        for o in _supply_batch_orders(seed).filter(status=SupplyOrder.Status.PENDING)
+    }
+    if not pending:
+        messages.error(request, 'لا أصناف قابلة للتعديل في هذا الملف.')
+        return redirect(f"{reverse('ops:supply')}?open={seed.pk}")
+
+    order_ids = request.POST.getlist('order_id')
+    item_names = request.POST.getlist('item_name')
+    item_numbers = request.POST.getlist('item_number')
+    units = request.POST.getlist('unit')
+    unit_prices = request.POST.getlist('unit_price')
+    quantities = request.POST.getlist('quantity')
+    notes_list = request.POST.getlist('notes')
+
+    updated = 0
+    for i, raw_id in enumerate(order_ids):
+        try:
+            oid = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        order = pending.get(oid)
+        if not order:
+            continue
+        item_name = (item_names[i] if i < len(item_names) else '').strip()
+        if not item_name:
+            continue
+        qty_raw = quantities[i] if i < len(quantities) else '1'
+        try:
+            quantity = max(1, int(qty_raw or 1))
+        except (TypeError, ValueError):
+            quantity = 1
+        price_raw = unit_prices[i] if i < len(unit_prices) else '0'
+        try:
+            unit_price = Decimal(str(price_raw or '0').strip() or '0')
+        except Exception:
+            unit_price = Decimal('0')
+        if unit_price < 0:
+            unit_price = Decimal('0')
+
+        order.item_name = item_name
+        order.item_number = (item_numbers[i] if i < len(item_numbers) else '').strip()
+        order.unit = (units[i] if i < len(units) else '').strip()
+        order.quantity = quantity
+        order.unit_price = unit_price
+        order.notes = (notes_list[i] if i < len(notes_list) else '').strip()
+        order.save()
+        updated += 1
+
+    if updated:
+        ref = seed.batch_number or seed.order_number
+        messages.success(request, f'تم حفظ تعديلات ملف {ref} ({updated} صنف).')
+    else:
+        messages.error(request, 'لم يُحفظ أي تعديل. تأكد من تعبئة اسم الصنف.')
+    return redirect(f"{reverse('ops:supply')}?open={seed.pk}")
+
+
+@login_required
 def supply_batch_pdf(request, pk):
     seed = get_object_or_404(_supply_queryset(request.user), pk=pk)
     orders = list(_supply_batch_orders(seed))
@@ -476,6 +581,7 @@ def supply_batch_pdf(request, pk):
 
 
 @login_required
+@rep_forbidden
 def daily_distribution_list(request):
     q = (request.GET.get('q') or '').strip()
     date_raw = (request.GET.get('date') or '').strip()
@@ -521,24 +627,25 @@ def daily_distribution_list(request):
     batches.sort(key=lambda x: x['created_at'], reverse=True)
 
     catalog = list(
-        CatalogItem.objects.order_by('name').values('item_number', 'name')[:500]
+        CatalogItem.objects.order_by('name').values('item_number', 'name', 'unit')[:2000]
     )
     open_batch = (request.GET.get('open') or '').strip()
-    return render(request, 'ops/daily_distribution.html', {
+    ctx = {
         'batches': batches,
         'q': q,
         'dist_date': dist_date,
         'today': today,
         'open_batch': open_batch,
         'branches': Branch.active_names(),
-        'catalog': catalog,
-        'catalog_json': json.dumps(catalog, ensure_ascii=False),
         'active_nav': 'distribution',
-    })
+    }
+    ctx.update(_catalog_context())
+    return render(request, 'ops/daily_distribution.html', ctx)
 
 
 @login_required
 @require_POST
+@rep_forbidden
 def daily_distribution_create(request):
     date_raw = (request.POST.get('distribution_date') or '').strip()
     today = timezone.localdate()
@@ -618,6 +725,7 @@ def daily_distribution_create(request):
 
 @login_required
 @require_POST
+@rep_forbidden
 def daily_distribution_delete(request, pk):
     seed = get_object_or_404(DailySupplyDistribution, pk=pk)
     dist_date = seed.distribution_date
@@ -633,6 +741,7 @@ def daily_distribution_delete(request, pk):
 
 
 @login_required
+@rep_forbidden
 def distribution_variance_list(request):
     q = (request.GET.get('q') or '').strip()
     date_raw = (request.GET.get('date') or '').strip()
@@ -694,11 +803,8 @@ def distribution_variance_list(request):
         batches.append(b)
     batches.sort(key=lambda x: x['created_at'], reverse=True)
 
-    catalog = list(
-        CatalogItem.objects.order_by('name').values('item_number', 'name')[:500]
-    )
     open_batch = (request.GET.get('open') or '').strip()
-    return render(request, 'ops/distribution_variance.html', {
+    ctx = {
         'batches': batches,
         'q': q,
         'record_date': record_date,
@@ -707,14 +813,16 @@ def distribution_variance_list(request):
         'open_batch': open_batch,
         'branches': Branch.active_names(),
         'suppliers': Supplier.active_names(),
-        'catalog': catalog,
         'active_nav': 'variance',
         'can_authorize': request.user.is_receiver or request.user.is_manager,
-    })
+    }
+    ctx.update(_catalog_context())
+    return render(request, 'ops/distribution_variance.html', ctx)
 
 
 @login_required
 @require_POST
+@rep_forbidden
 def distribution_variance_create(request):
     date_raw = (request.POST.get('record_date') or '').strip()
     today = timezone.localdate()
@@ -803,6 +911,7 @@ def distribution_variance_create(request):
 
 @login_required
 @require_POST
+@rep_forbidden
 def distribution_variance_authorize(request, pk):
     row = get_object_or_404(DistributionVariance, pk=pk)
     if not (request.user.is_receiver or request.user.is_manager):
@@ -838,6 +947,7 @@ def distribution_variance_authorize(request, pk):
 
 @login_required
 @require_POST
+@rep_forbidden
 def distribution_variance_reject(request, pk):
     row = get_object_or_404(DistributionVariance, pk=pk)
     if not (request.user.is_receiver or request.user.is_manager):
@@ -869,6 +979,7 @@ def distribution_variance_reject(request, pk):
 
 @login_required
 @require_POST
+@rep_forbidden
 def distribution_variance_delete(request, pk):
     seed = get_object_or_404(DistributionVariance, pk=pk)
     if not (request.user.is_manager or seed.created_by_id == request.user.id):
@@ -912,7 +1023,7 @@ def returns_list(request):
         representatives = reps.order_by('first_name', 'username')
 
     open_batch = request.GET.get('open', '').strip()
-    return render(request, 'ops/returns.html', {
+    ctx = {
         'batches': qs,
         'representatives': representatives,
         'branches': Branch.active_names(),
@@ -920,7 +1031,9 @@ def returns_list(request):
         'open_batch': open_batch,
         'active_nav': 'returns',
         'return_types': ReturnRequest.ReturnType.choices,
-    })
+    }
+    ctx.update(_catalog_context())
+    return render(request, 'ops/returns.html', ctx)
 
 
 @login_required
@@ -1431,9 +1544,7 @@ def daily_orders_list(request):
     else:
         representatives = reps.order_by('first_name', 'username')
 
-    catalog = list(
-        CatalogItem.objects.order_by('name').values('item_number', 'name')[:500]
-    )
+    catalog_ctx = _catalog_context()
     return render(request, 'ops/daily_orders.html', {
         'batches': batches,
         'q': q,
@@ -1443,8 +1554,7 @@ def daily_orders_list(request):
         'representatives': representatives,
         'branches': Branch.active_names(),
         'suppliers': Supplier.active_names(),
-        'catalog': catalog,
-        'catalog_json': json.dumps(catalog, ensure_ascii=False),
+        **catalog_ctx,
         'package_choices': DAILY_ORDER_PACKAGES,
         'package_choices_json': json.dumps(DAILY_ORDER_PACKAGES, ensure_ascii=False),
         'active_nav': 'orders',
@@ -1486,6 +1596,7 @@ def daily_order_create(request):
     item_names = request.POST.getlist('item_name')
     item_numbers = request.POST.getlist('item_number')
     packages = request.POST.getlist('package')
+    quantities = request.POST.getlist('quantity')
 
     import secrets
     last_batch = (
@@ -1514,6 +1625,14 @@ def daily_order_create(request):
         if not package:
             messages.error(request, f'اختر العبوة للصنف «{item_name}».')
             return redirect('ops:daily_orders')
+        qty_raw = (quantities[i] if i < len(quantities) else '1').strip()
+        try:
+            quantity = int(qty_raw)
+        except (TypeError, ValueError):
+            quantity = 0
+        if quantity < 1:
+            messages.error(request, f'أدخل كمية صحيحة للصنف «{item_name}».')
+            return redirect('ops:daily_orders')
         DailyOrder.objects.create(
             order_date=order_date,
             batch_number=batch_number,
@@ -1521,7 +1640,7 @@ def daily_order_create(request):
             item_name=item_name,
             item_number=(item_numbers[i] if i < len(item_numbers) else '').strip(),
             package=package,
-            quantity=1,
+            quantity=quantity,
             unit_price=Decimal('0'),
             representative=representative,
             branch=branch,
@@ -1679,6 +1798,7 @@ def _avg_prices_by_item(qs):
 
 
 @login_required
+@rep_forbidden
 def price_compare(request):
     today = timezone.localdate()
     curr_date = _parse_order_date(request.GET.get('date'), today)
@@ -1787,6 +1907,7 @@ def _tasks_board_context(request, form=None, q=None, open_new_task_modal=False):
 
 
 @login_required
+@rep_forbidden
 def tasks_board(request):
     return render(request, 'ops/tasks.html', _tasks_board_context(request))
 
@@ -1981,6 +2102,7 @@ def task_delete(request, pk):
 
 @login_required
 @require_POST
+@rep_forbidden
 def task_move(request, pk):
     task = get_object_or_404(Task, pk=pk)
     if request.user.is_representative and task.assigned_to_id != request.user.id:
@@ -2016,6 +2138,7 @@ def task_move(request, pk):
 
 
 @login_required
+@rep_forbidden
 def settings_view(request):
     return render(request, 'ops/settings.html', {'active_nav': 'settings'})
 
@@ -2030,6 +2153,7 @@ def _normalize_branch_name(raw: str) -> str:
 
 
 @manager_required
+@rep_forbidden
 def branches_setup(request):
     """تهيئة الفروع — تُستخدم في اختيار موقع الفرع بالمهام والطلبيات والمرتجعات."""
     if request.method == 'POST':
@@ -2094,6 +2218,7 @@ def _normalize_supplier_name(raw: str) -> str:
 
 
 @manager_required
+@rep_forbidden
 def suppliers_setup(request):
     """تهيئة الموردين — تُستخدم في طلبات الشراء اليومية."""
     if request.method == 'POST':
@@ -2148,6 +2273,7 @@ def suppliers_setup(request):
 
 
 @manager_required
+@rep_forbidden
 def whatsapp_hub(request):
     """شاشة ربط واتساب (QR) + أرقام الأدوار."""
     from ops.models import EvolutionConfig, WhatsAppRoleContact as RoleContact
@@ -2238,6 +2364,7 @@ def whatsapp_hub(request):
 
 
 @manager_required
+@rep_forbidden
 def whatsapp_qr_api(request):
     force = request.GET.get('force') in ('1', 'true', 'yes') or request.method == 'POST'
     data = fetch_qr(force=force)
@@ -2245,24 +2372,28 @@ def whatsapp_qr_api(request):
 
 
 @manager_required
+@rep_forbidden
 def whatsapp_status_api(request):
     return JsonResponse(connection_state())
 
 
 @manager_required
 @require_POST
+@rep_forbidden
 def whatsapp_logout_api(request):
     return JsonResponse(logout_instance())
 
 
 @manager_required
 @require_POST
+@rep_forbidden
 def whatsapp_recreate_api(request):
     return JsonResponse(recreate_instance())
 
 
 @manager_required
 @require_POST
+@rep_forbidden
 def whatsapp_test_api(request):
     return JsonResponse(send_test_to_roles())
 
@@ -2421,3 +2552,242 @@ def items_template_download(request):
     )
     response['Content-Disposition'] = 'attachment; filename="items_template.xlsx"'
     return response
+
+
+def _offer_queryset(user):
+    qs = OfferItem.objects.select_related('created_by')
+    if user.is_representative:
+        qs = qs.filter(created_by=user)
+    return qs
+
+
+def _group_offer_batches(qs):
+    batches_map = {}
+    for row in qs.select_related('created_by').order_by('-created_at', 'pk'):
+        key = row.batch_number or f'single-{row.pk}'
+        if key not in batches_map:
+            batches_map[key] = {
+                'key': key,
+                'batch_number': row.batch_number or f'#OFF-{row.pk}',
+                'seed_pk': row.pk,
+                'created_by': row.created_by,
+                'created_at': row.created_at,
+                'items': [],
+                'statuses': set(),
+            }
+        batches_map[key]['items'].append(row)
+        batches_map[key]['statuses'].add(row.status)
+    batches = list(batches_map.values())
+    for b in batches:
+        b['items_count'] = len(b['items'])
+        statuses = b['statuses']
+        if statuses == {OfferItem.Status.APPROVED}:
+            b['display_status'] = 'approved'
+        elif statuses == {OfferItem.Status.PENDING}:
+            b['display_status'] = 'pending'
+        else:
+            b['display_status'] = 'mixed'
+    return batches
+
+
+def _offer_batch_items(seed: OfferItem):
+    if seed.batch_number:
+        return OfferItem.objects.filter(batch_number=seed.batch_number).select_related(
+            'created_by'
+        ).order_by('pk')
+    return OfferItem.objects.filter(pk=seed.pk).select_related('created_by')
+
+
+@login_required
+def offers_list(request):
+    q = (request.GET.get('q') or '').strip()
+    qs = _offer_queryset(request.user)
+    if q:
+        qs = qs.filter(
+            Q(item_name__icontains=q)
+            | Q(item_number__icontains=q)
+            | Q(package__icontains=q)
+            | Q(batch_number__icontains=q)
+        )
+    batches = _group_offer_batches(qs)
+    paginator = Paginator(batches, 12)
+    page = paginator.get_page(request.GET.get('page'))
+    ctx = {
+        'batches': page,
+        'page_obj': page,
+        'q': q,
+        'open_batch': (request.GET.get('open') or '').strip(),
+        'package_choices': DAILY_ORDER_PACKAGES,
+        'package_choices_json': json.dumps(DAILY_ORDER_PACKAGES, ensure_ascii=False),
+        'active_nav': 'offers',
+    }
+    ctx.update(_catalog_context())
+    return render(request, 'ops/offers.html', ctx)
+
+
+@login_required
+@require_POST
+def offers_create(request):
+    item_names = request.POST.getlist('item_name')
+    item_numbers = request.POST.getlist('item_number')
+    quantities = request.POST.getlist('quantity')
+    packages = request.POST.getlist('package')
+
+    last_batch = (
+        OfferItem.objects.exclude(batch_number='')
+        .order_by('-id')
+        .values_list('batch_number', flat=True)
+        .first()
+    )
+    batch_seq = 1
+    if last_batch and str(last_batch).startswith('#OFFB-'):
+        try:
+            batch_seq = int(str(last_batch).replace('#OFFB-', '')) + 1
+        except ValueError:
+            batch_seq = (OfferItem.objects.aggregate(Max('id'))['id__max'] or 0) + 1
+    else:
+        batch_seq = (OfferItem.objects.aggregate(Max('id'))['id__max'] or 0) + 1
+    batch_number = f'#OFFB-{batch_seq:04d}'
+
+    created = []
+    for i, item_name in enumerate(item_names):
+        item_name = (item_name or '').strip()
+        if not item_name:
+            continue
+        qty_raw = quantities[i] if i < len(quantities) else '1'
+        try:
+            quantity = max(1, int(qty_raw or 1))
+        except (TypeError, ValueError):
+            quantity = 1
+        row = OfferItem(
+            batch_number=batch_number,
+            item_name=item_name,
+            item_number=(item_numbers[i] if i < len(item_numbers) else '').strip(),
+            quantity=quantity,
+            package=(packages[i] if i < len(packages) else '').strip(),
+            created_by=request.user,
+        )
+        row.save()
+        created.append(row)
+
+    if created:
+        messages.success(
+            request,
+            f'تم إنشاء ملف عروض {batch_number} بـ {len(created)} صنف.',
+        )
+        return redirect(f"{reverse('ops:offers')}?open={created[0].pk}")
+    messages.error(request, 'أضف صفاً واحداً على الأقل مع اسم الصنف.')
+    return redirect('ops:offers')
+
+
+@login_required
+@require_POST
+def offers_batch_update(request, pk):
+    seed = get_object_or_404(_offer_queryset(request.user), pk=pk)
+    items = {o.pk: o for o in _offer_batch_items(seed)}
+    if not items:
+        messages.error(request, 'الملف فارغ.')
+        return redirect('ops:offers')
+
+    order_ids = request.POST.getlist('order_id')
+    item_names = request.POST.getlist('item_name')
+    item_numbers = request.POST.getlist('item_number')
+    quantities = request.POST.getlist('quantity')
+    packages = request.POST.getlist('package')
+
+    updated = 0
+    for i, raw_id in enumerate(order_ids):
+        try:
+            oid = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        row = items.get(oid)
+        if not row:
+            continue
+        item_name = (item_names[i] if i < len(item_names) else '').strip()
+        if not item_name:
+            continue
+        qty_raw = quantities[i] if i < len(quantities) else '1'
+        try:
+            quantity = max(1, int(qty_raw or 1))
+        except (TypeError, ValueError):
+            quantity = 1
+        row.item_name = item_name
+        row.item_number = (item_numbers[i] if i < len(item_numbers) else '').strip()
+        row.quantity = quantity
+        row.package = (packages[i] if i < len(packages) else '').strip()
+        row.save()
+        updated += 1
+
+    if updated:
+        messages.success(request, f'تم حفظ تعديلات ملف {seed.batch_number} ({updated} صنف).')
+    else:
+        messages.error(request, 'لم يُحفظ أي تعديل.')
+    return redirect(f"{reverse('ops:offers')}?open={seed.pk}")
+
+
+@login_required
+@require_POST
+def offers_batch_delete(request, pk):
+    seed = get_object_or_404(_offer_queryset(request.user), pk=pk)
+    ref = seed.batch_number or f'#OFF-{seed.pk}'
+    count, _ = _offer_batch_items(seed).delete()
+    messages.success(request, f'تم حذف ملف العروض {ref} ({count} صنف).')
+    return redirect('ops:offers')
+
+
+@login_required
+def offers_batch_pdf(request, pk):
+    seed = get_object_or_404(_offer_queryset(request.user), pk=pk)
+    items = list(_offer_batch_items(seed))
+    if not items:
+        return HttpResponse('غير موجود', status=404)
+    try:
+        from .pdf_docs import build_offers_batch_pdf
+        pdf_bytes, filename = build_offers_batch_pdf(items, actor=request.user)
+    except Exception:
+        return HttpResponse('تعذّر إنشاء الملف', status=500)
+    return _pdf_http_response(pdf_bytes, filename)
+
+
+@manager_required
+@require_POST
+def offers_batch_approve(request, pk):
+    seed = get_object_or_404(OfferItem, pk=pk)
+    qs = _offer_batch_items(seed).filter(status=OfferItem.Status.PENDING)
+    count = qs.count()
+    if not count:
+        messages.error(request, 'لا أصناف قيد الانتظار للاعتماد في هذا الملف.')
+        return redirect('ops:offers')
+    now = timezone.now()
+    qs.update(
+        status=OfferItem.Status.APPROVED,
+        reviewed_by=request.user,
+        reviewed_at=now,
+        updated_at=now,
+    )
+    ref = seed.batch_number or f'#OFF-{seed.pk}'
+    messages.success(request, f'تم اعتماد ملف العروض {ref} ({count} صنف).')
+    schedule_offers_approved(seed.pk, request.user.pk)
+    messages.info(
+        request,
+        'جاري إرسال ملف PDF عبر واتساب إلى المندوب ومسؤول القسم والعمليات والمحاسب.',
+    )
+    return redirect('ops:offers')
+
+
+@require_http_methods(['GET'])
+def offers_batch_pdf_public(request, token):
+    items = list(
+        OfferItem.objects.select_related('created_by')
+        .filter(public_token=token)
+        .order_by('pk')
+    )
+    if not items:
+        return HttpResponse('غير موجود', status=404)
+    try:
+        from .pdf_docs import build_offers_batch_pdf
+        pdf_bytes, filename = build_offers_batch_pdf(items, actor=items[0].created_by)
+    except Exception:
+        return HttpResponse('تعذّر إنشاء الملف', status=500)
+    return _pdf_http_response(pdf_bytes, filename)

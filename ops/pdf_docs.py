@@ -357,7 +357,7 @@ def build_return_batch_pdf(batch) -> tuple[bytes, str]:
     )
     story.append(Spacer(1, 0.3 * cm))
     story.append(Paragraph(_ar("تفاصيل الأصناف"), styles["h"]))
-    headers = ["السبب", "النوع", "الكمية", "العبوة", "الوحدة", "رقم الصنف", "الاسم", "#"]
+    headers = ["السبب", "النوع", "الكمية", "العبوة", "الوحدة", "الاسم", "رقم الصنف", "#"]
     rows = [
         [
             (it.reason or "")[:80],
@@ -365,8 +365,8 @@ def build_return_batch_pdf(batch) -> tuple[bytes, str]:
             str(it.quantity),
             it.package or "—",
             it.unit or "—",
-            it.item_number or "—",
             it.item_name,
+            it.item_number or "—",
             str(i),
         ]
         for i, it in enumerate(items, 1)
@@ -423,23 +423,44 @@ def build_supply_orders_pdf(orders: list, *, actor) -> tuple[bytes, str]:
     )
     story.append(Spacer(1, 0.3 * cm))
     story.append(Paragraph(_ar("بيان الأصناف"), styles["h"]))
-    headers = ["ملاحظات", "متوقع", "كمية", "سعر", "وحدة", "رقم", "الصنف", "طلب"]
+    headers = ["ملاحظات", "الإجمالي", "كمية", "سعر", "وحدة", "الصنف", "رقم", "طلب"]
     rows = []
+    grand_total = 0
     for o in orders:
-        exp = o.expected_date.isoformat() if o.expected_date else "—"
+        line_total = float(o.quantity) * float(o.unit_price or 0)
+        grand_total += line_total
         rows.append(
             [
                 (o.notes or "")[:50] or "—",
-                exp,
+                f"{line_total:.2f}",
                 str(o.quantity),
                 f"{o.unit_price:.2f}",
                 o.unit or "—",
-                o.item_number or "—",
                 o.item_name,
+                o.item_number or "—",
                 o.order_number,
             ]
         )
     story.append(_data_table(headers, rows, styles))
+    story.append(Spacer(1, 0.25 * cm))
+    total_tbl = Table(
+        [[Paragraph(_ar(f"الإجمالي الكلي: {grand_total:.2f}"), styles["meta_value"])]],
+        colWidths=[A4[0] - 2.4 * cm],
+    )
+    total_tbl.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), META_BG),
+                ("BOX", (0, 0), (-1, -1), 0.6, NAVY_MID),
+                ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+            ]
+        )
+    )
+    story.append(total_tbl)
     story.extend(
         _footer_note(
             styles,
@@ -497,15 +518,15 @@ def build_daily_orders_pdf(orders: list, *, actor=None) -> tuple[bytes, str]:
     )
     story.append(Spacer(1, 0.3 * cm))
     story.append(Paragraph(_ar("بيان الأصناف"), styles["h"]))
-    headers = ["رقم الصنف", "العبوة", "اسم الصنف", "طلب", "#"]
+    headers = ["الكمية", "العبوة", "اسم الصنف", "رقم الصنف", "#"]
     rows = []
     for i, o in enumerate(orders, 1):
         rows.append(
             [
-                o.item_number or "—",
+                str(o.quantity),
                 o.package or "—",
                 o.item_name,
-                o.order_number,
+                o.item_number or "—",
                 str(i),
             ]
         )
@@ -520,6 +541,65 @@ def build_daily_orders_pdf(orders: list, *, actor=None) -> tuple[bytes, str]:
     safe_ref = str(batch_ref).replace("#", "").replace("/", "-")
     filename = f"daily_order_{safe_ref}.pdf"
     return _build(story, title=f"طلبية {batch_ref}"), filename
+
+
+def build_offers_batch_pdf(items: list, *, actor=None) -> tuple[bytes, str]:
+    """PDF لملف أصناف العروض."""
+    styles = _styles()
+    if not items:
+        raise ValueError("لا توجد أصناف عروض")
+    first = items[0]
+    actor = actor or first.created_by
+    created = timezone.localtime(first.created_at).strftime("%Y-%m-%d %H:%M")
+    batch_ref = first.batch_number or f"#OFF-{first.pk}"
+
+    story: list = []
+    story.extend(_letterhead(styles, org_line="إدارة المشتريات — أصناف العروض"))
+    story.extend(
+        _doc_heading(
+            styles,
+            title="ملف أصناف العروض",
+            subtitle="بيان أصناف العرض",
+            ref=batch_ref,
+            dated=created,
+        )
+    )
+    story.append(
+        _meta_grid(
+            [
+                ("رقم الملف", batch_ref),
+                ("عدد الأصناف", str(len(items))),
+                ("أنشئ بواسطة", f"{first.created_by.display_name} — {role_label(first.created_by)}"),
+                ("المُصدِر", f"{actor.display_name} — {role_label(actor)}" if actor else "—"),
+            ],
+            styles,
+        )
+    )
+    story.append(Spacer(1, 0.3 * cm))
+    story.append(Paragraph(_ar("بيان الأصناف"), styles["h"]))
+    headers = ["العبوة", "الكمية", "اسم الصنف", "رقم الصنف", "#"]
+    rows = []
+    for i, o in enumerate(items, 1):
+        rows.append(
+            [
+                o.package or "—",
+                str(o.quantity),
+                o.item_name,
+                o.item_number or "—",
+                str(i),
+            ]
+        )
+    story.append(_data_table(headers, rows, styles))
+    story.extend(
+        _footer_note(
+            styles,
+            "صادر آلياً من نظام عمليات الفرش — ملف أصناف العروض.",
+        )
+    )
+    story.extend(_signatures(styles, "توقيع المندوب", "اعتماد العروض"))
+    safe_ref = str(batch_ref).replace("#", "").replace("/", "-")
+    filename = f"offers_{safe_ref}.pdf"
+    return _build(story, title=f"عروض {batch_ref}"), filename
 
 
 def build_distribution_batch_pdf(rows: list, *, actor=None) -> tuple[bytes, str]:
@@ -556,13 +636,13 @@ def build_distribution_batch_pdf(rows: list, *, actor=None) -> tuple[bytes, str]
     )
     story.append(Spacer(1, 0.3 * cm))
     story.append(Paragraph(_ar("تفاصيل التوزيع"), styles["h"]))
-    headers = ["الكمية", "الفرع", "رقم الصنف", "اسم الصنف", "#"]
+    headers = ["الكمية", "الفرع", "اسم الصنف", "رقم الصنف", "#"]
     body = [
         [
             str(r.quantity),
             r.branch,
-            r.item_number or "—",
             r.item_name,
+            r.item_number or "—",
             str(i),
         ]
         for i, r in enumerate(rows, 1)
@@ -607,14 +687,15 @@ def build_variance_batch_pdf(rows: list, *, actor=None) -> tuple[bytes, str]:
     )
     story.append(Spacer(1, 0.3 * cm))
     story.append(Paragraph(_ar("التفاصيل"), styles["h"]))
-    headers = ["المورد", "الفرع", "الكمية", "النوع", "اسم الصنف", "#"]
+    headers = ["المورد", "الفرع", "الكمية", "اسم الصنف", "رقم الصنف", "النوع", "#"]
     body = [
         [
             r.supplier,
             r.branch,
             str(r.quantity),
-            r.get_variance_type_display(),
             r.item_name,
+            r.item_number or "—",
+            r.get_variance_type_display(),
             str(i),
         ]
         for i, r in enumerate(rows, 1)

@@ -6,6 +6,7 @@ from .models import (
     DailyOrder,
     DailySupplyDistribution,
     DistributionVariance,
+    OfferItem,
     EvolutionConfig,
     ReturnRequest,
     SupplyOrder,
@@ -59,6 +60,17 @@ class SupplyOrderAdmin(admin.ModelAdmin):
     )
     list_filter = ('status', 'branch', 'supplier')
     search_fields = ('order_number', 'batch_number', 'item_name', 'item_number', 'branch', 'supplier')
+
+
+@admin.register(OfferItem)
+class OfferItemAdmin(admin.ModelAdmin):
+    list_display = (
+        'batch_number', 'item_number', 'item_name', 'quantity', 'package',
+        'status', 'created_by', 'created_at',
+    )
+    search_fields = ('batch_number', 'item_number', 'item_name', 'package')
+    list_filter = ('status', 'created_at')
+    raw_id_fields = ('created_by', 'reviewed_by')
 
 
 @admin.register(ReturnRequest)

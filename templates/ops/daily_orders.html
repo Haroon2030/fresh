@@ -211,9 +211,10 @@
                     <thead>
                     <tr>
                         <th>#</th>
+                        <th>رقم الصنف</th>
                         <th>اسم الصنف</th>
                         <th>العبوة</th>
-                        <th>رقم الصنف</th>
+                        <th>الكمية</th>
                         <th>الحالة</th>
                     </tr>
                     </thead>
@@ -221,9 +222,10 @@
                     {% for order in batch.items %}
                     <tr>
                         <td class="cell-center">{{ forloop.counter }}</td>
+                        <td dir="ltr">{{ order.item_number|default:"—" }}</td>
                         <td class="cell-strong">{{ order.item_name }}</td>
                         <td class="cell-center">{{ order.package|default:"—" }}</td>
-                        <td dir="ltr">{{ order.item_number|default:"—" }}</td>
+                        <td class="cell-center cell-strong">{{ order.quantity }}</td>
                         <td class="cell-center">
                             {% if order.status == 'approved' %}
                             <span class="status-chip status-ok">معتمد</span>
@@ -235,7 +237,7 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="5" class="empty-row">لا أصناف.</td></tr>
+                    <tr><td colspan="6" class="empty-row">لا أصناف.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
@@ -332,16 +334,17 @@
                         <thead>
                         <tr>
                             <th style="width:44px">#</th>
+                            <th style="width:100px">رقم الصنف</th>
                             <th>اسم الصنف</th>
                             <th style="width:110px">العبوة</th>
-                            <th style="width:100px">رقم الصنف</th>
+                            <th style="width:90px">الكمية</th>
                             <th style="width:90px">إجراء</th>
                         </tr>
                         </thead>
                         <tbody id="orderRows"></tbody>
                     </table>
                 </div>
-                <p class="text-xs text-on-surface-variant font-bold m-0">الأعمدة: اسم الصنف · العبوة · رقم الصنف — يمكن إضافة نفس الصنف بعبوات مختلفة.</p>
+                <p class="text-xs text-on-surface-variant font-bold m-0">الأعمدة: رقم الصنف · اسم الصنف · العبوة · الكمية — يمكن إضافة نفس الصنف بعبوات مختلفة.</p>
             </div>
             <div class="app-modal-foot">
                 <button type="button" class="btn-ghost-app"
@@ -352,6 +355,7 @@
     </div>
 </div>
 
+{% include "ops/_catalog_suggest.html" %}
 <script>
 (function () {
     const tbody = document.getElementById('orderRows');
@@ -362,6 +366,9 @@
     let packageOptions = [];
     try { catalog = JSON.parse('{{ catalog_json|escapejs }}') || []; } catch (e) { catalog = []; }
     try { packageOptions = JSON.parse('{{ package_choices_json|escapejs }}') || []; } catch (e) { packageOptions = []; }
+
+    window.FarshCatalogSuggest.setCatalog(catalog);
+    const CS = window.FarshCatalogSuggest;
 
     function packageSelectHtml() {
         const opts = ['<option value="">اختر...</option>']
@@ -376,29 +383,14 @@
         });
     }
 
-    function fillFromCatalog(tr, byNumber) {
-        const numInput = tr.querySelector('input[name="item_number"]');
-        const nameInput = tr.querySelector('input[name="item_name"]');
-        if (!numInput || !nameInput || !catalog.length) return;
-        const key = byNumber ? (numInput.value || '').trim() : (nameInput.value || '').trim();
-        if (!key) return;
-        const hit = catalog.find((c) =>
-            byNumber
-                ? String(c.item_number) === key
-                : String(c.name) === key || String(c.name).includes(key)
-        );
-        if (!hit) return;
-        if (byNumber) nameInput.value = hit.name || nameInput.value;
-        else numInput.value = hit.item_number || numInput.value;
-    }
-
     function addRow() {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="row-num" data-row-num></td>
-            <td><input class="cell-input" name="item_name" type="text" list="catalogNames" required placeholder="اسم الصنف"></td>
+            <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: 'cell-input catalog-suggest-input' })}</td>
+            <td>${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: 'cell-input catalog-suggest-input' })}</td>
             <td>${packageSelectHtml()}</td>
-            <td><input class="cell-input" name="item_number" type="text" list="catalogNumbers" placeholder="رقم الصنف" dir="ltr"></td>
+            <td><input class="cell-input num-entry" name="quantity" type="number" min="1" step="1" required value="1" placeholder="1" dir="ltr"></td>
             <td class="cell-action">
                 <div class="row-actions">
                     <button type="button" class="remove-row" title="حذف الصف">حذف</button>
@@ -407,12 +399,12 @@
         `;
         tbody.appendChild(tr);
         renumber();
-        const num = tr.querySelector('input[name="item_number"]');
-        const name = tr.querySelector('input[name="item_name"]');
-        num?.addEventListener('change', () => fillFromCatalog(tr, true));
-        num?.addEventListener('blur', () => fillFromCatalog(tr, true));
-        name?.addEventListener('change', () => fillFromCatalog(tr, false));
-        if (name) name.focus();
+        CS.bindRow(tr, {
+            packageField: 'select[name="package"]',
+            packageChoices: packageOptions,
+            onApply: () => tr.querySelector('select[name="package"]')?.focus(),
+        });
+        tr.querySelector('input[name="item_number"]')?.focus();
     }
 
     addBtn.addEventListener('click', addRow);
@@ -422,9 +414,11 @@
         if (tbody.querySelectorAll('tr').length <= 1) return;
         btn.closest('tr').remove();
         renumber();
+        CS.closeSuggest();
     });
     tbody.addEventListener('keydown', (e) => {
         if (e.key !== 'Enter') return;
+        if (e.target.classList.contains('catalog-suggest-input')) return;
         const cell = e.target.closest('td');
         if (!cell) return;
         e.preventDefault();
@@ -432,7 +426,7 @@
         const idx = Array.from(tr.children).indexOf(cell);
         const nextRow = tr.nextElementSibling;
         if (nextRow) {
-            const next = nextRow.children[idx]?.querySelector('input');
+            const next = nextRow.children[idx]?.querySelector('input, select');
             if (next) next.focus();
         } else {
             addRow();
@@ -476,10 +470,4 @@
     if (openId) openBatch(openId);
 })();
 </script>
-<datalist id="catalogNumbers">
-{% for c in catalog %}<option value="{{ c.item_number }}"></option>{% endfor %}
-</datalist>
-<datalist id="catalogNames">
-{% for c in catalog %}<option value="{{ c.name }}"></option>{% endfor %}
-</datalist>
 {% endblock %}

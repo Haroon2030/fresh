@@ -294,8 +294,6 @@
                 <td class="cell-center cell-strong">{{ batch.items_count }}</td>
                 <td class="cell-center" onclick="event.stopPropagation()">
                     <div class="flex flex-wrap gap-1 justify-center">
-                        <a href="{% url 'ops:supply_batch_pdf' batch.seed_pk %}" class="act-btn act-pdf" title="تحميل PDF">PDF</a>
-                        <button type="button" class="act-btn act-view" data-open-batch="{{ batch.seed_pk }}">عرض</button>
                         {% if user.is_manager %}
                         {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
                         <form method="post" action="{% url 'ops:supply_complete' batch.seed_pk %}" class="inline"
@@ -366,7 +364,15 @@
     <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
             <div class="app-modal-head-main">
+                {% if user.is_manager or batch.representative.id == user.id %}
+                {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
+                <h3>تعديل أصناف الملف {{ batch.batch_number }}</h3>
+                {% else %}
                 <h3>أصناف الملف {{ batch.batch_number }}</h3>
+                {% endif %}
+                {% else %}
+                <h3>أصناف الملف {{ batch.batch_number }}</h3>
+                {% endif %}
                 <p class="app-modal-sub">
                     {{ batch.representative.display_name }} · {{ batch.branch|default:"—" }} · {{ batch.supplier|default:"—" }} · {{ batch.created_at|date:"Y/m/d" }}
                 </p>
@@ -381,55 +387,79 @@
                 </button>
             </div>
         </div>
-        <div class="app-modal-body">
-            <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
-                <table class="excel-grid batch-detail-grid w-full">
-                    <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>رقم الطلب</th>
-                        <th>الاسم</th>
-                        <th>رقم الصنف</th>
-                        <th>الوحدة</th>
-                        <th>سعر الشراء</th>
-                        <th>الكمية</th>
-                        <th>متوقع</th>
-                        <th>الحالة</th>
-                        <th>ملاحظات</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {% for order in batch.items %}
-                    <tr>
-                        <td class="cell-center">{{ forloop.counter }}</td>
-                        <td dir="ltr">{{ order.order_number }}</td>
-                        <td class="cell-strong">{{ order.item_name }}</td>
-                        <td dir="ltr">{{ order.item_number|default:"—" }}</td>
-                        <td>{{ order.unit|default:"—" }}</td>
-                        <td class="cell-center" dir="ltr">{{ order.unit_price|floatformat:2 }}</td>
-                        <td class="cell-center cell-strong">{{ order.quantity }}</td>
-                        <td>{% if order.expected_date %}{{ order.expected_date|date:"Y/m/d" }}{% else %}—{% endif %}</td>
-                        <td class="cell-center">
-                            {% if order.status == 'completed' %}
-                            <span class="status-chip status-ok">مكتمل</span>
-                            {% elif order.status == 'rejected' %}
-                            <span class="status-chip status-bad">مرفوض</span>
+        {% if user.is_manager or batch.representative.id == user.id %}
+        {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
+        <form method="post" action="{% url 'ops:supply_batch_update' batch.seed_pk %}" class="flex flex-col overflow-hidden flex-1 min-h-0">
+            {% csrf_token %}
+            <div class="app-modal-body">
+                <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+                    <table class="excel-grid batch-detail-grid w-full" data-supply-edit>
+                        <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>رقم الطلب</th>
+                            <th>رقم الصنف</th>
+                            <th>الاسم</th>
+                            <th>الوحدة</th>
+                            <th>سعر الشراء</th>
+                            <th>الكمية</th>
+                            <th>الإجمالي</th>
+                            <th>الحالة</th>
+                            <th>ملاحظات</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for order in batch.items %}
+                        <tr {% if order.status == 'pending' %}data-edit-row{% endif %}>
+                            <td class="cell-center">{{ forloop.counter }}</td>
+                            <td dir="ltr">{{ order.order_number }}</td>
+                            {% if order.status == 'pending' %}
+                            <td>
+                                <input type="hidden" name="order_id" value="{{ order.pk }}">
+                                <input name="item_number" type="text" value="{{ order.item_number }}" class="cell-input" dir="ltr" placeholder="رقم الصنف">
+                            </td>
+                            <td><input name="item_name" type="text" value="{{ order.item_name }}" required class="cell-input" placeholder="اسم الصنف"></td>
+                            <td><input name="unit" type="text" value="{{ order.unit }}" class="cell-input" placeholder="الوحدة"></td>
+                            <td><input name="unit_price" type="number" min="0" step="0.01" value="{{ order.unit_price }}" required class="cell-input num-entry" dir="ltr" data-edit-price></td>
+                            <td><input name="quantity" type="number" min="1" value="{{ order.quantity }}" required class="cell-input num-entry" data-edit-qty></td>
+                            <td class="cell-center cell-strong" dir="ltr" data-edit-total>{{ order.total_amount|floatformat:2 }}</td>
+                            <td class="cell-center"><span class="status-chip status-pending">قيد الانتظار</span></td>
+                            <td><input name="notes" type="text" value="{{ order.notes }}" class="cell-input" placeholder="—"></td>
                             {% else %}
-                            <span class="status-chip status-pending">قيد الانتظار</span>
+                            <td dir="ltr">{{ order.item_number|default:"—" }}</td>
+                            <td class="cell-strong">{{ order.item_name }}</td>
+                            <td>{{ order.unit|default:"—" }}</td>
+                            <td class="cell-center" dir="ltr">{{ order.unit_price|floatformat:2 }}</td>
+                            <td class="cell-center cell-strong">{{ order.quantity }}</td>
+                            <td class="cell-center cell-strong" dir="ltr">{{ order.total_amount|floatformat:2 }}</td>
+                            <td class="cell-center">
+                                {% if order.status == 'completed' %}
+                                <span class="status-chip status-ok">مكتمل</span>
+                                {% else %}
+                                <span class="status-chip status-bad">مرفوض</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ order.notes|default:"—" }}</td>
                             {% endif %}
-                        </td>
-                        <td>{{ order.notes|default:"—" }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="10" class="empty-row">لا أصناف.</td></tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="10" class="empty-row">لا أصناف.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-        <div class="app-modal-foot">
-            <button type="button" class="btn-ghost-app" data-close-batch="{{ batch.seed_pk }}">إغلاق</button>
-        </div>
+            <div class="app-modal-foot">
+                <button type="button" class="btn-ghost-app" data-close-batch="{{ batch.seed_pk }}">إلغاء</button>
+                <button type="submit" class="btn-primary-app">حفظ التعديلات</button>
+            </div>
+        </form>
+        {% else %}
+        {% include "ops/_supply_batch_readonly.html" %}
+        {% endif %}
+        {% else %}
+        {% include "ops/_supply_batch_readonly.html" %}
+        {% endif %}
     </div>
 </div>
 {% endfor %}
@@ -524,8 +554,8 @@
                         <thead>
                         <tr>
                             <th style="width:44px">#</th>
-                            <th>الاسم</th>
                             <th>رقم الصنف</th>
+                            <th>الاسم</th>
                             <th style="width:90px">الوحدة</th>
                             <th style="width:100px">سعر الشراء</th>
                             <th style="width:80px">الكمية</th>
@@ -550,13 +580,19 @@
 {% endblock %}
 
 {% block extra_js %}
+{% include "ops/_catalog_suggest.html" %}
 <script>
 (function () {
     const tbody = document.getElementById('supplyRows');
     const addBtn = document.getElementById('addSupplyRow');
     if (!tbody || !addBtn) return;
 
+    let catalog = [];
+    try { catalog = JSON.parse('{{ catalog_json|escapejs }}') || []; } catch (e) { catalog = []; }
+    window.FarshCatalogSuggest.setCatalog(catalog);
+
     const inputClass = 'cell-input';
+    const CS = window.FarshCatalogSuggest;
 
     function renumber() {
         tbody.querySelectorAll('tr').forEach((tr, i) => {
@@ -569,8 +605,8 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="row-num" data-row-num></td>
-            <td><input name="item_name" type="text" required placeholder="اسم الصنف" class="${inputClass}"></td>
-            <td><input name="item_number" type="text" placeholder="رقم الصنف" class="${inputClass}" dir="ltr"></td>
+            <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: inputClass + ' catalog-suggest-input' })}</td>
+            <td>${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: inputClass + ' catalog-suggest-input' })}</td>
             <td><input name="unit" type="text" placeholder="كرتون / قطعة" class="${inputClass}"></td>
             <td><input name="unit_price" type="number" min="0" step="0.01" required placeholder="0.00" class="${inputClass} num-entry" dir="ltr"></td>
             <td><input name="quantity" type="number" min="1" required placeholder="1" class="${inputClass} num-entry"></td>
@@ -582,6 +618,11 @@
         `;
         tbody.appendChild(tr);
         renumber();
+        CS.bindRow(tr, {
+            unitField: 'input[name="unit"]',
+            onApply: () => tr.querySelector('input[name="unit_price"]')?.focus(),
+        });
+        tr.querySelector('input[name="item_number"]')?.focus();
     }
 
     addBtn.addEventListener('click', addRow);
@@ -612,6 +653,7 @@
         }
     }
     document.addEventListener('click', (e) => {
+        if (e.target.closest('td[onclick], .act-btn, form.inline')) return;
         const openBtn = e.target.closest('[data-open-batch]');
         if (openBtn) {
             openBatch(openBtn.getAttribute('data-open-batch'));
@@ -628,6 +670,21 @@
     });
     const openId = '{{ open_batch|default:""|escapejs }}';
     if (openId) openBatch(openId);
+})();
+</script>
+<script>
+(function () {
+    function refreshTotal(tr) {
+        const price = parseFloat(tr.querySelector('[data-edit-price]')?.value || '0') || 0;
+        const qty = parseFloat(tr.querySelector('[data-edit-qty]')?.value || '0') || 0;
+        const totalEl = tr.querySelector('[data-edit-total]');
+        if (totalEl) totalEl.textContent = (price * qty).toFixed(2);
+    }
+    document.addEventListener('input', (e) => {
+        const tr = e.target.closest('[data-edit-row]');
+        if (!tr) return;
+        if (e.target.matches('[data-edit-price], [data-edit-qty]')) refreshTotal(tr);
+    });
 })();
 </script>
 {% endblock %}

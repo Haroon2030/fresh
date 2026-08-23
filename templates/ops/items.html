@@ -158,8 +158,8 @@
         <table class="excel-grid app-data-grid">
             <thead>
             <tr>
-                <th>الاسم</th>
                 <th>رقم الصنف</th>
+                <th>الاسم</th>
                 <th>الوحدة</th>
                 <th>إجراء</th>
             </tr>
@@ -167,8 +167,8 @@
             <tbody>
             {% for item in items %}
             <tr>
-                <td class="cell-strong">{{ item.name }}</td>
                 <td dir="ltr">{{ item.item_number }}</td>
+                <td class="cell-strong">{{ item.name }}</td>
                 <td class="units-cell">
                     <form method="post" action="{% url 'ops:item_update_units' item.pk %}" class="item-units-form">
                         {% csrf_token %}
@@ -267,16 +267,16 @@
             {% csrf_token %}
             <div class="app-modal-body flex flex-col gap-md">
                 <div class="flex flex-col gap-sm">
-                    <label class="font-label-md text-label-md text-on-surface">الاسم</label>
-                    <input name="name" required
-                           class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md"
-                           placeholder="اسم الصنف">
-                </div>
-                <div class="flex flex-col gap-sm">
                     <label class="font-label-md text-label-md text-on-surface">رقم الصنف</label>
                     <input name="item_number" required
                            class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md"
                            placeholder="مثال: CHR-001">
+                </div>
+                <div class="flex flex-col gap-sm">
+                    <label class="font-label-md text-label-md text-on-surface">الاسم</label>
+                    <input name="name" required
+                           class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md"
+                           placeholder="اسم الصنف">
                 </div>
                 <div class="flex flex-col gap-sm">
                     <label class="font-label-md text-label-md text-on-surface">الوحدة</label>

@@ -1,0 +1,49 @@
+<div class="app-modal-body">
+    <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+        <table class="excel-grid batch-detail-grid w-full">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>رقم الطلب</th>
+                <th>رقم الصنف</th>
+                <th>الاسم</th>
+                <th>الوحدة</th>
+                <th>سعر الشراء</th>
+                <th>الكمية</th>
+                <th>الإجمالي</th>
+                <th>الحالة</th>
+                <th>ملاحظات</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for order in batch.items %}
+            <tr>
+                <td class="cell-center">{{ forloop.counter }}</td>
+                <td dir="ltr">{{ order.order_number }}</td>
+                <td dir="ltr">{{ order.item_number|default:"—" }}</td>
+                <td class="cell-strong">{{ order.item_name }}</td>
+                <td>{{ order.unit|default:"—" }}</td>
+                <td class="cell-center" dir="ltr">{{ order.unit_price|floatformat:2 }}</td>
+                <td class="cell-center cell-strong">{{ order.quantity }}</td>
+                <td class="cell-center cell-strong" dir="ltr">{{ order.total_amount|floatformat:2 }}</td>
+                <td class="cell-center">
+                    {% if order.status == 'completed' %}
+                    <span class="status-chip status-ok">مكتمل</span>
+                    {% elif order.status == 'rejected' %}
+                    <span class="status-chip status-bad">مرفوض</span>
+                    {% else %}
+                    <span class="status-chip status-pending">قيد الانتظار</span>
+                    {% endif %}
+                </td>
+                <td>{{ order.notes|default:"—" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="10" class="empty-row">لا أصناف.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<div class="app-modal-foot">
+    <button type="button" class="btn-ghost-app" data-close-batch="{{ batch.seed_pk }}">إغلاق</button>
+</div>

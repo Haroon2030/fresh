@@ -139,6 +139,7 @@
                     <tr>
                         <th>#</th>
                         <th>النوع</th>
+                        <th>رقم الصنف</th>
                         <th>اسم الصنف</th>
                         <th>الكمية</th>
                         <th>الفرع</th>
@@ -156,13 +157,14 @@
                             <span class="status-chip status-wait">زيادة</span>
                             {% endif %}
                         </td>
+                        <td dir="ltr">{{ row.item_number|default:"—" }}</td>
                         <td class="cell-strong">{{ row.item_name }}</td>
                         <td class="cell-center cell-strong">{{ row.quantity }}</td>
                         <td>{{ row.branch }}</td>
                         <td>{{ row.supplier }}</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="6" class="empty-row">لا سجلات.</td></tr>
+                    <tr><td colspan="7" class="empty-row">لا سجلات.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
@@ -212,6 +214,7 @@
                         <tr>
                             <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-10">#</th>
                             <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">النوع</th>
+                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">رقم الصنف</th>
                             <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">اسم الصنف</th>
                             <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">الكمية</th>
                             <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">الفرع</th>
@@ -237,11 +240,17 @@
 {% endblock %}
 
 {% block extra_js %}
+{% include "ops/_catalog_suggest.html" %}
 <script>
 (function () {
     const tbody = document.getElementById('varianceRows');
     const addBtn = document.getElementById('addVarianceRow');
     if (!tbody || !addBtn) return;
+
+    let catalog = [];
+    try { catalog = JSON.parse('{{ catalog_json|escapejs }}') || []; } catch (e) { catalog = []; }
+    window.FarshCatalogSuggest.setCatalog(catalog);
+    const CS = window.FarshCatalogSuggest;
 
     const inputClass = 'w-full bg-surface border border-outline-variant rounded-lg py-2 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface';
     const branchOptions = `{% for b in branches %}<option value="{{ b|escapejs }}" {% if b == default_branch %}selected{% endif %}>{{ b|escapejs }}</option>{% endfor %}`;
@@ -266,10 +275,8 @@
                     <option value="excess">زيادة</option>
                 </select>
             </td>
-            <td class="p-2">
-                <input name="item_name" type="text" required list="catalogNames" placeholder="اسم الصنف" class="${inputClass}">
-                <input name="item_number" type="hidden" value="">
-            </td>
+            <td class="p-2">${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: inputClass + ' catalog-suggest-input' })}</td>
+            <td class="p-2">${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: inputClass + ' catalog-suggest-input' })}</td>
             <td class="p-2"><input name="quantity" type="number" min="1" required placeholder="1" class="${inputClass} num-entry"></td>
             <td class="p-2">
                 <select name="branch" required class="${inputClass} app-select">
@@ -291,6 +298,10 @@
         `;
         tbody.appendChild(tr);
         renumber();
+        CS.bindRow(tr, {
+            onApply: () => tr.querySelector('input[name="quantity"]')?.focus(),
+        });
+        tr.querySelector('select[name="variance_type"]')?.focus();
     }
 
     addBtn.addEventListener('click', addRow);
@@ -339,7 +350,4 @@
     if (openId) openBatch(openId);
 })();
 </script>
-<datalist id="catalogNames">
-{% for c in catalog %}<option value="{{ c.name }}"></option>{% endfor %}
-</datalist>
 {% endblock %}

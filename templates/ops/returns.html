@@ -189,20 +189,18 @@
                         <colgroup>
                             <col style="width:44px">
                             <col style="width:160px">
-                            <col style="width:110px">
-                            <col style="width:90px">
+                            <col style="width:130px">
                             <col style="width:90px">
                             <col style="width:70px">
                             <col style="width:120px">
                             <col style="width:160px">
-                            <col style="width:140px">
+                            <col style="width:180px">
                         </colgroup>
                         <thead>
                         <tr>
                             <th>#</th>
-                            <th>الاسم</th>
                             <th>رقم الصنف</th>
-                            <th>الوحدة</th>
+                            <th>الاسم</th>
                             <th>العبوة</th>
                             <th>الكمية</th>
                             <th>نوع المرتجع</th>
@@ -251,36 +249,76 @@
                     <colgroup>
                         <col style="width:44px">
                         <col style="width:140px">
-                        <col style="width:100px">
-                        <col style="width:90px">
+                        <col style="width:120px">
                         <col style="width:90px">
                         <col style="width:70px">
                         <col style="width:110px">
-                        <col style="width:180px">
+                        <col style="width:160px">
+                        <col style="width:220px">
                     </colgroup>
                     <thead>
                     <tr>
                         <th>#</th>
-                        <th>الاسم</th>
                         <th>رقم الصنف</th>
-                        <th>الوحدة</th>
+                        <th>الاسم</th>
                         <th>العبوة</th>
                         <th>الكمية</th>
                         <th>النوع</th>
                         <th>سبب الإرجاع</th>
+                        <th>إجراءات</th>
                     </tr>
                     </thead>
                     <tbody>
                     {% for item in batch.items.all %}
                     <tr>
                         <td class="row-num">{{ forloop.counter }}</td>
-                        <td class="cell-pad cell-text" title="{{ item.item_name }}">{{ item.item_name }}</td>
                         <td class="cell-pad cell-text">{% if item.item_number %}{{ item.item_number }}{% else %}—{% endif %}</td>
-                        <td class="cell-pad cell-text">{% if item.unit %}{{ item.unit }}{% else %}—{% endif %}</td>
+                        <td class="cell-pad cell-text" title="{{ item.item_name }}">{{ item.item_name }}</td>
                         <td class="cell-pad cell-text">{% if item.package %}{{ item.package }}{% else %}—{% endif %}</td>
                         <td class="cell-pad cell-center">{{ item.quantity }}</td>
                         <td class="cell-pad cell-text">{{ item.get_return_type_display }}</td>
                         <td class="cell-pad cell-text cell-reason" title="{{ item.reason }}">{{ item.reason }}</td>
+                        <td class="cell-pad cell-center cell-action">
+                            <div class="flex flex-wrap gap-1 justify-center">
+                                {% if item.status == 'pending' and item.rep_decision == 'pending' %}
+                                    {% if user.is_manager or batch.representative_id == user.id %}
+                                <form method="post" action="{% url 'ops:return_authorize' item.pk %}" class="inline"
+                                      onsubmit="return confirm('تعميد الصنف «{{ item.item_name }}»؟');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-approve">تعميد</button>
+                                </form>
+                                <form method="post" action="{% url 'ops:return_rep_reject' item.pk %}" class="inline"
+                                      onsubmit="return confirm('رفض الصنف «{{ item.item_name }}»؟');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-reject">رفض</button>
+                                </form>
+                                    {% else %}
+                                <span class="status-chip status-wait">بانتظار التعميد</span>
+                                    {% endif %}
+                                {% elif item.status == 'pending' and item.rep_decision == 'authorized' %}
+                                    {% if user.is_manager %}
+                                <form method="post" action="{% url 'ops:return_accept' item.pk %}" class="inline"
+                                      onsubmit="return confirm('اعتماد الصنف «{{ item.item_name }}»؟');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-approve">موافق</button>
+                                </form>
+                                <form method="post" action="{% url 'ops:return_reject' item.pk %}" class="inline"
+                                      onsubmit="return confirm('رفض الصنف «{{ item.item_name }}» من العمليات؟');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-reject">رفض</button>
+                                </form>
+                                    {% else %}
+                                <span class="status-chip status-wait">بانتظار الاعتماد</span>
+                                    {% endif %}
+                                {% elif item.status == 'accepted' %}
+                                <span class="status-chip status-ok">مقبول</span>
+                                {% elif item.status == 'rejected' %}
+                                <span class="status-chip status-bad">مرفوض</span>
+                                {% else %}
+                                <span class="status-chip status-wait">{{ item.get_rep_decision_display }}</span>
+                                {% endif %}
+                            </div>
+                        </td>
                     </tr>
                     {% empty %}
                     <tr><td colspan="8" class="empty-row">لا توجد أصناف في هذا الملف.</td></tr>
@@ -290,6 +328,31 @@
             </div>
         </div>
         <div class="app-modal-foot">
+            {% if batch.rep_pending_items.exists %}
+                {% if user.is_manager or batch.representative_id == user.id %}
+            <form method="post" action="{% url 'ops:return_batch_authorize' batch.pk %}" class="inline"
+                  onsubmit="return confirm('تعميد كل الأصناف في {{ batch.return_number }}؟');">
+                {% csrf_token %}
+                <button type="submit" class="btn-primary-app">تعميد الكل</button>
+            </form>
+            <form method="post" action="{% url 'ops:return_batch_rep_reject' batch.pk %}" class="inline"
+                  onsubmit="return confirm('رفض كل الأصناف في {{ batch.return_number }}؟');">
+                {% csrf_token %}
+                <button type="submit" class="btn-ghost-app" style="color:#b91c1c">رفض الكل</button>
+            </form>
+                {% endif %}
+            {% elif user.is_manager and batch.ops_pending_items.exists %}
+            <form method="post" action="{% url 'ops:return_batch_accept' batch.pk %}" class="inline"
+                  onsubmit="return confirm('اعتماد {{ batch.return_number }} من العمليات؟');">
+                {% csrf_token %}
+                <button type="submit" class="btn-primary-app">اعتماد الكل</button>
+            </form>
+            <form method="post" action="{% url 'ops:return_batch_ops_reject' batch.pk %}" class="inline"
+                  onsubmit="return confirm('رفض {{ batch.return_number }} من العمليات؟');">
+                {% csrf_token %}
+                <button type="submit" class="btn-ghost-app" style="color:#b91c1c">رفض الكل</button>
+            </form>
+            {% endif %}
             <button type="button" class="btn-ghost-app close-batch-modal"
                     data-close-batch="{{ batch.pk }}">إغلاق</button>
         </div>
@@ -476,7 +539,8 @@
         gap: 6px;
         flex-wrap: nowrap;
     }
-    .excel-grid .edit-row,
+    .excel-grid .approve-row,
+    .excel-grid .reject-row,
     .excel-grid .remove-row {
         border: 0;
         border-radius: 4px;
@@ -487,19 +551,33 @@
         line-height: 1.3;
         white-space: nowrap;
     }
-    .excel-grid .edit-row {
-        background: #e8f1ff;
-        color: #1d4ed8;
+    .excel-grid .approve-row {
+        background: #dcfce7;
+        color: #15803d;
     }
-    .excel-grid .edit-row:hover {
-        background: #dbeafe;
+    .excel-grid .approve-row:hover {
+        background: #bbf7d0;
     }
-    .excel-grid .remove-row {
+    .excel-grid .reject-row {
         background: #ffecec;
         color: #ba1a1a;
     }
-    .excel-grid .remove-row:hover {
+    .excel-grid .reject-row:hover {
         background: #ffdad6;
+    }
+    .excel-grid .remove-row {
+        background: #f1f5f9;
+        color: #475569;
+    }
+    .excel-grid .remove-row:hover {
+        background: #e2e8f0;
+    }
+    .excel-grid tr.row-approved td {
+        background: #f0fdf4 !important;
+    }
+    .excel-grid tr.row-rejected td {
+        background: #fff1f2 !important;
+        opacity: 0.72;
     }
 
     .status-chip {
@@ -660,6 +738,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{% include "ops/_catalog_suggest.html" %}
 <script>
 (function () {
     function enableColumnResize(table) {
@@ -780,6 +859,11 @@
     const addBtn = document.getElementById('addReturnRow');
     if (!tbody || !addBtn) return;
 
+    let catalog = [];
+    try { catalog = JSON.parse('{{ catalog_json|escapejs }}') || []; } catch (e) { catalog = []; }
+    window.FarshCatalogSuggest.setCatalog(catalog);
+    const CS = window.FarshCatalogSuggest;
+
     function renumber() {
         tbody.querySelectorAll('tr').forEach((tr, i) => {
             const num = tr.querySelector('[data-row-num]');
@@ -791,9 +875,8 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="row-num" data-row-num></td>
-            <td><input class="cell-input" name="item_name" type="text" required placeholder="الاسم"></td>
-            <td><input class="cell-input" name="item_number" type="text" placeholder="رقم الصنف"></td>
-            <td><input class="cell-input" name="unit" type="text" placeholder="الوحدة"></td>
+            <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: 'cell-input catalog-suggest-input' })}</td>
+            <td>${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: 'cell-input catalog-suggest-input' })}</td>
             <td><input class="cell-input" name="package" type="text" placeholder="العبوة"></td>
             <td><input class="cell-input num-entry" name="quantity" type="number" min="1" required placeholder="1"></td>
             <td>
@@ -806,24 +889,39 @@
             <td><input class="cell-input" name="reason" type="text" required placeholder="سبب الإرجاع"></td>
             <td class="cell-action">
                 <div class="row-actions">
-                    <button type="button" class="edit-row" title="تعديل الصف">تعديل</button>
+                    <button type="button" class="approve-row" title="موافق">موافق</button>
+                    <button type="button" class="reject-row" title="رفض">رفض</button>
                     <button type="button" class="remove-row" title="حذف الصف">حذف</button>
                 </div>
             </td>
         `;
         tbody.appendChild(tr);
         renumber();
-        const first = tr.querySelector('input[name="item_name"]');
-        if (first) first.focus();
+        CS.bindRow(tr, {
+            packageField: 'input[name="package"]',
+            onApply: () => tr.querySelector('input[name="quantity"]')?.focus(),
+        });
+        tr.querySelector('input[name="item_number"]')?.focus();
     }
 
     addBtn.addEventListener('click', addRow);
     tbody.addEventListener('click', (e) => {
-        const editBtn = e.target.closest('.edit-row');
-        if (editBtn) {
-            const tr = editBtn.closest('tr');
-            const first = tr?.querySelector('input, select');
-            if (first) first.focus();
+        const approveBtn = e.target.closest('.approve-row');
+        if (approveBtn) {
+            const tr = approveBtn.closest('tr');
+            if (tr) {
+                tr.classList.remove('row-rejected');
+                tr.classList.add('row-approved');
+            }
+            return;
+        }
+        const rejectBtn = e.target.closest('.reject-row');
+        if (rejectBtn) {
+            const tr = rejectBtn.closest('tr');
+            if (tr) {
+                tr.classList.remove('row-approved');
+                tr.classList.add('row-rejected');
+            }
             return;
         }
         const btn = e.target.closest('.remove-row');
@@ -835,6 +933,7 @@
 
     tbody.addEventListener('keydown', (e) => {
         if (e.key !== 'Enter') return;
+        if (e.target.classList.contains('catalog-suggest-input')) return;
         const cell = e.target.closest('td');
         if (!cell) return;
         e.preventDefault();

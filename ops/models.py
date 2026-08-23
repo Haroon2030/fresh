@@ -885,3 +885,69 @@ class WhatsAppRoleContact(models.Model):
 
     def __str__(self):
         return f'{self.get_role_display()}: {self.phone or "—"}'
+
+
+class OfferItem(models.Model):
+    """صنف عرض داخل ملف عروض (#OFFB-…)."""
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'قيد الانتظار'
+        APPROVED = 'approved', 'معتمد'
+
+    batch_number = models.CharField(
+        max_length=20,
+        blank=True,
+        db_index=True,
+        verbose_name='رقم الملف',
+    )
+    item_number = models.CharField(max_length=100, blank=True, verbose_name='رقم الصنف')
+    item_name = models.CharField(max_length=255, verbose_name='اسم الصنف')
+    quantity = models.PositiveIntegerField(default=1, verbose_name='الكمية')
+    package = models.CharField(max_length=100, blank=True, verbose_name='العبوة')
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        verbose_name='الحالة',
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='created_offer_items',
+        verbose_name='أنشئ بواسطة',
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_offer_items',
+        verbose_name='اعتمد بواسطة',
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name='وقت الاعتماد')
+    public_token = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        editable=False,
+        verbose_name='رمز PDF',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at', 'pk']
+        verbose_name = 'صنف عرض'
+        verbose_name_plural = 'أصناف العروض'
+
+    def __str__(self):
+        return f'{self.item_name} × {self.quantity}'
+
+    def ensure_public_token(self):
+        if not self.public_token:
+            import secrets
+            self.public_token = secrets.token_urlsafe(24)
+
+    def save(self, *args, **kwargs):
+        self.ensure_public_token()
+        super().save(*args, **kwargs)

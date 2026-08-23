@@ -13,6 +13,7 @@ from django.utils import timezone
 from ops.pdf_docs import (
     build_daily_orders_pdf,
     build_distribution_batch_pdf,
+    build_offers_batch_pdf,
     build_return_batch_pdf,
     build_supply_orders_pdf,
     build_task_pdf,
@@ -907,6 +908,81 @@ def _daily_order_pdf_url(token: str, request=None) -> str:
     if request is not None:
         return request.build_absolute_uri(path)
     return path
+
+
+def schedule_offers_approved(seed_pk: int, actor_id: int) -> None:
+    """اعتماد مسؤول القسم لملف عروض → PDF واتساب للمندوب + مدير القسم + العمليات + المحاسب."""
+
+    def _run():
+        from ops.models import OfferItem
+
+        User = get_user_model()
+        actor = User.objects.filter(pk=actor_id).first()
+        seed = OfferItem.objects.select_related("created_by").filter(pk=seed_pk).first()
+        if not seed or not actor:
+            return
+        if seed.batch_number:
+            items = list(
+                OfferItem.objects.select_related("created_by")
+                .filter(batch_number=seed.batch_number)
+                .order_by("pk")
+            )
+        else:
+            items = [seed]
+        if not items:
+            return
+
+        token = _sync_batch_token(
+            OfferItem,
+            batch_number=seed.batch_number or "",
+            pks=[o.pk for o in items],
+        )
+        try:
+            pdf_bytes, filename = build_offers_batch_pdf(items, actor=actor)
+        except Exception:
+            logger.exception("PDF build failed for offers %s", seed_pk)
+            return
+
+        pdf_url = _public_pdf_url("ops:offers_batch_pdf_public_file", token)
+        batch_ref = seed.batch_number or f"#OFF-{seed.pk}"
+        msg = _pdf_caption(
+            "اعتماد ملف أصناف العروض",
+            instruction=(
+                f"تم اعتماد الملف {batch_ref} من مسؤول القسم. "
+                "نُرفق ملف PDF للمراجعة."
+            ),
+        )
+        roles = User.ALWAYS_NOTIFY_ROLES | {
+            User.Role.MANAGER,
+            User.Role.ACCOUNTANT,
+        }
+        extra = []
+        creator = items[0].created_by
+        phone = _user_phone(creator)
+        if phone:
+            extra.append({
+                "phone": phone,
+                "label": f"مندوب — {creator.display_name}",
+                "role": getattr(creator, "role", "representative"),
+                "user_id": creator.pk,
+                "message": msg,
+            })
+        result = _notify_pdf_to_roles(
+            msg,
+            pdf_bytes=pdf_bytes,
+            filename=filename,
+            pdf_url=pdf_url,
+            roles=roles,
+            extra=extra,
+        )
+        if result.get("error"):
+            logger.warning(
+                "Offers approve notify failed for %s: %s",
+                seed_pk,
+                result.get("error"),
+            )
+
+    _run_in_background(f"offers-approve-{seed_pk}", _run)
 
 
 def schedule_supply_batch_status(seed_pk: int, actor_id: int, status: str) -> None:

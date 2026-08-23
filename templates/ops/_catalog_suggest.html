@@ -1,0 +1,403 @@
+{# بحث ذكي مشترك للأصناف — يُضمَّن مرة واحدة ثم يُستدعى عبر FarshCatalogSuggest #}
+<style>
+.catalog-suggest-wrap { position: relative; }
+.catalog-suggest-menu {
+    position: absolute;
+    top: calc(100% + 2px);
+    right: 0;
+    left: 0;
+    z-index: 80;
+    max-height: 220px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #93c5fd;
+    border-radius: 10px;
+    box-shadow: 0 12px 28px rgba(15, 39, 68, 0.16);
+    display: none;
+}
+.catalog-suggest-menu.is-open { display: block; }
+.catalog-suggest-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 12px;
+    border: 0;
+    background: transparent;
+    text-align: right;
+    cursor: pointer;
+    font: inherit;
+    color: #0f172a;
+}
+.catalog-suggest-item:hover,
+.catalog-suggest-item.is-active { background: #eff6ff; }
+.catalog-suggest-name { font-weight: 700; font-size: 13px; }
+.catalog-suggest-num {
+    font-weight: 700;
+    font-size: 12px;
+    color: #1d4ed8;
+    direction: ltr;
+    flex-shrink: 0;
+}
+.catalog-suggest-empty {
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+}
+.catalog-suggest-actions {
+    display: flex;
+    gap: 6px;
+    padding: 8px;
+    border-top: 1px solid #dbeafe;
+    background: #f8fbff;
+}
+.catalog-suggest-actions button {
+    flex: 1;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    background: #fff;
+    color: #1d4ed8;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 7px 8px;
+    cursor: pointer;
+}
+.catalog-suggest-actions button:hover { background: #eff6ff; }
+.catalog-suggest-actions .is-clear {
+    border-color: #fecaca;
+    color: #b91c1c;
+    background: #fff1f2;
+}
+.catalog-suggest-actions .is-clear:hover { background: #ffe4e6; }
+.catalog-suggest-wrap.is-filled .catalog-suggest-input {
+    background: #f0fdf4;
+    font-weight: 700;
+}
+.catalog-clear-btn {
+    position: absolute;
+    top: 50%;
+    left: 6px;
+    transform: translateY(-50%);
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: 999px;
+    background: #fee2e2;
+    color: #b91c1c;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 2;
+    padding: 0;
+}
+.catalog-suggest-wrap.is-filled .catalog-clear-btn { display: inline-flex; }
+.catalog-suggest-wrap.is-filled .catalog-suggest-input { padding-left: 34px; }
+.catalog-clear-btn .material-symbols-outlined { font-size: 16px; line-height: 1; }
+</style>
+<script>
+window.FarshCatalogSuggest = (function () {
+    let catalog = [];
+    let activeMenu = null;
+    let activeItems = [];
+    let activeIndex = -1;
+
+    function setCatalog(list) {
+        catalog = Array.isArray(list) ? list : [];
+    }
+
+    function escapeHtml(text) {
+        return String(text || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function normalize(text) {
+        return String(text || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[أإآٱ]/g, 'ا')
+            .replace(/ة/g, 'ه')
+            .replace(/ى/g, 'ي')
+            .replace(/ؤ/g, 'و')
+            .replace(/ئ/g, 'ي')
+            .replace(/\s+/g, ' ');
+    }
+
+    function scoreMatch(item, query) {
+        const q = normalize(query);
+        if (!q) return 0;
+        const name = normalize(item.name);
+        const num = normalize(item.item_number);
+        if (num === q) return 100;
+        if (name === q) return 95;
+        if (num.startsWith(q)) return 90;
+        if (name.startsWith(q)) return 85;
+        if (num.includes(q)) return 70;
+        if (name.includes(q)) return 65;
+        const tokens = q.split(' ').filter(Boolean);
+        if (tokens.length > 1 && tokens.every((t) => name.includes(t) || num.includes(t))) return 60;
+        return 0;
+    }
+
+    function searchCatalog(query, limit) {
+        const scored = [];
+        for (const item of catalog) {
+            const score = scoreMatch(item, query);
+            if (score > 0) scored.push({ item, score });
+        }
+        scored.sort((a, b) => b.score - a.score || String(a.item.name).localeCompare(String(b.item.name), 'ar'));
+        return scored.slice(0, limit || 8).map((x) => x.item);
+    }
+
+    function fieldHtml(opts) {
+        const o = opts || {};
+        const name = o.name || 'item_name';
+        const cls = o.inputClass || 'cell-input catalog-suggest-input';
+        const ph = o.placeholder || (name === 'item_number' ? 'رقم الصنف' : 'ابحث عن الصنف...');
+        const dir = o.dir ? ` dir="${o.dir}"` : '';
+        const req = o.required ? ' required' : '';
+        return `
+            <div class="catalog-suggest-wrap">
+                <input class="${cls}" name="${name}" type="text" placeholder="${ph}"${dir}${req} autocomplete="off">
+                <button type="button" class="catalog-clear-btn" title="إلغاء الصنف" aria-label="إلغاء الصنف">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+                <div class="catalog-suggest-menu" role="listbox"></div>
+            </div>
+        `;
+    }
+
+    function closeSuggest() {
+        if (activeMenu) activeMenu.classList.remove('is-open');
+        activeMenu = null;
+        activeItems = [];
+        activeIndex = -1;
+    }
+
+    function markFilled(tr) {
+        const numInput = tr.querySelector('input[name="item_number"]');
+        const nameInput = tr.querySelector('input[name="item_name"]');
+        const filled = !!(numInput?.value.trim() && nameInput?.value.trim());
+        tr.querySelectorAll('.catalog-suggest-wrap').forEach((wrap) => {
+            wrap.classList.toggle('is-filled', filled);
+        });
+    }
+
+    function clearRow(tr, focusName, options) {
+        if (!tr) return;
+        const numInput = tr.querySelector('input[name="item_number"]');
+        const nameInput = tr.querySelector('input[name="item_name"]');
+        if (numInput) numInput.value = '';
+        if (nameInput) nameInput.value = '';
+        const opts = options || {};
+        if (opts.unitField) {
+            const unitEl = tr.querySelector(opts.unitField);
+            if (unitEl) unitEl.value = '';
+        }
+        if (opts.packageField) {
+            const pkgEl = tr.querySelector(opts.packageField);
+            if (pkgEl) pkgEl.value = '';
+        }
+        tr.querySelectorAll('.catalog-suggest-wrap').forEach((wrap) => wrap.classList.remove('is-filled'));
+        closeSuggest();
+        const focusEl = focusName ? nameInput : numInput;
+        focusEl?.focus();
+        if (focusEl) openSuggestFor(focusEl, tr, opts);
+    }
+
+    function applyItem(tr, item, options) {
+        if (!tr || !item) return;
+        const opts = options || {};
+        const numInput = tr.querySelector('input[name="item_number"]');
+        const nameInput = tr.querySelector('input[name="item_name"]');
+        if (numInput) numInput.value = item.item_number || '';
+        if (nameInput) nameInput.value = item.name || '';
+
+        const units = String(item.unit || '').split(/[،,]/).map((u) => u.trim()).filter(Boolean);
+        if (opts.unitField) {
+            const unitEl = tr.querySelector(opts.unitField);
+            if (unitEl && units.length) {
+                if (unitEl.tagName === 'SELECT') {
+                    const hit = units.find((u) => Array.from(unitEl.options).some((o) => o.value === u));
+                    if (hit) unitEl.value = hit;
+                    else if (!unitEl.value) unitEl.value = units[0];
+                } else if (!unitEl.value) {
+                    unitEl.value = units[0];
+                }
+            }
+        }
+        if (opts.packageField) {
+            const pkgEl = tr.querySelector(opts.packageField);
+            const choices = opts.packageChoices || [];
+            if (pkgEl && units.length) {
+                if (pkgEl.tagName === 'SELECT') {
+                    const hit = units.find((u) => choices.includes(u) || Array.from(pkgEl.options).some((o) => o.value === u));
+                    if (hit) pkgEl.value = hit;
+                } else if (!pkgEl.value) {
+                    pkgEl.value = units[0];
+                }
+            }
+        }
+        markFilled(tr);
+        closeSuggest();
+        if (typeof opts.onApply === 'function') opts.onApply(tr, item);
+    }
+
+    function highlightActive(menu) {
+        menu.querySelectorAll('.catalog-suggest-item').forEach((el, idx) => {
+            el.classList.toggle('is-active', idx === activeIndex);
+        });
+        const active = menu.querySelector('.catalog-suggest-item.is-active');
+        if (active) active.scrollIntoView({ block: 'nearest' });
+    }
+
+    function renderSuggest(menu, items, query, tr, options) {
+        let html = '';
+        if (!items.length) {
+            html = `<div class="catalog-suggest-empty">لا نتائج لـ «${escapeHtml(query)}»</div>`;
+            activeItems = [];
+            activeIndex = -1;
+        } else {
+            html = items.map((item, idx) => `
+                <button type="button" class="catalog-suggest-item" data-idx="${idx}">
+                    <span class="catalog-suggest-name">${escapeHtml(item.name || '—')}</span>
+                    <span class="catalog-suggest-num">${escapeHtml(item.item_number || '—')}</span>
+                </button>
+            `).join('');
+            activeItems = items;
+            activeIndex = 0;
+        }
+        html += `
+            <div class="catalog-suggest-actions">
+                <button type="button" data-suggest-action="replace">استبدال الصنف</button>
+                <button type="button" class="is-clear" data-suggest-action="clear">إلغاء / مسح</button>
+            </div>
+        `;
+        menu.innerHTML = html;
+        menu.classList.add('is-open');
+        if (activeItems.length) highlightActive(menu);
+        menu.onclick = (e) => {
+            const actionBtn = e.target.closest('[data-suggest-action]');
+            if (actionBtn) {
+                e.preventDefault();
+                const action = actionBtn.getAttribute('data-suggest-action');
+                if (action === 'clear') {
+                    clearRow(tr, true, options);
+                    return;
+                }
+                if (action === 'replace') {
+                    const nameInput = tr.querySelector('input[name="item_name"]');
+                    if (nameInput) {
+                        nameInput.select();
+                        nameInput.focus();
+                        openSuggestFor(nameInput, tr, options);
+                    }
+                    return;
+                }
+            }
+            const btn = e.target.closest('.catalog-suggest-item');
+            if (!btn) return;
+            applyItem(tr, activeItems[Number(btn.getAttribute('data-idx'))], options);
+        };
+    }
+
+    function openSuggestFor(input, tr, options) {
+        const wrap = input.closest('.catalog-suggest-wrap');
+        const menu = wrap?.querySelector('.catalog-suggest-menu');
+        if (!menu || !tr) return;
+        const query = (input.value || '').trim();
+        if (activeMenu && activeMenu !== menu) activeMenu.classList.remove('is-open');
+        activeMenu = menu;
+        if (query.length < 1) {
+            menu.innerHTML = `
+                <div class="catalog-suggest-empty">اكتب للبحث عن صنف من الكتالوج</div>
+                <div class="catalog-suggest-actions">
+                    <button type="button" class="is-clear" data-suggest-action="clear">إلغاء / مسح</button>
+                </div>
+            `;
+            menu.classList.add('is-open');
+            activeItems = [];
+            activeIndex = -1;
+            menu.onclick = (e) => {
+                if (e.target.closest('[data-suggest-action="clear"]')) {
+                    clearRow(tr, input.name === 'item_name', options);
+                }
+            };
+            return;
+        }
+        renderSuggest(menu, searchCatalog(query, 8), query, tr, options);
+    }
+
+    function bindRow(tr, options) {
+        const opts = options || {};
+        const num = tr.querySelector('input[name="item_number"]');
+        const name = tr.querySelector('input[name="item_name"]');
+        [num, name].forEach((input) => {
+            if (!input) return;
+            input.classList.add('catalog-suggest-input');
+            input.addEventListener('input', () => {
+                markFilled(tr);
+                openSuggestFor(input, tr, opts);
+            });
+            input.addEventListener('focus', () => openSuggestFor(input, tr, opts));
+            input.addEventListener('keydown', (e) => {
+                const menu = input.closest('.catalog-suggest-wrap')?.querySelector('.catalog-suggest-menu');
+                const open = menu && menu.classList.contains('is-open') && activeItems.length;
+                if (e.key === 'ArrowDown' && open) {
+                    e.preventDefault();
+                    activeIndex = (activeIndex + 1) % activeItems.length;
+                    highlightActive(menu);
+                } else if (e.key === 'ArrowUp' && open) {
+                    e.preventDefault();
+                    activeIndex = (activeIndex - 1 + activeItems.length) % activeItems.length;
+                    highlightActive(menu);
+                } else if (e.key === 'Enter' && open && activeIndex >= 0) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    applyItem(tr, activeItems[activeIndex], opts);
+                } else if (e.key === 'Escape') {
+                    closeSuggest();
+                } else if ((e.key === 'Backspace' || e.key === 'Delete') && e.ctrlKey) {
+                    e.preventDefault();
+                    clearRow(tr, input.name === 'item_name', opts);
+                }
+            });
+            input.addEventListener('blur', () => {
+                setTimeout(() => {
+                    const menu = input.closest('.catalog-suggest-wrap')?.querySelector('.catalog-suggest-menu');
+                    if (!(menu && (menu.contains(document.activeElement) || menu.matches(':hover')))) {
+                        closeSuggest();
+                    }
+                }, 180);
+            });
+        });
+        tr.querySelectorAll('.catalog-clear-btn').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                clearRow(tr, true, opts);
+            });
+        });
+        markFilled(tr);
+    }
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.catalog-suggest-wrap')) closeSuggest();
+    });
+
+    return {
+        setCatalog,
+        fieldHtml,
+        bindRow,
+        clearRow,
+        closeSuggest,
+        applyItem,
+    };
+})();
+</script>
