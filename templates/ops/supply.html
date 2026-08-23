@@ -639,6 +639,18 @@
 </script>
 <script>
 (function () {
+    const CS = window.FarshCatalogSuggest;
+    if (!CS) return;
+    document.querySelectorAll('table[data-supply-edit]').forEach((table) => {
+        CS.bindTable(table, {
+            unitField: 'input[name="unit"]',
+            onApply: (tr) => tr.querySelector('input[name="quantity"]')?.focus(),
+        });
+    });
+})();
+</script>
+<script>
+(function () {
     function openBatch(id) {
         const modal = document.getElementById('batchModal-' + id);
         if (modal) modal.classList.remove('hidden');

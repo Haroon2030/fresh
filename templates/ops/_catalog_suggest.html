@@ -2,18 +2,16 @@
 <style>
 .catalog-suggest-wrap { position: relative; }
 .catalog-suggest-menu {
-    position: absolute;
-    top: calc(100% + 2px);
-    right: 0;
-    left: 0;
-    z-index: 80;
-    max-height: 220px;
+    position: fixed;
+    z-index: 9999;
+    max-height: min(280px, 42vh);
     overflow-y: auto;
     background: #fff;
     border: 1px solid #93c5fd;
     border-radius: 10px;
-    box-shadow: 0 12px 28px rgba(15, 39, 68, 0.16);
+    box-shadow: 0 16px 36px rgba(15, 39, 68, 0.22);
     display: none;
+    min-width: 220px;
 }
 .catalog-suggest-menu.is-open { display: block; }
 .catalog-suggest-item {
@@ -22,7 +20,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 9px 12px;
+    padding: 10px 12px;
     border: 0;
     background: transparent;
     text-align: right;
@@ -33,12 +31,23 @@
 .catalog-suggest-item:hover,
 .catalog-suggest-item.is-active { background: #eff6ff; }
 .catalog-suggest-name { font-weight: 700; font-size: 13px; }
+.catalog-suggest-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    flex-shrink: 0;
+}
 .catalog-suggest-num {
     font-weight: 700;
     font-size: 12px;
     color: #1d4ed8;
     direction: ltr;
-    flex-shrink: 0;
+}
+.catalog-suggest-unit {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
 }
 .catalog-suggest-empty {
     padding: 10px 12px;
@@ -52,6 +61,8 @@
     padding: 8px;
     border-top: 1px solid #dbeafe;
     background: #f8fbff;
+    position: sticky;
+    bottom: 0;
 }
 .catalog-suggest-actions button {
     flex: 1;
@@ -102,6 +113,7 @@
 window.FarshCatalogSuggest = (function () {
     let catalog = [];
     let activeMenu = null;
+    let activeInput = null;
     let activeItems = [];
     let activeIndex = -1;
 
@@ -173,9 +185,105 @@ window.FarshCatalogSuggest = (function () {
         `;
     }
 
+    function getMenuForWrap(wrap) {
+        if (!wrap) return null;
+        const local = wrap.querySelector('.catalog-suggest-menu');
+        if (local) return local;
+        const homeId = wrap.getAttribute('data-suggest-home');
+        if (!homeId) return null;
+        return document.querySelector(`.catalog-suggest-menu[data-home-id="${homeId}"]`);
+    }
+
+    function ensureWrapped(input) {
+        if (!input) return null;
+        let wrap = input.closest('.catalog-suggest-wrap');
+        if (wrap) return wrap;
+        wrap = document.createElement('div');
+        wrap.className = 'catalog-suggest-wrap';
+        input.classList.add('catalog-suggest-input');
+        input.parentNode.insertBefore(wrap, input);
+        wrap.appendChild(input);
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'catalog-clear-btn';
+        clearBtn.title = 'إلغاء الصنف';
+        clearBtn.setAttribute('aria-label', 'إلغاء الصنف');
+        clearBtn.innerHTML = '<span class="material-symbols-outlined">close</span>';
+        wrap.appendChild(clearBtn);
+        const menu = document.createElement('div');
+        menu.className = 'catalog-suggest-menu';
+        menu.setAttribute('role', 'listbox');
+        wrap.appendChild(menu);
+        return wrap;
+    }
+
+    function detachMenuHome(menu) {
+        if (!menu || menu.dataset.ported !== '1') return;
+        const homeId = menu.dataset.homeId;
+        const home = homeId ? document.querySelector(`[data-suggest-home="${homeId}"]`) : null;
+        if (home) home.appendChild(menu);
+        delete menu.dataset.ported;
+        delete menu.dataset.homeId;
+    }
+
+    function ensureMenuPortaled(menu, wrap) {
+        if (!menu || !wrap) return;
+        if (menu.dataset.ported === '1') return;
+        let homeId = wrap.getAttribute('data-suggest-home');
+        if (!homeId) {
+            homeId = `cs-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+            wrap.setAttribute('data-suggest-home', homeId);
+        }
+        menu.dataset.homeId = homeId;
+        menu.dataset.ported = '1';
+        document.body.appendChild(menu);
+    }
+
+    function positionMenu(menu, input) {
+        if (!menu || !input) return;
+        const wrap = input.closest('.catalog-suggest-wrap');
+        ensureMenuPortaled(menu, wrap);
+        const rect = input.getBoundingClientRect();
+        const gap = 4;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const width = Math.max(rect.width, 280);
+        let left = rect.left;
+        if (left + width > vw - 8) left = Math.max(8, vw - width - 8);
+        if (left < 8) left = 8;
+
+        menu.style.width = `${width}px`;
+        menu.style.left = `${left}px`;
+        menu.style.right = 'auto';
+        menu.classList.add('is-open');
+
+        const spaceBelow = vh - rect.bottom - gap - 8;
+        const spaceAbove = rect.top - gap - 8;
+        const openUp = spaceBelow < 160 && spaceAbove > spaceBelow;
+        if (openUp) {
+            menu.style.top = 'auto';
+            menu.style.bottom = `${vh - rect.top + gap}px`;
+            menu.style.maxHeight = `${Math.max(140, Math.min(300, spaceAbove))}px`;
+        } else {
+            menu.style.bottom = 'auto';
+            menu.style.top = `${rect.bottom + gap}px`;
+            menu.style.maxHeight = `${Math.max(140, Math.min(300, spaceBelow))}px`;
+        }
+    }
+
     function closeSuggest() {
-        if (activeMenu) activeMenu.classList.remove('is-open');
+        if (activeMenu) {
+            activeMenu.classList.remove('is-open');
+            activeMenu.style.top = '';
+            activeMenu.style.bottom = '';
+            activeMenu.style.left = '';
+            activeMenu.style.right = '';
+            activeMenu.style.width = '';
+            activeMenu.style.maxHeight = '';
+            detachMenuHome(activeMenu);
+        }
         activeMenu = null;
+        activeInput = null;
         activeItems = [];
         activeIndex = -1;
     }
@@ -257,19 +365,24 @@ window.FarshCatalogSuggest = (function () {
         if (active) active.scrollIntoView({ block: 'nearest' });
     }
 
-    function renderSuggest(menu, items, query, tr, options) {
+    function renderSuggest(menu, items, query, tr, options, input) {
         let html = '';
         if (!items.length) {
             html = `<div class="catalog-suggest-empty">لا نتائج لـ «${escapeHtml(query)}»</div>`;
             activeItems = [];
             activeIndex = -1;
         } else {
-            html = items.map((item, idx) => `
+            html = items.map((item, idx) => {
+                const unit = String(item.unit || '').trim();
+                return `
                 <button type="button" class="catalog-suggest-item" data-idx="${idx}">
                     <span class="catalog-suggest-name">${escapeHtml(item.name || '—')}</span>
-                    <span class="catalog-suggest-num">${escapeHtml(item.item_number || '—')}</span>
-                </button>
-            `).join('');
+                    <span class="catalog-suggest-meta">
+                        <span class="catalog-suggest-num">${escapeHtml(item.item_number || '—')}</span>
+                        ${unit ? `<span class="catalog-suggest-unit">${escapeHtml(unit)}</span>` : ''}
+                    </span>
+                </button>`;
+            }).join('');
             activeItems = items;
             activeIndex = 0;
         }
@@ -281,6 +394,9 @@ window.FarshCatalogSuggest = (function () {
         `;
         menu.innerHTML = html;
         menu.classList.add('is-open');
+        activeMenu = menu;
+        activeInput = input || null;
+        positionMenu(menu, input);
         if (activeItems.length) highlightActive(menu);
         menu.onclick = (e) => {
             const actionBtn = e.target.closest('[data-suggest-action]');
@@ -308,12 +424,13 @@ window.FarshCatalogSuggest = (function () {
     }
 
     function openSuggestFor(input, tr, options) {
-        const wrap = input.closest('.catalog-suggest-wrap');
-        const menu = wrap?.querySelector('.catalog-suggest-menu');
+        const wrap = ensureWrapped(input);
+        const menu = getMenuForWrap(wrap);
         if (!menu || !tr) return;
         const query = (input.value || '').trim();
-        if (activeMenu && activeMenu !== menu) activeMenu.classList.remove('is-open');
+        if (activeMenu && activeMenu !== menu) closeSuggest();
         activeMenu = menu;
+        activeInput = input;
         if (query.length < 1) {
             menu.innerHTML = `
                 <div class="catalog-suggest-empty">اكتب للبحث عن صنف من الكتالوج</div>
@@ -324,6 +441,7 @@ window.FarshCatalogSuggest = (function () {
             menu.classList.add('is-open');
             activeItems = [];
             activeIndex = -1;
+            positionMenu(menu, input);
             menu.onclick = (e) => {
                 if (e.target.closest('[data-suggest-action="clear"]')) {
                     clearRow(tr, input.name === 'item_name', options);
@@ -331,15 +449,17 @@ window.FarshCatalogSuggest = (function () {
             };
             return;
         }
-        renderSuggest(menu, searchCatalog(query, 8), query, tr, options);
+        renderSuggest(menu, searchCatalog(query, 8), query, tr, options, input);
     }
 
     function bindRow(tr, options) {
+        if (!tr || tr.dataset.catalogBound === '1') return;
         const opts = options || {};
         const num = tr.querySelector('input[name="item_number"]');
         const name = tr.querySelector('input[name="item_name"]');
         [num, name].forEach((input) => {
             if (!input) return;
+            ensureWrapped(input);
             input.classList.add('catalog-suggest-input');
             input.addEventListener('input', () => {
                 markFilled(tr);
@@ -347,7 +467,7 @@ window.FarshCatalogSuggest = (function () {
             });
             input.addEventListener('focus', () => openSuggestFor(input, tr, opts));
             input.addEventListener('keydown', (e) => {
-                const menu = input.closest('.catalog-suggest-wrap')?.querySelector('.catalog-suggest-menu');
+                const menu = getMenuForWrap(input.closest('.catalog-suggest-wrap'));
                 const open = menu && menu.classList.contains('is-open') && activeItems.length;
                 if (e.key === 'ArrowDown' && open) {
                     e.preventDefault();
@@ -370,7 +490,7 @@ window.FarshCatalogSuggest = (function () {
             });
             input.addEventListener('blur', () => {
                 setTimeout(() => {
-                    const menu = input.closest('.catalog-suggest-wrap')?.querySelector('.catalog-suggest-menu');
+                    const menu = getMenuForWrap(input.closest('.catalog-suggest-wrap'));
                     if (!(menu && (menu.contains(document.activeElement) || menu.matches(':hover')))) {
                         closeSuggest();
                     }
@@ -378,23 +498,45 @@ window.FarshCatalogSuggest = (function () {
             });
         });
         tr.querySelectorAll('.catalog-clear-btn').forEach((btn) => {
+            if (btn.dataset.bound === '1') return;
+            btn.dataset.bound = '1';
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 clearRow(tr, true, opts);
             });
         });
+        tr.dataset.catalogBound = '1';
         markFilled(tr);
     }
 
+    function bindTable(root, options) {
+        const scope = typeof root === 'string' ? document.querySelector(root) : root;
+        if (!scope) return;
+        scope.querySelectorAll('tr').forEach((tr) => {
+            if (tr.querySelector('input[name="item_name"], input[name="item_number"]')) {
+                bindRow(tr, options);
+            }
+        });
+    }
+
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.catalog-suggest-wrap')) closeSuggest();
+        if (!e.target.closest('.catalog-suggest-wrap') && !e.target.closest('.catalog-suggest-menu')) {
+            closeSuggest();
+        }
     });
+    window.addEventListener('resize', () => {
+        if (activeMenu && activeInput) positionMenu(activeMenu, activeInput);
+    });
+    document.addEventListener('scroll', () => {
+        if (activeMenu && activeInput) positionMenu(activeMenu, activeInput);
+    }, true);
 
     return {
         setCatalog,
         fieldHtml,
         bindRow,
+        bindTable,
         clearRow,
         closeSuggest,
         applyItem,
