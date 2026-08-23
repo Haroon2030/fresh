@@ -1,8 +1,10 @@
 #!/bin/sh
 set -e
 
-echo "[deploy] Running database migrations..."
+echo "[deploy] Running database migrations (all apps)..."
 python manage.py migrate --noinput
+echo "[deploy] Ensuring ops migrations (offers, supply, returns)..."
+python manage.py migrate ops --noinput
 echo "[deploy] Migrations complete."
 
 python manage.py repair_catalog_items
