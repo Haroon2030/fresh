@@ -20,23 +20,23 @@
 <style>
 .items-table-center {
     width: 100%;
-    max-width: 42rem;
-    margin-inline: auto;
+    max-width: 100%;
 }
 .units-cell {
-    min-width: 10rem;
-    width: 10rem;
+    min-width: 9rem;
+    width: 11rem;
     vertical-align: middle !important;
 }
 .item-units-form { margin: 0; }
 .app-data-grid .units-cell .item-unit-select {
-    min-height: 44px;
-    padding: 10px 40px 10px 12px;
-    font-size: 14px;
+    min-height: 36px;
+    width: 100%;
+    padding: 6px 36px 6px 10px;
+    font-size: 13px;
     font-weight: 600;
     line-height: 1.3;
     border: 1px solid #bfdbfe;
-    border-radius: 8px;
+    border-radius: 6px;
     background-color: #fff;
     cursor: pointer;
 }
@@ -46,9 +46,41 @@
     outline: none;
     box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.15);
 }
+.items-excel-sheet {
+    max-height: min(70vh, 560px);
+}
+.items-excel-sheet .excel-grid th:first-child,
+.items-excel-sheet .excel-grid td.row-num {
+    width: 3rem;
+    min-width: 3rem;
+}
+.items-excel-sheet .excel-grid td.col-item-no {
+    width: 7rem;
+    font-variant-numeric: tabular-nums;
+}
+.items-excel-sheet .excel-grid td.col-actions {
+    width: 5.5rem;
+}
+.items-excel-sheet .items-empty-row td {
+    height: 42px;
+    background: #fff !important;
+}
 .items-pagination {
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-wrap: nowrap;
+    gap: 6px;
+    overflow-x: auto;
+    max-width: 100%;
+    padding-bottom: 2px;
+}
+.items-page-ellipsis {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 36px;
+    color: #64748b;
+    font-weight: 700;
+    user-select: none;
 }
 .items-page-nav,
 .items-page-num {
@@ -135,7 +167,7 @@
     <div class="app-toolbar flex flex-col sm:flex-row sm:items-center justify-between gap-sm">
         <span class="font-label-md text-label-md font-bold text-on-surface flex items-center gap-sm">
             <span class="material-symbols-outlined">inventory_2</span>
-            قائمة الأصناf ({{ total_items }})
+            قائمة الأصناف ({{ total_items }})
             {% if q %}<span class="font-body-sm text-body-sm text-on-surface-variant font-normal">— نتائج «{{ q }}»</span>{% endif %}
         </span>
         <form method="get" action="{% url 'ops:items' %}" class="flex items-center gap-sm w-full sm:w-auto sm:max-w-lg">
@@ -154,10 +186,11 @@
             {% endif %}
         </form>
     </div>
-    <div class="app-table-sheet overflow-x-auto">
-        <table class="excel-grid app-data-grid">
+    <div class="app-table-sheet items-excel-sheet overflow-x-auto bg-white">
+        <table class="excel-grid app-data-grid w-full">
             <thead>
             <tr>
+                <th>#</th>
                 <th>رقم الصنف</th>
                 <th>الاسم</th>
                 <th>الوحدة</th>
@@ -167,7 +200,8 @@
             <tbody>
             {% for item in items %}
             <tr>
-                <td dir="ltr">{{ item.item_number }}</td>
+                <td class="row-num cell-center">{{ page_obj.start_index|add:forloop.counter0 }}</td>
+                <td class="col-item-no cell-strong" dir="ltr">{{ item.item_number }}</td>
                 <td class="cell-strong">{{ item.name }}</td>
                 <td class="units-cell">
                     <form method="post" action="{% url 'ops:item_update_units' item.pk %}" class="item-units-form">
@@ -185,7 +219,7 @@
                         </select>
                     </form>
                 </td>
-                <td class="cell-center">
+                <td class="cell-center col-actions">
                     <form method="post" action="{% url 'ops:item_delete' item.pk %}" onsubmit="return confirm('حذف هذا الصنف؟');">
                         {% csrf_token %}
                         <button type="submit" class="act-btn act-bad" title="حذف">
@@ -197,7 +231,16 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="4" class="empty-row">لا توجد أصناف بعد. اسحب ملف Excel أو أضف صنفاً يدوياً.</td>
+                <td colspan="5" class="empty-row">لا توجد أصناف بعد. اسحب ملف Excel أو أضف صنفاً يدوياً.</td>
+            </tr>
+            {% endfor %}
+            {% for _ in empty_rows %}
+            <tr class="items-empty-row" aria-hidden="true">
+                <td class="row-num cell-center">&nbsp;</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
             </tr>
             {% endfor %}
             </tbody>
@@ -223,8 +266,10 @@
             </span>
             {% endif %}
 
-            {% for num in page_obj.paginator.page_range %}
-            {% if page_obj.number == num %}
+            {% for num in page_range %}
+            {% if num == page_obj.paginator.ELLIPSIS %}
+            <span class="items-page-ellipsis" aria-hidden="true">…</span>
+            {% elif page_obj.number == num %}
             <span class="items-page-num is-active" aria-current="page">{{ num }}</span>
             {% else %}
             <a href="?page={{ num }}{% if q %}&q={{ q }}{% endif %}" class="items-page-num">{{ num }}</a>

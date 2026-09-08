@@ -2409,11 +2409,17 @@ def items_list(request):
             | Q(unit__icontains=q)
             | Q(package__icontains=q)
         )
-    paginator = Paginator(qs, 6)
+    paginator = Paginator(qs, 10)
     page = paginator.get_page(request.GET.get('page'))
+    page_range = list(
+        paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1)
+    )
+    empty_rows = range(max(0, 10 - len(page.object_list))) if page.paginator.count else []
     return render(request, 'ops/items.html', {
         'items': page,
         'page_obj': page,
+        'page_range': page_range,
+        'empty_rows': empty_rows,
         'q': q,
         'total_items': CatalogItem.objects.count(),
         'unit_choices': DAILY_ORDER_PACKAGES,
