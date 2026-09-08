@@ -22,47 +22,107 @@
     width: 100%;
     max-width: 100%;
 }
-.units-cell {
-    min-width: 9rem;
-    width: 11rem;
+.items-excel-sheet {
+    max-height: min(70vh, 520px);
+}
+.items-excel-sheet .excel-grid {
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+.items-excel-sheet .excel-grid thead th {
+    padding: 6px 8px !important;
+    font-size: 12px !important;
+    height: 32px;
+}
+.items-excel-sheet .excel-grid tbody td {
+    padding: 0 !important;
+    height: 28px;
+    line-height: 28px;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
     vertical-align: middle !important;
 }
-.item-units-form { margin: 0; }
-.app-data-grid .units-cell .item-unit-select {
-    min-height: 36px;
-    width: 100%;
-    padding: 6px 36px 6px 10px;
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1.3;
-    border: 1px solid #bfdbfe;
-    border-radius: 6px;
-    background-color: #fff;
-    cursor: pointer;
-}
-.app-data-grid .units-cell .item-unit-select:focus {
-    border-color: #1d4ed8;
-    background-color: #eff6ff;
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.15);
-}
-.items-excel-sheet {
-    max-height: min(70vh, 560px);
-}
-.items-excel-sheet .excel-grid th:first-child,
 .items-excel-sheet .excel-grid td.row-num {
-    width: 3rem;
-    min-width: 3rem;
+    width: 2.5rem;
+    text-align: center;
+    padding: 0 4px !important;
 }
 .items-excel-sheet .excel-grid td.col-item-no {
-    width: 7rem;
+    width: 6.5rem;
+    padding: 0 8px !important;
     font-variant-numeric: tabular-nums;
 }
+.items-excel-sheet .excel-grid td.col-name {
+    padding: 0 8px !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+}
+.items-excel-sheet .excel-grid td.units-cell {
+    width: 7.5rem;
+}
 .items-excel-sheet .excel-grid td.col-actions {
-    width: 5.5rem;
+    width: 2.75rem;
+    text-align: center;
+}
+.item-units-form {
+    margin: 0;
+    height: 100%;
+}
+.items-excel-sheet .item-unit-select {
+    display: block;
+    width: 100%;
+    height: 28px !important;
+    min-height: 28px !important;
+    margin: 0;
+    padding: 0 28px 0 8px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
+    font-size: 12px !important;
+    font-weight: 600;
+    line-height: 28px !important;
+    color: #1e3a8a;
+    cursor: pointer;
+}
+.items-excel-sheet .col-actions form {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 28px;
+}
+.items-excel-sheet .item-unit-select:focus {
+    outline: 2px solid #1d4ed8;
+    outline-offset: -2px;
+    background-color: #eff6ff !important;
+}
+.items-excel-sheet .act-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #b91c1c;
+    cursor: pointer;
+}
+.items-excel-sheet .act-btn-icon:hover {
+    background: #fee2e2;
+}
+.items-excel-sheet .act-btn-icon .material-symbols-outlined {
+    font-size: 16px;
+    line-height: 1;
 }
 .items-excel-sheet .items-empty-row td {
-    height: 42px;
+    height: 28px;
     background: #fff !important;
 }
 .items-pagination {
@@ -77,7 +137,7 @@
     align-items: center;
     justify-content: center;
     min-width: 28px;
-    height: 36px;
+    height: 32px;
     color: #64748b;
     font-weight: 700;
     user-select: none;
@@ -88,12 +148,12 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    min-width: 36px;
-    height: 36px;
-    padding: 0 10px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
     border: 1px solid #bfdbfe;
-    border-radius: 8px;
-    font-size: 13px;
+    border-radius: 6px;
+    font-size: 12px;
     font-weight: 700;
     color: #1d4ed8;
     background: #fff;
@@ -202,11 +262,11 @@
             <tr>
                 <td class="row-num cell-center">{{ page_obj.start_index|add:forloop.counter0 }}</td>
                 <td class="col-item-no cell-strong" dir="ltr">{{ item.item_number }}</td>
-                <td class="cell-strong">{{ item.name }}</td>
+                <td class="col-name" title="{{ item.name }}">{{ item.name }}</td>
                 <td class="units-cell">
                     <form method="post" action="{% url 'ops:item_update_units' item.pk %}" class="item-units-form">
                         {% csrf_token %}
-                        <select name="unit" required class="cell-input cell-select app-select w-full item-unit-select">
+                        <select name="unit" required class="app-select item-unit-select" aria-label="وحدة {{ item.name }}">
                             <option value="">اختر...</option>
                             {% for pkg in unit_choices %}
                             <option value="{{ pkg }}" {% if item.units_list and pkg == item.units_list.0 %}selected{% endif %}>{{ pkg }}</option>
@@ -222,9 +282,8 @@
                 <td class="cell-center col-actions">
                     <form method="post" action="{% url 'ops:item_delete' item.pk %}" onsubmit="return confirm('حذف هذا الصنف؟');">
                         {% csrf_token %}
-                        <button type="submit" class="act-btn act-bad" title="حذف">
-                            <span class="material-symbols-outlined text-[16px] text-inherit">delete</span>
-                            حذف
+                        <button type="submit" class="act-btn-icon" title="حذف">
+                            <span class="material-symbols-outlined">delete</span>
                         </button>
                     </form>
                 </td>

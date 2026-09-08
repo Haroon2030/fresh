@@ -402,7 +402,8 @@
         font-weight: 600;
         font-size: 12px;
         text-align: center;
-        padding: 8px 6px;
+        padding: 6px 8px;
+        height: 32px;
         border-color: #1e40af;
         white-space: nowrap;
         position: sticky;
@@ -426,15 +427,15 @@
     .excel-grid .cell-input {
         width: 100%;
         min-width: 0;
-        height: 40px;
+        height: 28px;
         border: 0 !important;
         border-radius: 0 !important;
         outline: none !important;
         box-shadow: none !important;
         background: #fff !important;
-        padding: 8px 10px;
-        font-size: 13px;
-        line-height: 1.4;
+        padding: 0 8px;
+        font-size: 12px;
+        line-height: 28px;
         color: #111 !important;
         text-align: right;
         box-sizing: border-box;
@@ -449,14 +450,14 @@
     .excel-grid .cell-select {
         width: 100%;
         min-width: 0;
-        height: 40px;
+        height: 28px;
         border: 0 !important;
         border-radius: 0 !important;
         outline: none !important;
         box-shadow: none !important;
-        padding: 8px 28px 8px 10px;
-        font-size: 13px;
-        line-height: 1.4;
+        padding: 0 28px 0 8px;
+        font-size: 12px;
+        line-height: 28px;
             color: #1e3a8a !important;
             font-weight: 600;
             text-align: right;
@@ -481,12 +482,13 @@
     }
     .batch-detail-grid td.cell-pad,
     .batch-detail-grid td.cell-text {
-        padding: 10px 12px !important;
-        font-size: 13px;
+        padding: 0 8px !important;
+        font-size: 12px;
         color: #111;
-        line-height: 1.45;
-        white-space: normal;
-        word-break: break-word;
+        line-height: 28px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
         vertical-align: middle;
     }
     .batch-detail-grid td.cell-center {
@@ -496,13 +498,13 @@
         color: #9b1c1c;
     }
     .batch-detail-grid td.row-num {
-        padding: 10px 6px !important;
+        padding: 0 4px !important;
     }
     .batch-detail-grid .cell-input,
     .batch-detail-grid .cell-select {
-        height: 44px;
-        padding: 10px 12px;
-        font-size: 13px;
+        height: 28px;
+        padding: 0 8px;
+        font-size: 12px;
     }
     .batch-detail-grid .cell-select {
         padding-left: 28px;
@@ -639,7 +641,9 @@
     .returns-list-grid th,
     .returns-list-grid td {
         border-color: #dbeafe !important;
-        padding: 10px 8px !important;
+        padding: 0 8px !important;
+        height: 28px;
+        line-height: 28px;
         font-size: 12px;
         color: #000;
         vertical-align: middle;

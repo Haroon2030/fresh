@@ -22,57 +22,154 @@
         background-image:
             linear-gradient(45deg, transparent 50%, #1d4ed8 50%),
             linear-gradient(135deg, #1d4ed8 50%, transparent 50%);
-        background-position: 18px calc(50% - 2px), 23px calc(50% - 2px);
+        background-position: 10px calc(50% - 2px), 15px calc(50% - 2px);
         background-size: 5px 5px, 5px 5px;
         background-repeat: no-repeat;
-        padding-left: 2.75rem;
+        padding-left: 1.75rem !important;
     }
-    .excel-grid .cell-input,
-    .excel-grid .cell-select {
-        width: 100%;
-        border: 0;
-        outline: none;
-        background: transparent;
-        padding: 8px 6px;
-        font: inherit;
-        text-align: right;
+    #newOrderModal .excel-meta-sheet,
+    #newOrderModal .excel-sheet {
+        overflow-x: auto;
+        border: 1px solid #b4b4b4;
+        border-radius: 2px;
+        background: #fff;
     }
-    .excel-grid .cell-select {
+    #newOrderModal .excel-meta-grid {
         width: 100%;
-        border: 0;
-        outline: none;
-        background: transparent;
-        padding: 8px 6px;
-        font: inherit;
-        text-align: right;
+        table-layout: fixed;
+        border-collapse: collapse;
+    }
+    #newOrderModal .excel-meta-grid th,
+    #newOrderModal .excel-meta-grid td {
+        border: 1px solid #c6c6c6;
+        height: 28px;
+        padding: 0 !important;
+        vertical-align: middle;
+        font-size: 12px;
+        line-height: 28px;
+    }
+    #newOrderModal .excel-meta-grid th {
+        width: 5.5rem;
+        background: #e8eef4 !important;
+        color: #334155 !important;
+        font-weight: 700;
+        text-align: center;
+        padding: 0 6px !important;
+    }
+    #newOrderModal .excel-meta-grid .meta-input,
+    #newOrderModal .excel-meta-grid .meta-select,
+    #newOrderModal .excel-meta-grid .meta-static {
+        display: block;
+        width: 100%;
+        height: 28px !important;
+        min-height: 28px !important;
+        margin: 0;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        outline: none !important;
+        background: #fff !important;
+        padding: 0 8px !important;
+        font-size: 12px !important;
+        line-height: 28px !important;
+        color: #111;
+    }
+    #newOrderModal .excel-meta-grid .meta-select {
+        padding-inline-start: 28px !important;
+        color: #1e3a8a;
+        font-weight: 600;
         cursor: pointer;
     }
-    .excel-grid .cell-input:focus,
-    .excel-grid .cell-select:focus {
-        background: #eff6ff;
+    #newOrderModal .excel-meta-grid .meta-input:focus,
+    #newOrderModal .excel-meta-grid .meta-select:focus {
+        outline: 2px solid #1d4ed8 !important;
+        outline-offset: -2px;
+        background: #eff6ff !important;
     }
-    .excel-grid .row-num {
+    #newOrderModal .excel-meta-grid .meta-static {
+        background: #f8fafc !important;
+        font-weight: 600;
+    }
+    #newOrderModal .excel-grid .cell-input,
+    #newOrderModal .excel-grid .cell-select {
+        width: 100%;
+        border: 0 !important;
+        outline: none;
+        background: transparent;
+        padding: 0 6px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        font-size: 12px !important;
+        line-height: 28px !important;
+        text-align: right;
+    }
+    #newOrderModal .excel-grid .cell-select {
+        padding-inline-start: 28px !important;
+        color: #1e3a8a !important;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    #newOrderModal .excel-grid .cell-input:focus,
+    #newOrderModal .excel-grid .cell-select:focus {
+        background: #eff6ff !important;
+        outline: 2px solid #1d4ed8 !important;
+        outline-offset: -2px;
+    }
+    #newOrderModal .excel-grid .row-num {
         text-align: center;
         color: #64748b;
         font-weight: 700;
-        padding: 6px !important;
+        padding: 0 4px !important;
+        width: 2.5rem;
     }
-    .excel-grid .cell-action {
+    #newOrderModal .excel-grid .cell-action {
         text-align: center;
-        padding: 4px !important;
+        padding: 0 !important;
+        width: 3rem;
     }
-    .excel-grid .row-actions {
+    #newOrderModal .excel-grid .remove-row {
         display: inline-flex;
-        gap: 4px;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        color: #b91c1c;
+        cursor: pointer;
+        font-size: 0;
     }
-    .excel-grid .remove-row {
-        font-size: 11px;
+    #newOrderModal .excel-grid .remove-row::before {
+        content: 'delete';
+        font-family: 'Material Symbols Outlined';
+        font-size: 16px;
+        line-height: 1;
+    }
+    #newOrderModal .excel-grid .remove-row:hover {
+        background: #fee2e2;
+    }
+    #newOrderModal .order-items-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 4px;
+    }
+    #newOrderModal .order-items-head .add-row-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid #1d4ed8;
+        border-radius: 4px;
+        background: #1d4ed8;
+        color: #fff;
+        font-size: 12px;
         font-weight: 700;
-        padding: 4px 8px;
-        border-radius: 6px;
-        border: 1px solid #fda4af;
-        background: #fff1f2;
-        color: #be123c;
         cursor: pointer;
     }
 </style>
@@ -265,80 +362,79 @@
         </div>
         <form method="post" action="{% url 'ops:daily_order_create' %}" class="flex flex-col overflow-hidden" id="orderMultiForm">
             {% csrf_token %}
-            <div class="app-modal-body flex flex-col gap-md">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
-                    {% if user.is_representative %}
-                    <input type="hidden" name="representative" value="{{ user.pk }}">
-                    <div class="flex flex-col gap-sm">
-                        <label class="font-label-md text-label-md text-on-surface">المندوب</label>
-                        <div class="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-3 font-body-md text-body-md">
-                            {{ user.display_name }}
-                        </div>
-                    </div>
-                    {% else %}
-                    <div class="flex flex-col gap-sm">
-                        <label class="font-label-md text-label-md text-on-surface" for="orderRep">المندوب</label>
-                        <select name="representative" id="orderRep" required
-                                class="order-rep-select w-full bg-surface border border-outline-variant rounded-lg py-2.5 pr-3 pl-12 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
-                            <option value="">اختر المندوب...</option>
-                            {% for rep in representatives %}
-                            <option value="{{ rep.pk }}">{{ rep.display_name }}</option>
-                            {% empty %}
-                            <option value="" disabled>لا يوجد مناديب</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    {% endif %}
-                    <div class="flex flex-col gap-sm">
-                        <label class="font-label-md text-label-md text-on-surface" for="orderBranch">الفرع</label>
-                        <select name="branch" id="orderBranch" required
-                                class="order-rep-select w-full bg-surface border border-outline-variant rounded-lg py-2.5 pr-3 pl-12 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
-                            <option value="">اختر الفرع...</option>
-                            {% for b in branches %}
-                            <option value="{{ b }}" {% if b == default_branch %}selected{% endif %}>{{ b }}</option>
-                            {% empty %}
-                            <option value="" disabled>أضف فروعاً من التهيئة أولاً</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="flex flex-col gap-sm">
-                        <label class="font-label-md text-label-md text-on-surface" for="orderSupplier">المورد</label>
-                        <select name="supplier" id="orderSupplier" required
-                                class="order-rep-select w-full bg-surface border border-outline-variant rounded-lg py-2.5 pr-3 pl-12 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
-                            <option value="">اختر المورد...</option>
-                            {% for s in suppliers %}
-                            <option value="{{ s }}">{{ s }}</option>
-                            {% empty %}
-                            <option value="" disabled>أضف موردين من التهيئة أولاً</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="flex flex-col gap-sm">
-                        <label class="font-label-md text-label-md text-on-surface" for="orderDate">التاريخ</label>
-                        <input type="date" name="order_date" id="orderDate" value="{{ order_date|date:'Y-m-d' }}"
-                               class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
-                    </div>
+            <div class="app-modal-body flex flex-col gap-sm">
+                <div class="excel-meta-sheet">
+                    <table class="excel-meta-grid">
+                        <tbody>
+                        <tr>
+                            <th>المندوب</th>
+                            <td>
+                                {% if user.is_representative %}
+                                <input type="hidden" name="representative" value="{{ user.pk }}">
+                                <div class="meta-static">{{ user.display_name }}</div>
+                                {% else %}
+                                <select name="representative" id="orderRep" required class="meta-select order-rep-select app-select">
+                                    <option value="">اختر المندوب...</option>
+                                    {% for rep in representatives %}
+                                    <option value="{{ rep.pk }}">{{ rep.display_name }}</option>
+                                    {% empty %}
+                                    <option value="" disabled>لا يوجد مناديب</option>
+                                    {% endfor %}
+                                </select>
+                                {% endif %}
+                            </td>
+                            <th>الفرع</th>
+                            <td>
+                                <select name="branch" id="orderBranch" required class="meta-select order-rep-select app-select">
+                                    <option value="">اختر الفرع...</option>
+                                    {% for b in branches %}
+                                    <option value="{{ b }}" {% if b == default_branch %}selected{% endif %}>{{ b }}</option>
+                                    {% empty %}
+                                    <option value="" disabled>أضف فروعاً من التهيئة أولاً</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>المورد</th>
+                            <td>
+                                <select name="supplier" id="orderSupplier" required class="meta-select order-rep-select app-select">
+                                    <option value="">اختر المورد...</option>
+                                    {% for s in suppliers %}
+                                    <option value="{{ s }}">{{ s }}</option>
+                                    {% empty %}
+                                    <option value="" disabled>أضف موردين من التهيئة أولاً</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <th>التاريخ</th>
+                            <td>
+                                <input type="date" name="order_date" id="orderDate" value="{{ order_date|date:'Y-m-d' }}"
+                                       class="meta-input" required>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
                 </div>
 
-                <div class="flex items-center justify-between gap-sm">
+                <div class="order-items-head">
                     <span class="font-label-md text-label-md font-bold text-on-surface">أصناف الطلبية</span>
-                    <button type="button" id="addOrderRow"
-                            class="flex items-center gap-xs px-md py-2 rounded-lg font-label-md text-label-md text-white bg-blue-600 border border-blue-600 hover:bg-blue-700">
-                        <span class="material-symbols-outlined text-[18px] text-white">add</span>
+                    <button type="button" id="addOrderRow" class="add-row-btn">
+                        <span class="material-symbols-outlined text-[16px] text-white">add</span>
                         إضافة صف
                     </button>
                 </div>
 
-                <div class="excel-sheet overflow-x-auto border border-[#b4b4b4] rounded-sm bg-white shadow-sm">
+                <div class="excel-sheet">
                     <table class="excel-grid w-full text-right border-collapse">
                         <thead>
                         <tr>
-                            <th style="width:44px">#</th>
+                            <th style="width:40px">#</th>
                             <th style="width:100px">رقم الصنف</th>
                             <th>اسم الصنف</th>
-                            <th style="width:110px">العبوة</th>
-                            <th style="width:90px">الكمية</th>
-                            <th style="width:90px">إجراء</th>
+                            <th style="width:100px">العبوة</th>
+                            <th style="width:80px">الكمية</th>
+                            <th style="width:48px"></th>
                         </tr>
                         </thead>
                         <tbody id="orderRows"></tbody>
@@ -392,9 +488,7 @@
             <td>${packageSelectHtml()}</td>
             <td><input class="cell-input num-entry" name="quantity" type="number" min="1" step="1" required value="1" placeholder="1" dir="ltr"></td>
             <td class="cell-action">
-                <div class="row-actions">
-                    <button type="button" class="remove-row" title="حذف الصف">حذف</button>
-                </div>
+                <button type="button" class="remove-row" title="حذف الصف" aria-label="حذف الصف"></button>
             </td>
         `;
         tbody.appendChild(tr);

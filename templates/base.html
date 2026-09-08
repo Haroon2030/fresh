@@ -650,7 +650,7 @@
         .excel-grid,
         .app-data-grid {
             font-family: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
-            font-size: 13px;
+            font-size: 12px;
             width: 100%;
             border-collapse: collapse;
             text-align: right;
@@ -659,7 +659,7 @@
         .excel-grid td,
         .app-data-grid th,
         .app-data-grid td {
-            border: 1px solid #d7e2dc;
+            border: 1px solid #c6c6c6;
             vertical-align: middle;
             background: #fff;
             color: var(--app-text);
@@ -671,7 +671,8 @@
             font-weight: 700;
             font-size: 12px;
             text-align: center;
-            padding: 11px 8px;
+            padding: 6px 8px !important;
+            height: 32px;
             border-color: #1e40af !important;
             white-space: nowrap;
             position: sticky;
@@ -679,6 +680,30 @@
             z-index: 1;
             letter-spacing: 0.02em;
             font-family: 'Cairo', sans-serif;
+        }
+        /* خلايا إكسل موحّدة: صف منخفض مرتّب */
+        .excel-grid tbody td,
+        .app-data-grid tbody td {
+            padding: 0 8px !important;
+            height: 28px;
+            min-height: 28px;
+            line-height: 28px;
+            font-size: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            vertical-align: middle !important;
+        }
+        .excel-grid tbody td:has(.act-btn),
+        .app-data-grid tbody td:has(.act-btn),
+        .excel-grid tbody td:has(.row-actions),
+        .app-data-grid tbody td:has(.row-actions) {
+            height: auto;
+            min-height: 28px;
+            line-height: 1.2;
+            padding: 2px 4px !important;
+            white-space: normal;
+            overflow: visible;
         }
         /* رؤوس أعمدة جداول الأصناف — لون موحّد */
         .batch-detail-modal .excel-grid thead th,
@@ -690,7 +715,8 @@
             font-weight: 700;
             font-size: 12px;
             text-align: center;
-            padding: 10px 8px;
+            padding: 6px 8px !important;
+            height: 32px;
             white-space: nowrap;
             position: sticky;
             top: 0;
@@ -730,18 +756,20 @@
         .app-data-grid tbody tr:hover td {
             background: #dbeafe !important;
         }
-        .app-data-grid td {
-            padding: 10px 8px;
-            font-size: 12px;
-            white-space: nowrap;
-        }
-        .app-data-grid td.cell-strong { font-weight: 600; }
-        .app-data-grid td.cell-center { text-align: center; }
-        .app-data-grid td.empty-row {
+        .app-data-grid td.cell-strong,
+        .excel-grid td.cell-strong { font-weight: 600; }
+        .app-data-grid td.cell-center,
+        .excel-grid td.cell-center { text-align: center; }
+        .app-data-grid td.empty-row,
+        .excel-grid td.empty-row {
             text-align: center;
-            padding: 28px !important;
+            padding: 20px 8px !important;
+            height: auto;
+            max-height: none;
+            line-height: 1.5;
             color: var(--app-text-muted);
             white-space: normal;
+            overflow: visible;
         }
         .app-data-grid td.row-num,
         .excel-grid td.row-num {
@@ -750,17 +778,87 @@
             text-align: center;
             font-size: 12px;
             font-weight: 700;
+            width: 2.5rem;
+            padding: 0 4px !important;
+        }
+        .excel-grid td.cell-action,
+        .app-data-grid td.cell-action {
+            height: auto;
+            max-height: none;
+            min-height: 28px;
+            line-height: 1.2;
+            padding: 2px 4px !important;
+            white-space: normal;
+            overflow: visible;
+        }
+        .excel-grid .cell-input,
+        .excel-grid .cell-select,
+        .app-data-grid .cell-input,
+        .app-data-grid .cell-select {
+            display: block;
+            width: 100%;
+            min-width: 0;
+            height: 28px !important;
+            min-height: 28px !important;
+            margin: 0;
+            border: 0 !important;
+            border-radius: 0 !important;
+            outline: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            padding: 0 8px !important;
+            font-size: 12px !important;
+            line-height: 28px !important;
+            color: #111 !important;
+            text-align: right;
+            box-sizing: border-box;
+        }
+        .excel-grid .cell-select,
+        .app-data-grid .cell-select {
+            padding-inline-start: 28px !important;
+            color: #1e3a8a !important;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .excel-grid .cell-input:focus,
+        .excel-grid .cell-select:focus,
+        .app-data-grid .cell-input:focus,
+        .app-data-grid .cell-select:focus {
+            outline: 2px solid #1d4ed8 !important;
+            outline-offset: -2px;
+            background: #eff6ff !important;
+            position: relative;
+            z-index: 2;
+        }
+        .excel-grid .cell-input[type="number"],
+        .app-data-grid .cell-input[type="number"] {
+            text-align: center;
+            -moz-appearance: textfield;
+        }
+        .excel-grid .cell-input[type="number"]::-webkit-outer-spin-button,
+        .excel-grid .cell-input[type="number"]::-webkit-inner-spin-button,
+        .app-data-grid .cell-input[type="number"]::-webkit-outer-spin-button,
+        .app-data-grid .cell-input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .excel-grid td form,
+        .app-data-grid td form {
+            margin: 0;
+            display: inline-flex;
+            align-items: center;
+            max-width: 100%;
         }
         .status-chip {
             display: inline-flex;
             align-items: center;
             justify-content: center;
             max-width: 100%;
-            padding: 3px 8px;
-            border-radius: 6px;
+            padding: 1px 6px;
+            border-radius: 4px;
             font-size: 10px;
             font-weight: 700;
-            line-height: 1.35;
+            line-height: 1.25;
             white-space: nowrap;
             font-family: 'Cairo', sans-serif;
         }
@@ -770,17 +868,19 @@
         .status-bad { background: #fff1f2; color: #be123c; border: 1px solid #fda4af; }
         .act-btn {
             border: 0;
-            border-radius: 6px;
+            border-radius: 4px;
             cursor: pointer;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 700;
-            padding: 5px 9px;
-            line-height: 1.3;
+            padding: 2px 6px;
+            line-height: 1.25;
             white-space: nowrap;
             display: inline-flex;
             align-items: center;
-            gap: 4px;
+            gap: 2px;
             font-family: 'Cairo', sans-serif;
+            height: 22px;
+            box-sizing: border-box;
         }
         .act-ok { background: #dbeafe; color: #1e3a8a; }
         .act-ok:hover { background: #bfdbfe; }

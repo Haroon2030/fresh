@@ -108,6 +108,39 @@
 .catalog-suggest-wrap.is-filled .catalog-clear-btn { display: inline-flex; }
 .catalog-suggest-wrap.is-filled .catalog-suggest-input { padding-left: 34px; }
 .catalog-clear-btn .material-symbols-outlined { font-size: 16px; line-height: 1; }
+
+/* داخل جداول إكسل: غلاف البحث لا يرفع ارتفاع الخلية */
+.excel-grid .catalog-suggest-wrap,
+.app-data-grid .catalog-suggest-wrap {
+    height: 28px;
+    line-height: 28px;
+}
+.excel-grid .catalog-suggest-wrap .catalog-suggest-input,
+.app-data-grid .catalog-suggest-wrap .catalog-suggest-input {
+    height: 28px !important;
+    min-height: 28px !important;
+    line-height: 28px !important;
+    padding: 0 8px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+.excel-grid .catalog-suggest-wrap.is-filled .catalog-suggest-input,
+.app-data-grid .catalog-suggest-wrap.is-filled .catalog-suggest-input {
+    padding-left: 28px !important;
+    background: #f0fdf4 !important;
+}
+.excel-grid .catalog-clear-btn,
+.app-data-grid .catalog-clear-btn {
+    width: 18px;
+    height: 18px;
+    left: 4px;
+}
+.excel-grid .catalog-clear-btn .material-symbols-outlined,
+.app-data-grid .catalog-clear-btn .material-symbols-outlined {
+    font-size: 14px;
+}
 </style>
 <script>
 window.FarshCatalogSuggest = (function () {
