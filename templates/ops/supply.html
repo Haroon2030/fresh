@@ -314,20 +314,15 @@
                 <td class="col-count cell-center cell-strong">{{ batch.items_count }}</td>
                 <td class="col-actions cell-center cell-action">
                     <div class="row-actions">
+                        <button type="button" class="act-btn act-icon act-view" title="عرض" data-open-batch-view="{{ batch.seed_pk }}">
+                            <span class="material-symbols-outlined">visibility</span>
+                        </button>
                         {% if user.is_manager or batch.representative.id == user.id %}
                         {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
                         <button type="button" class="act-btn act-icon act-edit" title="تعديل" data-open-batch="{{ batch.seed_pk }}">
                             <span class="material-symbols-outlined">edit</span>
                         </button>
-                        {% else %}
-                        <button type="button" class="act-btn act-icon act-view" title="عرض" data-open-batch="{{ batch.seed_pk }}">
-                            <span class="material-symbols-outlined">visibility</span>
-                        </button>
                         {% endif %}
-                        {% else %}
-                        <button type="button" class="act-btn act-icon act-view" title="عرض" data-open-batch="{{ batch.seed_pk }}">
-                            <span class="material-symbols-outlined">visibility</span>
-                        </button>
                         {% endif %}
                         {% if user.is_manager %}
                         {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
@@ -401,19 +396,38 @@
 
 {% block modals %}
 {% for batch in batches %}
+{# مودال العرض (قراءة فقط) #}
+<div class="app-modal hidden batch-detail-modal" id="batchViewModal-{{ batch.seed_pk }}">
+    <div class="app-modal-panel app-modal-panel--xl">
+        <div class="app-modal-head">
+            <div class="app-modal-head-main">
+                <h3>عرض الملف {{ batch.batch_number }}</h3>
+                <p class="app-modal-sub">
+                    {{ batch.representative.display_name }} · {{ batch.branch|default:"—" }} · {{ batch.supplier|default:"—" }} · {{ batch.created_at|date:"Y/m/d" }}
+                </p>
+            </div>
+            <div class="app-modal-head-actions">
+                <a href="{% url 'ops:supply_batch_pdf' batch.seed_pk %}" class="app-modal-head-btn">
+                    <span class="material-symbols-outlined">download</span>
+                    تحميل PDF
+                </a>
+                <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch-view="{{ batch.seed_pk }}">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+        </div>
+        {% include "ops/_supply_batch_readonly.html" with close_attr="data-close-batch-view" %}
+    </div>
+</div>
+
+{% if user.is_manager or batch.representative.id == user.id %}
+{% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
+{# مودال التعديل #}
 <div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.seed_pk }}">
     <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
             <div class="app-modal-head-main">
-                {% if user.is_manager or batch.representative.id == user.id %}
-                {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
                 <h3>تعديل أصناف الملف {{ batch.batch_number }}</h3>
-                {% else %}
-                <h3>أصناف الملف {{ batch.batch_number }}</h3>
-                {% endif %}
-                {% else %}
-                <h3>أصناف الملف {{ batch.batch_number }}</h3>
-                {% endif %}
                 <p class="app-modal-sub">
                     {{ batch.representative.display_name }} · {{ batch.branch|default:"—" }} · {{ batch.supplier|default:"—" }} · {{ batch.created_at|date:"Y/m/d" }}
                 </p>
@@ -428,8 +442,6 @@
                 </button>
             </div>
         </div>
-        {% if user.is_manager or batch.representative.id == user.id %}
-        {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
         <form method="post" action="{% url 'ops:supply_batch_update' batch.seed_pk %}" class="flex flex-col overflow-hidden flex-1 min-h-0">
             {% csrf_token %}
             <div class="app-modal-body">
@@ -493,14 +505,10 @@
                 <button type="submit" class="btn-primary-app">حفظ التعديلات</button>
             </div>
         </form>
-        {% else %}
-        {% include "ops/_supply_batch_readonly.html" %}
-        {% endif %}
-        {% else %}
-        {% include "ops/_supply_batch_readonly.html" %}
-        {% endif %}
     </div>
 </div>
+{% endif %}
+{% endif %}
 {% endfor %}
 
 <div class="app-modal hidden" id="newSupplyModal">
@@ -938,7 +946,15 @@
 <script>
 (function () {
     function openBatch(id) {
-        const modal = document.getElementById('batchModal-' + id);
+        const editModal = document.getElementById('batchModal-' + id);
+        if (editModal) {
+            editModal.classList.remove('hidden');
+            return;
+        }
+        openBatchView(id);
+    }
+    function openBatchView(id) {
+        const modal = document.getElementById('batchViewModal-' + id);
         if (modal) modal.classList.remove('hidden');
     }
     function closeBatch(id) {
@@ -950,13 +966,27 @@
             window.history.replaceState({}, '', url.pathname + url.search);
         }
     }
+    function closeBatchView(id) {
+        const modal = document.getElementById('batchViewModal-' + id);
+        if (modal) modal.classList.add('hidden');
+    }
     document.addEventListener('click', (e) => {
+        const openViewBtn = e.target.closest('[data-open-batch-view]');
+        if (openViewBtn) {
+            openBatchView(openViewBtn.getAttribute('data-open-batch-view'));
+            return;
+        }
         const openBtn = e.target.closest('[data-open-batch]');
         if (openBtn) {
             openBatch(openBtn.getAttribute('data-open-batch'));
             return;
         }
         if (e.target.closest('.act-btn, form.inline')) return;
+        const closeViewBtn = e.target.closest('[data-close-batch-view]');
+        if (closeViewBtn) {
+            closeBatchView(closeViewBtn.getAttribute('data-close-batch-view'));
+            return;
+        }
         const closeBtn = e.target.closest('[data-close-batch]');
         if (closeBtn) {
             closeBatch(closeBtn.getAttribute('data-close-batch'));

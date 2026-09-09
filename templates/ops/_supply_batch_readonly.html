@@ -45,5 +45,5 @@
     </div>
 </div>
 <div class="app-modal-foot">
-    <button type="button" class="btn-ghost-app" data-close-batch="{{ batch.seed_pk }}">إغلاق</button>
+    <button type="button" class="btn-ghost-app" {% if close_attr %}{{ close_attr }}{% else %}data-close-batch{% endif %}="{{ batch.seed_pk }}">إغلاق</button>
 </div>

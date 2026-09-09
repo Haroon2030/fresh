@@ -54,7 +54,7 @@ def _ar(text) -> str:
     raw = str(text or "").strip()
     if not raw:
         return ""
-    # Keep pure LTR codes/dates/numbers intact (#SUPB-0004, 2026/08/22, 522.00)
+    # Keep pure LTR codes/dates/numbers intact (#SUPB-0004, 09-09-2026, 1,234.00)
     if not _has_arabic(raw):
         return raw
     try:
@@ -71,7 +71,7 @@ def _fmt_dt(value) -> str:
         return "—"
     try:
         local = timezone.localtime(value)
-        return local.strftime("%Y/%m/%d %H:%M")
+        return local.strftime("%d-%m-%Y %H:%M")
     except Exception:
         return str(value)
 
@@ -80,16 +80,57 @@ def _fmt_date(value) -> str:
     if not value:
         return "—"
     try:
-        return value.strftime("%Y/%m/%d")
+        return value.strftime("%d-%m-%Y")
     except Exception:
         return str(value)
 
 
 def _money(value) -> str:
     try:
-        return f"{float(value or 0):.2f}"
+        amount = float(value or 0)
+        return f"{amount:,.2f}"
     except Exception:
         return "0.00"
+
+
+def _invoice_total_box(styles, *, grand_total: float, items_count: int = 0) -> Table:
+    """صندوق إجمالي رسمي بأسلوب فاتورة."""
+    page_w = A4[0] - 2.4 * cm
+    label_w = page_w * 0.55
+    value_w = page_w * 0.45
+    total_style = ParagraphStyle(
+        "ArInvoiceTotal",
+        parent=styles["meta_value"],
+        fontSize=12,
+        leading=16,
+        textColor=NAVY,
+        alignment=TA_RIGHT,
+    )
+    rows = []
+    if items_count:
+        rows.append([
+            Paragraph(_ar(str(items_count)), styles["meta_value"]),
+            Paragraph(_ar("عدد الأصناف"), styles["meta_label"]),
+        ])
+    rows.append([
+        Paragraph(_money(grand_total), total_style),
+        Paragraph(_ar("الإجمالي الكلي"), total_style),
+    ])
+    tbl = Table(rows, colWidths=[value_w, label_w])
+    style_cmds = [
+        ("BACKGROUND", (0, 0), (-1, -1), META_BG),
+        ("BOX", (0, 0), (-1, -1), 1.1, NAVY),
+        ("INNERGRID", (0, 0), (-1, -1), 0.4, LINE),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#e8eef5")),
+    ]
+    tbl.setStyle(TableStyle(style_cmds))
+    return tbl
 
 
 def _styles():
@@ -480,25 +521,8 @@ def build_supply_orders_pdf(orders: list, *, actor) -> tuple[bytes, str]:
             ]
         )
     story.append(_data_table(headers, rows, styles))
-    story.append(Spacer(1, 0.25 * cm))
-    total_tbl = Table(
-        [[Paragraph(_ar(f"الإجمالي الكلي: {_money(grand_total)}"), styles["meta_value"])]],
-        colWidths=[A4[0] - 2.4 * cm],
-    )
-    total_tbl.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), META_BG),
-                ("BOX", (0, 0), (-1, -1), 0.6, NAVY_MID),
-                ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-                ("LEFTPADDING", (0, 0), (-1, -1), 10),
-            ]
-        )
-    )
-    story.append(total_tbl)
+    story.append(Spacer(1, 0.35 * cm))
+    story.append(_invoice_total_box(styles, grand_total=grand_total, items_count=len(orders)))
     story.extend(
         _footer_note(
             styles,
