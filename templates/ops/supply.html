@@ -614,6 +614,7 @@
 (function () {
     const tbody = document.getElementById('supplyRows');
     const addBtn = document.getElementById('addSupplyRow');
+    const form = document.getElementById('supplyMultiForm');
     if (!tbody || !addBtn) return;
 
     let catalog = [];
@@ -627,6 +628,21 @@
         tbody.querySelectorAll('tr').forEach((tr, i) => {
             const num = tr.querySelector('[data-row-num]');
             if (num) num.textContent = String(i + 1);
+        });
+    }
+
+    function bindCatalog(tr) {
+        CS.bindRow(tr, {
+            unitField: 'input[name="unit"]',
+            onApply: () => tr.querySelector('input[name="quantity"]')?.focus(),
+            onEnter: (row) => {
+                const name = row.querySelector('input[name="item_name"]')?.value.trim();
+                if (!name) {
+                    row.querySelector('input[name="item_name"]')?.focus();
+                    return;
+                }
+                addRow();
+            },
         });
     }
 
@@ -647,11 +663,17 @@
         `;
         tbody.appendChild(tr);
         renumber();
-        CS.bindRow(tr, {
-            unitField: 'input[name="unit"]',
-            onApply: () => tr.querySelector('input[name="quantity"]')?.focus(),
-        });
+        bindCatalog(tr);
         tr.querySelector('input[name="item_number"]')?.focus();
+    }
+
+    // Enter داخل المودال لا يحفظ ولا يغلق — فقط يتنقّل / يضيف صفاً
+    if (form) {
+        form.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            if (e.target.matches('textarea, button, input[type="submit"]')) return;
+            e.preventDefault();
+        });
     }
 
     addBtn.addEventListener('click', addRow);
@@ -661,6 +683,23 @@
         if (tbody.querySelectorAll('tr').length <= 1) return;
         btn.closest('tr').remove();
         renumber();
+        CS.closeSuggest();
+    });
+    tbody.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        if (e.target.classList.contains('catalog-suggest-input')) return;
+        const cell = e.target.closest('td');
+        if (!cell) return;
+        e.preventDefault();
+        const tr = cell.parentElement;
+        const idx = Array.from(tr.children).indexOf(cell);
+        const nextRow = tr.nextElementSibling;
+        if (nextRow) {
+            const next = nextRow.children[idx]?.querySelector('input, select');
+            if (next) next.focus();
+        } else {
+            addRow();
+        }
     });
 
     addRow();

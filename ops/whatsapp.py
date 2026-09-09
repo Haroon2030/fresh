@@ -157,6 +157,71 @@ def resolve_instance_name() -> str:
     return get_evolution_settings()["instance_name"] or "farshops"
 
 
+def _error_blob(data) -> str:
+    return str(data or "").lower()
+
+
+def is_connection_closed_error(data) -> bool:
+    blob = _error_blob(data)
+    return any(
+        needle in blob
+        for needle in (
+            "connection closed",
+            "session closed",
+            "not connected",
+            'state": "close',
+            "state': 'close",
+        )
+    )
+
+
+def _wants_flat_text_schema(data) -> bool:
+    """Evolution v2 often validates root `text`; textMessage-only payloads fail with this."""
+    blob = _error_blob(data)
+    return 'requires property "text"' in blob or "requires property 'text'" in blob
+
+
+def _wants_text_message_schema(data) -> bool:
+    blob = _error_blob(data)
+    return "textmessage" in blob and ("undefined" in blob or "required" in blob)
+
+
+def ensure_whatsapp_ready() -> dict:
+    """
+    Pre-flight before bulk notify. Avoids N× sendMedia storms when the socket is dead.
+    """
+    if not notify_enabled():
+        return {
+            "ok": False,
+            "error": "الإشعارات غير مفعّلة أو إعدادات Evolution ناقصة.",
+        }
+    info = connection_state()
+    if info.get("ok"):
+        return {"ok": True, "state": info.get("state"), "instance": info.get("instance")}
+
+    instance = resolve_instance_name()
+    # Soft wake — helps after brief disconnects; QR still needed if logged out
+    try:
+        _api(f"/instance/connect/{instance}", timeout=12)
+    except Exception:
+        pass
+    info = connection_state()
+    if info.get("ok"):
+        return {"ok": True, "state": info.get("state"), "instance": instance}
+
+    state = str(info.get("state") or "close")
+    return {
+        "ok": False,
+        "state": state,
+        "instance": instance,
+        "error": (
+            f"جلسة واتساب غير مربوطة (الحالة: {state}). "
+            "افتح /whatsapp/ → تحديث QR وامسح الرمز من جديد للانستانس "
+            f"{instance or 'farshops'}."
+        ),
+    }
+
+
 def _normalize_qr_base64(base64: str) -> str:
     if base64 and not str(base64).startswith("data:"):
         return f"data:image/png;base64,{base64}"
@@ -749,6 +814,7 @@ def send_text(number: str, text: str, *, link_preview: bool = False) -> bool:
         logger.warning("WhatsApp notify disabled or incomplete settings")
         return False
     phone = normalize_whatsapp(number)
+    text = (text or "").strip()
     if not phone or not text:
         return False
 
@@ -757,6 +823,7 @@ def send_text(number: str, text: str, *, link_preview: bool = False) -> bool:
         logger.warning("No Evolution instance for send")
         return False
 
+    # Evolution v2 (current): root-level `text`. Older forks: textMessage.text
     json_body: dict = {"number": phone, "text": text}
     if link_preview:
         json_body["linkPreview"] = True
@@ -767,30 +834,42 @@ def send_text(number: str, text: str, *, link_preview: bool = False) -> bool:
         json_body=json_body,
         timeout=15,
     )
-    if status >= 400 or status == 0:
-        # بعض نسخ Evolution تتوقع textMessage.text
+    if status and status < 400:
+        return True
+
+    # Socket dead — don't retry with a different schema (that yields a misleading 400)
+    if is_connection_closed_error(data) or status == 0:
+        logger.warning("Evolution send failed (%s): %s", status, str(data)[:500])
+        logger.error(
+            "Evolution instance unreachable or dead. "
+            "Check EVOLUTION_INSTANCE_NAME and re-scan QR on /whatsapp/."
+        )
+        return False
+
+    # Only try nested textMessage when the API clearly wants that shape
+    if _wants_text_message_schema(data) or not _wants_flat_text_schema(data):
         alt_body = {
             "number": phone,
             "textMessage": {"text": text},
         }
         if link_preview:
             alt_body["linkPreview"] = True
-        status, data = _api(
+        alt_status, alt_data = _api(
             f"/message/sendText/{instance}",
             method="POST",
             json_body=alt_body,
             timeout=15,
         )
-    if status >= 400 or status == 0:
-        msg = str(data)
-        logger.warning("Evolution send failed (%s): %s", status, msg[:500])
-        if "connection closed" in msg.lower() or "timed out" in msg.lower():
-            logger.error(
-                "Evolution instance unreachable or dead. "
-                "Check EVOLUTION_INSTANCE_NAME=farshops and re-scan QR."
-            )
-        return False
-    return True
+        if alt_status and alt_status < 400:
+            return True
+        # Prefer logging the first error when alt is just a schema mismatch
+        if _wants_flat_text_schema(alt_data) and not is_connection_closed_error(alt_data):
+            logger.warning("Evolution send failed (%s): %s", status, str(data)[:500])
+            return False
+        status, data = alt_status, alt_data
+
+    logger.warning("Evolution send failed (%s): %s", status, str(data)[:500])
+    return False
 
 
 def send_document(
@@ -835,25 +914,29 @@ def send_document(
     # Keep each attempt short so the request/thread cannot stall past Gunicorn timeout
     send_timeout = 18
 
+    def _media_payload(media_value: str) -> dict:
+        return {
+            "number": phone,
+            "mediatype": "document",
+            "mediaType": "document",
+            "mimetype": "application/pdf",
+            "media": media_value,
+            "fileName": filename,
+            "caption": caption,
+        }
+
     # 1) Public URL ending with .pdf (Evolution downloads; our HTTP returns quickly)
     if url_media:
         status, data = _api(
             f"/message/sendMedia/{instance}",
             method="POST",
-            json_body={
-                "number": phone,
-                "mediatype": "document",
-                "mimetype": "application/pdf",
-                "media": url_media,
-                "fileName": filename,
-                "caption": caption,
-            },
+            json_body=_media_payload(url_media),
             timeout=send_timeout,
         )
         if status and status < 400:
             return True
         logger.warning("Evolution sendMedia url failed (%s): %s", status, str(data)[:400])
-        if "connection closed" in str(data).lower():
+        if is_connection_closed_error(data):
             return False
 
     # 2) Raw base64 (no data: URI — rejected by this Evolution build)
@@ -862,19 +945,14 @@ def send_document(
         status, data = _api(
             f"/message/sendMedia/{instance}",
             method="POST",
-            json_body={
-                "number": phone,
-                "mediatype": "document",
-                "mimetype": "application/pdf",
-                "media": b64,
-                "fileName": filename,
-                "caption": caption,
-            },
+            json_body=_media_payload(b64),
             timeout=send_timeout,
         )
         if status and status < 400:
             return True
         logger.warning("Evolution sendMedia base64 failed (%s): %s", status, str(data)[:400])
+        if is_connection_closed_error(data):
+            return False
 
     return False
 
@@ -969,6 +1047,16 @@ def notify_roles(
     if not notify_enabled():
         return {"sent": 0, "total": 0, "phones": [], "error": "الإشعارات غير مفعّلة أو الإعدادات ناقصة."}
 
+    ready = ensure_whatsapp_ready()
+    if not ready.get("ok"):
+        return {
+            "sent": 0,
+            "total": 0,
+            "phones": [],
+            "error": ready.get("error")
+            or "جلسة واتساب غير مربوطة — افتح /whatsapp/ وامسح QR.",
+        }
+
     entries = collect_recipient_entries(include_roles=True, roles=roles)
     skip = {normalize_whatsapp(p) for p in (exclude_phones or set()) if p}
     phones = [e["phone"] for e in entries if e.get("phone") and e["phone"] not in skip]
@@ -995,6 +1083,9 @@ def notify_roles(
             ok = send_text(phone, message)
         if ok:
             sent += 1
+        else:
+            # Don't spam every role number when the socket is closed
+            break
     err = None
     if sent == 0:
         err = (
@@ -1028,6 +1119,17 @@ def notify_with_pdf(
     if not pdf_bytes and not media_url:
         return {"sent": 0, "total": len(recipients), "phones": [], "error": "تعذّر إنشاء ملف PDF."}
 
+    ready = ensure_whatsapp_ready()
+    if not ready.get("ok"):
+        phones = [e.get("phone") or "" for e in recipients if e.get("phone")]
+        return {
+            "sent": 0,
+            "total": len({p for p in phones if p}),
+            "phones": phones,
+            "error": ready.get("error")
+            or "جلسة واتساب غير مربوطة — افتح /whatsapp/ وامسح QR.",
+        }
+
     if media_url:
         media_url = to_whatsapp_clickable_url(media_url)
 
@@ -1043,9 +1145,12 @@ def notify_with_pdf(
 
     sent = 0
     phones = []
+    connection_dead = False
     for entry in unique:
         phone = entry.get("phone") or ""
         phones.append(phone)
+        if connection_dead:
+            continue
         caption = (entry.get("message") or message or "").strip()
         # WhatsApp caption hard limit ~1024
         if len(caption) > 1000:
@@ -1063,6 +1168,9 @@ def notify_with_pdf(
                 if media_url:
                     fallback = (fallback + format_wa_link_block(media_url, label="📄 *تحميل PDF*")).strip()
                 ok = send_text(phone, fallback, link_preview=bool(media_url))
+                if not ok:
+                    # Stop hammering Evolution when the WhatsApp socket is down
+                    connection_dead = True
             if ok:
                 sent += 1
         except Exception:
@@ -1072,6 +1180,11 @@ def notify_with_pdf(
     if sent == 0:
         if not any(phones):
             err = "لا توجد أرقام واتساب للمستلمين. احفظ أرقام الأدوار في شاشة واتساب."
+        elif connection_dead:
+            err = (
+                "فشل إرسال واتساب: الجلسة غير مربوطة (Connection Closed). "
+                "افتح /whatsapp/ → تحديث QR وامسح الرمز (farshops)."
+            )
         else:
             err = (
                 "فشل إرسال واتساب: الجلسة غير مربوطة أو Evolution بطيء. "

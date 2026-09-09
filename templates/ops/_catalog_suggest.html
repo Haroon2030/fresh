@@ -352,15 +352,27 @@ window.FarshCatalogSuggest = (function () {
         if (focusEl) openSuggestFor(focusEl, tr, opts);
     }
 
+    function resolveCatalogItem(item) {
+        if (!item || typeof item !== 'object') return null;
+        const number = String(item.item_number ?? item.number ?? '').trim();
+        const name = String(item.name ?? item.item_name ?? '').trim();
+        const unit = String(item.unit ?? '').trim();
+        if (!number && !name) return null;
+        return { item_number: number, name, unit };
+    }
+
     function applyItem(tr, item, options) {
-        if (!tr || !item) return;
+        if (!tr) return;
+        const resolved = resolveCatalogItem(item);
+        if (!resolved) return;
         const opts = options || {};
+        // Always map by input name — never by column order / typed field
         const numInput = tr.querySelector('input[name="item_number"]');
         const nameInput = tr.querySelector('input[name="item_name"]');
-        if (numInput) numInput.value = item.item_number || '';
-        if (nameInput) nameInput.value = item.name || '';
+        if (numInput) numInput.value = resolved.item_number;
+        if (nameInput) nameInput.value = resolved.name;
 
-        const units = String(item.unit || '').split(/[،,]/).map((u) => u.trim()).filter(Boolean);
+        const units = String(resolved.unit || '').split(/[،,]/).map((u) => u.trim()).filter(Boolean);
         if (opts.unitField) {
             const unitEl = tr.querySelector(opts.unitField);
             if (unitEl && units.length) {
@@ -387,7 +399,7 @@ window.FarshCatalogSuggest = (function () {
         }
         markFilled(tr);
         closeSuggest();
-        if (typeof opts.onApply === 'function') opts.onApply(tr, item);
+        if (typeof opts.onApply === 'function') opts.onApply(tr, resolved);
     }
 
     function highlightActive(menu) {
@@ -407,11 +419,16 @@ window.FarshCatalogSuggest = (function () {
         } else {
             html = items.map((item, idx) => {
                 const unit = String(item.unit || '').trim();
+                const num = String(item.item_number || '').trim();
+                const name = String(item.name || '').trim();
                 return `
-                <button type="button" class="catalog-suggest-item" data-idx="${idx}">
-                    <span class="catalog-suggest-name">${escapeHtml(item.name || '—')}</span>
+                <button type="button" class="catalog-suggest-item" data-idx="${idx}"
+                    data-item-number="${escapeHtml(num)}"
+                    data-item-name="${escapeHtml(name)}"
+                    data-item-unit="${escapeHtml(unit)}">
+                    <span class="catalog-suggest-name">${escapeHtml(name || '—')}</span>
                     <span class="catalog-suggest-meta">
-                        <span class="catalog-suggest-num">${escapeHtml(item.item_number || '—')}</span>
+                        <span class="catalog-suggest-num">${escapeHtml(num || '—')}</span>
                         ${unit ? `<span class="catalog-suggest-unit">${escapeHtml(unit)}</span>` : ''}
                     </span>
                 </button>`;
@@ -431,10 +448,24 @@ window.FarshCatalogSuggest = (function () {
         activeInput = input || null;
         positionMenu(menu, input);
         if (activeItems.length) highlightActive(menu);
-        menu.onclick = (e) => {
+
+        function itemFromButton(btn) {
+            if (!btn) return null;
+            const fromAttr = resolveCatalogItem({
+                item_number: btn.getAttribute('data-item-number') || '',
+                name: btn.getAttribute('data-item-name') || '',
+                unit: btn.getAttribute('data-item-unit') || '',
+            });
+            if (fromAttr && (fromAttr.item_number || fromAttr.name)) return fromAttr;
+            const idx = Number(btn.getAttribute('data-idx'));
+            return resolveCatalogItem(activeItems[idx]);
+        }
+
+        function handleMenuAction(e) {
             const actionBtn = e.target.closest('[data-suggest-action]');
             if (actionBtn) {
                 e.preventDefault();
+                e.stopPropagation();
                 const action = actionBtn.getAttribute('data-suggest-action');
                 if (action === 'clear') {
                     clearRow(tr, true, options);
@@ -452,7 +483,22 @@ window.FarshCatalogSuggest = (function () {
             }
             const btn = e.target.closest('.catalog-suggest-item');
             if (!btn) return;
-            applyItem(tr, activeItems[Number(btn.getAttribute('data-idx'))], options);
+            e.preventDefault();
+            e.stopPropagation();
+            applyItem(tr, itemFromButton(btn), options);
+        }
+
+        // mousedown before blur — avoids empty activeItems / wrong pick after focus loss
+        menu.onmousedown = (e) => {
+            if (e.target.closest('.catalog-suggest-item, [data-suggest-action]')) {
+                e.preventDefault();
+                handleMenuAction(e);
+            }
+        };
+        menu.onclick = (e) => {
+            if (e.target.closest('.catalog-suggest-item, [data-suggest-action]')) {
+                e.preventDefault();
+            }
         };
     }
 
@@ -477,6 +523,13 @@ window.FarshCatalogSuggest = (function () {
             positionMenu(menu, input);
             menu.onclick = (e) => {
                 if (e.target.closest('[data-suggest-action="clear"]')) {
+                    e.preventDefault();
+                    clearRow(tr, input.name === 'item_name', options);
+                }
+            };
+            menu.onmousedown = (e) => {
+                if (e.target.closest('[data-suggest-action="clear"]')) {
+                    e.preventDefault();
                     clearRow(tr, input.name === 'item_name', options);
                 }
             };
@@ -510,10 +563,18 @@ window.FarshCatalogSuggest = (function () {
                     e.preventDefault();
                     activeIndex = (activeIndex - 1 + activeItems.length) % activeItems.length;
                     highlightActive(menu);
-                } else if (e.key === 'Enter' && open && activeIndex >= 0) {
+                } else if (e.key === 'Enter') {
+                    // Never submit/close the parent modal from catalog fields
                     e.preventDefault();
                     e.stopPropagation();
-                    applyItem(tr, activeItems[activeIndex], opts);
+                    if (open && activeIndex >= 0 && activeItems[activeIndex]) {
+                        applyItem(tr, activeItems[activeIndex], opts);
+                        return;
+                    }
+                    closeSuggest();
+                    if (typeof opts.onEnter === 'function') {
+                        opts.onEnter(tr, input, e);
+                    }
                 } else if (e.key === 'Escape') {
                     closeSuggest();
                 } else if ((e.key === 'Backspace' || e.key === 'Delete') && e.ctrlKey) {
