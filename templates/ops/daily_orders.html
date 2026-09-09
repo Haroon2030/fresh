@@ -222,8 +222,7 @@
             </thead>
             <tbody>
             {% for batch in batches %}
-            <tr class="batch-row {% if batch.display_status != 'pending' %}row-done{% endif %}"
-                data-open-batch="{{ batch.seed_pk }}" style="cursor:pointer">
+            <tr class="batch-row {% if batch.display_status != 'pending' %}row-done{% endif %}">
                 <td class="row-num cell-center">{{ forloop.counter }}</td>
                 <td class="cell-strong" dir="ltr">{{ batch.batch_number }}</td>
                 <td class="cell-strong">{{ batch.representative.display_name }}</td>
@@ -242,27 +241,44 @@
                     {% endif %}
                 </td>
                 <td class="cell-center cell-strong">{{ batch.items_count }}</td>
-                <td class="cell-center" onclick="event.stopPropagation()">
-                    <div class="flex flex-wrap gap-1 justify-center">
-                        <a href="{% url 'ops:daily_order_batch_pdf' batch.seed_pk %}" class="act-btn act-pdf" title="تحميل ملف PDF">PDF</a>
-                        <button type="button" class="act-btn act-view" data-open-batch="{{ batch.seed_pk }}">عرض الأصناف</button>
+                <td class="cell-center cell-action">
+                    <div class="row-actions">
+                        <button type="button" class="act-btn act-icon act-view" title="عرض" data-open-batch-view="{{ batch.seed_pk }}">
+                            <span class="material-symbols-outlined">visibility</span>
+                        </button>
+                        {% if user.is_manager or batch.representative.id == user.id %}
+                        {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
+                        <button type="button" class="act-btn act-icon act-edit" title="تعديل" data-open-batch="{{ batch.seed_pk }}">
+                            <span class="material-symbols-outlined">edit</span>
+                        </button>
+                        {% endif %}
+                        {% endif %}
+                        <a href="{% url 'ops:daily_order_batch_pdf' batch.seed_pk %}" class="act-btn act-icon act-pdf" title="تحميل PDF">
+                            <span class="material-symbols-outlined">download</span>
+                        </a>
                         {% if user.is_manager %}
                         {% if batch.display_status == 'pending' %}
-                        <form method="post" action="{% url 'ops:daily_order_approve' batch.seed_pk %}" class="inline"
+                        <form method="post" action="{% url 'ops:daily_order_approve' batch.seed_pk %}"
                               onsubmit="return confirm('اعتماد الملف وإرسال PDF للمورد؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-approve">اعتماد</button>
+                            <button type="submit" class="act-btn act-icon act-approve" title="اعتماد">
+                                <span class="material-symbols-outlined">check</span>
+                            </button>
                         </form>
-                        <form method="post" action="{% url 'ops:daily_order_reject' batch.seed_pk %}" class="inline"
+                        <form method="post" action="{% url 'ops:daily_order_reject' batch.seed_pk %}"
                               onsubmit="return confirm('رفض ملف الطلبية؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-reject">رفض</button>
+                            <button type="submit" class="act-btn act-icon act-reject" title="رفض">
+                                <span class="material-symbols-outlined">close</span>
+                            </button>
                         </form>
                         {% endif %}
-                        <form method="post" action="{% url 'ops:daily_order_delete' batch.seed_pk %}" class="inline"
+                        <form method="post" action="{% url 'ops:daily_order_delete' batch.seed_pk %}"
                               onsubmit="return confirm('حذف ملف {{ batch.batch_number }} وجميع أصنافه؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-delete">حذف</button>
+                            <button type="submit" class="act-btn act-icon act-delete" title="حذف">
+                                <span class="material-symbols-outlined">delete</span>
+                            </button>
                         </form>
                         {% endif %}
                     </div>
@@ -283,11 +299,11 @@
 
 {% block modals %}
 {% for batch in batches %}
-<div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.seed_pk }}">
+<div class="app-modal hidden batch-detail-modal" id="batchViewModal-{{ batch.seed_pk }}">
     <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
             <div class="app-modal-head-main">
-                <h3>أصناف الملف {{ batch.batch_number }}</h3>
+                <h3>عرض الملف {{ batch.batch_number }}</h3>
                 <p class="app-modal-sub">
                     {{ batch.representative.display_name }} · {{ batch.branch }} · {{ batch.supplier|default:"—" }} · {{ batch.order_date|date:"Y/m/d" }}
                 </p>
@@ -297,7 +313,7 @@
                     <span class="material-symbols-outlined">download</span>
                     تحميل PDF
                 </a>
-                <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch="{{ batch.seed_pk }}">
+                <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch-view="{{ batch.seed_pk }}">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
@@ -341,10 +357,97 @@
             </div>
         </div>
         <div class="app-modal-foot">
-            <button type="button" class="btn-ghost-app" data-close-batch="{{ batch.seed_pk }}">إغلاق</button>
+            <button type="button" class="btn-ghost-app" data-close-batch-view="{{ batch.seed_pk }}">إغلاق</button>
         </div>
     </div>
 </div>
+
+{% if user.is_manager or batch.representative.id == user.id %}
+{% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
+<div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.seed_pk }}">
+    <div class="app-modal-panel app-modal-panel--xl">
+        <div class="app-modal-head">
+            <div class="app-modal-head-main">
+                <h3>تعديل أصناف الملف {{ batch.batch_number }}</h3>
+                <p class="app-modal-sub">
+                    {{ batch.representative.display_name }} · {{ batch.branch }} · {{ batch.supplier|default:"—" }} · {{ batch.order_date|date:"Y/m/d" }}
+                </p>
+            </div>
+            <div class="app-modal-head-actions">
+                <a href="{% url 'ops:daily_order_batch_pdf' batch.seed_pk %}" class="app-modal-head-btn">
+                    <span class="material-symbols-outlined">download</span>
+                    تحميل PDF
+                </a>
+                <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch="{{ batch.seed_pk }}">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+        </div>
+        <form method="post" action="{% url 'ops:daily_order_batch_update' batch.seed_pk %}" class="flex flex-col overflow-hidden flex-1 min-h-0">
+            {% csrf_token %}
+            <div class="app-modal-body">
+                <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+                    <table class="excel-grid batch-detail-grid w-full">
+                        <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>رقم الصنف</th>
+                            <th>اسم الصنف</th>
+                            <th>العبوة</th>
+                            <th>الكمية</th>
+                            <th>الحالة</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for order in batch.items %}
+                        <tr>
+                            <td class="cell-center">{{ forloop.counter }}</td>
+                            {% if order.status == 'pending' %}
+                            <td>
+                                <input type="hidden" name="order_id" value="{{ order.pk }}">
+                                <input name="item_number" type="text" value="{{ order.item_number }}" class="cell-input" dir="ltr" placeholder="رقم الصنف">
+                            </td>
+                            <td><input name="item_name" type="text" value="{{ order.item_name }}" required class="cell-input" placeholder="اسم الصنف"></td>
+                            <td>
+                                <select name="package" class="cell-input cell-select app-select">
+                                    <option value="">اختر...</option>
+                                    {% for p in package_choices %}
+                                    <option value="{{ p }}" {% if order.package == p %}selected{% endif %}>{{ p }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><input name="quantity" type="number" min="1" value="{{ order.quantity }}" required class="cell-input num-entry"></td>
+                            <td class="cell-center"><span class="status-chip status-pending">قيد الاعتماد</span></td>
+                            {% else %}
+                            <td dir="ltr">{{ order.item_number|default:"—" }}</td>
+                            <td class="cell-strong">{{ order.item_name }}</td>
+                            <td class="cell-center">{{ order.package|default:"—" }}</td>
+                            <td class="cell-center cell-strong">{{ order.quantity }}</td>
+                            <td class="cell-center">
+                                {% if order.status == 'approved' %}
+                                <span class="status-chip status-ok">معتمد</span>
+                                {% else %}
+                                <span class="status-chip status-bad">مرفوض</span>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="empty-row">لا أصناف.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="app-modal-foot">
+                <button type="button" class="btn-ghost-app" data-close-batch="{{ batch.seed_pk }}">إلغاء</button>
+                <button type="submit" class="btn-primary-app">حفظ التعديلات</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endif %}
 {% endfor %}
 
 <div class="app-modal hidden" id="newOrderModal">
@@ -430,8 +533,8 @@
                         <thead>
                         <tr>
                             <th style="width:40px">#</th>
-                            <th style="width:100px">رقم الصنف</th>
                             <th>اسم الصنف</th>
+                            <th style="width:100px">رقم الصنف</th>
                             <th style="width:100px">العبوة</th>
                             <th style="width:80px">الكمية</th>
                             <th style="width:48px"></th>
@@ -440,7 +543,7 @@
                         <tbody id="orderRows"></tbody>
                     </table>
                 </div>
-                <p class="text-xs text-on-surface-variant font-bold m-0">الأعمدة: رقم الصنف · اسم الصنف · العبوة · الكمية — يمكن إضافة نفس الصنف بعبوات مختلفة.</p>
+                <p class="text-xs text-on-surface-variant font-bold m-0">اكتب صنف جديد حتى لو غير موجود في الكتالوج — Enter يضيف صفاً ولا يحفظ المودال.</p>
             </div>
             <div class="app-modal-foot">
                 <button type="button" class="btn-ghost-app"
@@ -456,6 +559,7 @@
 (function () {
     const tbody = document.getElementById('orderRows');
     const addBtn = document.getElementById('addOrderRow');
+    const form = document.getElementById('orderMultiForm');
     if (!tbody || !addBtn) return;
 
     let catalog = [];
@@ -479,12 +583,28 @@
         });
     }
 
+    function bindCatalog(tr) {
+        CS.bindRow(tr, {
+            packageField: 'select[name="package"]',
+            packageChoices: packageOptions,
+            onApply: () => tr.querySelector('select[name="package"]')?.focus(),
+            onEnter: (row) => {
+                const name = row.querySelector('input[name="item_name"]')?.value.trim();
+                if (!name) {
+                    row.querySelector('input[name="item_name"]')?.focus();
+                    return;
+                }
+                addRow();
+            },
+        });
+    }
+
     function addRow() {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="row-num" data-row-num></td>
-            <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: 'cell-input catalog-suggest-input' })}</td>
             <td>${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: 'cell-input catalog-suggest-input' })}</td>
+            <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: 'cell-input catalog-suggest-input' })}</td>
             <td>${packageSelectHtml()}</td>
             <td><input class="cell-input num-entry" name="quantity" type="number" min="1" step="1" required value="1" placeholder="1" dir="ltr"></td>
             <td class="cell-action">
@@ -493,12 +613,29 @@
         `;
         tbody.appendChild(tr);
         renumber();
-        CS.bindRow(tr, {
-            packageField: 'select[name="package"]',
-            packageChoices: packageOptions,
-            onApply: () => tr.querySelector('select[name="package"]')?.focus(),
+        bindCatalog(tr);
+        tr.querySelector('input[name="item_name"]')?.focus();
+    }
+
+    if (form) {
+        form.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            if (e.target.matches('textarea, button, input[type="submit"]')) return;
+            e.preventDefault();
         });
-        tr.querySelector('input[name="item_number"]')?.focus();
+        form.addEventListener('submit', (e) => {
+            CS.closeSuggest();
+            const rows = [...tbody.querySelectorAll('tr')];
+            const filled = rows.filter((tr) => tr.querySelector('input[name="item_name"]')?.value.trim());
+            if (!filled.length) {
+                e.preventDefault();
+                rows[0]?.querySelector('input[name="item_name"]')?.focus();
+                return;
+            }
+            rows.forEach((tr) => {
+                if (!tr.querySelector('input[name="item_name"]')?.value.trim()) tr.remove();
+            });
+        });
     }
 
     addBtn.addEventListener('click', addRow);
@@ -530,38 +667,5 @@
     addRow();
 })();
 </script>
-<script>
-(function () {
-    function openBatch(id) {
-        const modal = document.getElementById('batchModal-' + id);
-        if (modal) modal.classList.remove('hidden');
-    }
-    function closeBatch(id) {
-        const modal = document.getElementById('batchModal-' + id);
-        if (modal) modal.classList.add('hidden');
-        const url = new URL(window.location.href);
-        if (url.searchParams.get('open')) {
-            url.searchParams.delete('open');
-            window.history.replaceState({}, '', url.pathname + url.search);
-        }
-    }
-    document.addEventListener('click', (e) => {
-        const openBtn = e.target.closest('[data-open-batch]');
-        if (openBtn) {
-            openBatch(openBtn.getAttribute('data-open-batch'));
-            return;
-        }
-        const closeBtn = e.target.closest('[data-close-batch]');
-        if (closeBtn) {
-            closeBatch(closeBtn.getAttribute('data-close-batch'));
-            return;
-        }
-        if (e.target.classList.contains('batch-detail-modal')) {
-            e.target.classList.add('hidden');
-        }
-    });
-    const openId = '{{ open_batch|default:""|escapejs }}';
-    if (openId) openBatch(openId);
-})();
-</script>
+{% include "ops/_batch_modals_js.html" %}
 {% endblock %}

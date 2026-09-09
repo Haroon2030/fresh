@@ -89,7 +89,7 @@
             </thead>
             <tbody>
             {% for batch in batches %}
-            <tr class="batch-row {% if batch.display_status == 'approved' %}row-done{% endif %}" data-open-batch="{{ batch.seed_pk }}" style="cursor:pointer">
+            <tr class="batch-row {% if batch.display_status == 'approved' %}row-done{% endif %}">
                 <td class="row-num cell-center">{{ forloop.counter }}</td>
                 <td class="cell-strong" dir="ltr">{{ batch.batch_number }}</td>
                 <td class="cell-center cell-strong">{{ batch.items_count }}</td>
@@ -105,19 +105,33 @@
                     <span class="status-chip status-pending">قيد الانتظار</span>
                     {% endif %}
                 </td>
-                <td class="cell-center" onclick="event.stopPropagation()">
-                    <div class="flex flex-wrap gap-1 justify-center">
+                <td class="cell-center cell-action">
+                    <div class="row-actions">
+                        <button type="button" class="act-btn act-icon act-view" title="عرض" data-open-batch-view="{{ batch.seed_pk }}">
+                            <span class="material-symbols-outlined">visibility</span>
+                        </button>
+                        {% if batch.display_status != 'approved' %}
+                        {% if user.is_manager or batch.representative.id == user.id %}
+                        <button type="button" class="act-btn act-icon act-edit" title="تعديل" data-open-batch="{{ batch.seed_pk }}">
+                            <span class="material-symbols-outlined">edit</span>
+                        </button>
+                        {% endif %}
+                        {% endif %}
                         {% if user.is_manager and batch.display_status != 'approved' %}
-                        <form method="post" action="{% url 'ops:offers_batch_approve' batch.seed_pk %}" class="inline"
+                        <form method="post" action="{% url 'ops:offers_batch_approve' batch.seed_pk %}"
                               onsubmit="return confirm('اعتماد ملف {{ batch.batch_number }} وإرسال PDF عبر واتساب؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-approve">اعتماد</button>
+                            <button type="submit" class="act-btn act-icon act-approve" title="اعتماد">
+                                <span class="material-symbols-outlined">check</span>
+                            </button>
                         </form>
                         {% endif %}
-                        <form method="post" action="{% url 'ops:offers_batch_delete' batch.seed_pk %}" class="inline"
+                        <form method="post" action="{% url 'ops:offers_batch_delete' batch.seed_pk %}"
                               onsubmit="return confirm('حذف ملف {{ batch.batch_number }} وجميع أصنافه؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-delete">حذف</button>
+                            <button type="submit" class="act-btn act-icon act-delete" title="حذف">
+                                <span class="material-symbols-outlined">delete</span>
+                            </button>
                         </form>
                     </div>
                 </td>
@@ -158,6 +172,69 @@
 
 {% block modals %}
 {% for batch in batches %}
+<div class="app-modal hidden batch-detail-modal" id="batchViewModal-{{ batch.seed_pk }}">
+    <div class="app-modal-panel app-modal-panel--xl">
+        <div class="app-modal-head">
+            <div class="app-modal-head-main">
+                <h3>عرض الملف {{ batch.batch_number }}</h3>
+                <p class="app-modal-sub">
+                    المندوب: {{ batch.representative.display_name }} · {{ batch.created_by.display_name }} · {{ batch.created_at|date:"Y/m/d" }} · {{ batch.items_count }} صنف
+                </p>
+            </div>
+            <div class="app-modal-head-actions">
+                <a href="{% url 'ops:offers_batch_pdf' batch.seed_pk %}" class="app-modal-head-btn">
+                    <span class="material-symbols-outlined">download</span>
+                    تحميل PDF
+                </a>
+                <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch-view="{{ batch.seed_pk }}">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+        </div>
+        <div class="app-modal-body">
+            <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+                <table class="excel-grid batch-detail-grid w-full">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>رقم الصنف</th>
+                        <th>الاسم</th>
+                        <th>الكمية</th>
+                        <th>العبوة</th>
+                        <th>الحالة</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for item in batch.items %}
+                    <tr>
+                        <td class="cell-center">{{ forloop.counter }}</td>
+                        <td dir="ltr">{{ item.item_number|default:"—" }}</td>
+                        <td class="cell-strong">{{ item.item_name }}</td>
+                        <td class="cell-center cell-strong">{{ item.quantity }}</td>
+                        <td class="cell-center">{{ item.package|default:"—" }}</td>
+                        <td class="cell-center">
+                            {% if item.status == 'approved' %}
+                            <span class="status-chip status-ok">معتمد</span>
+                            {% else %}
+                            <span class="status-chip status-pending">قيد الانتظار</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="empty-row">لا أصناف.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="app-modal-foot">
+            <button type="button" class="btn-ghost-app" data-close-batch-view="{{ batch.seed_pk }}">إغلاق</button>
+        </div>
+    </div>
+</div>
+
+{% if batch.display_status != 'approved' %}
+{% if user.is_manager or batch.representative.id == user.id %}
 <div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.seed_pk }}">
     <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
@@ -189,12 +266,14 @@
                             <th>الاسم</th>
                             <th>الكمية</th>
                             <th>العبوة</th>
+                            <th>الحالة</th>
                         </tr>
                         </thead>
                         <tbody>
                         {% for item in batch.items %}
                         <tr>
                             <td class="cell-center">{{ forloop.counter }}</td>
+                            {% if item.status == 'pending' %}
                             <td>
                                 <input type="hidden" name="order_id" value="{{ item.pk }}">
                                 <input name="item_number" type="text" value="{{ item.item_number }}" class="cell-input" dir="ltr" placeholder="رقم الصنف">
@@ -209,9 +288,17 @@
                                     {% endfor %}
                                 </select>
                             </td>
+                            <td class="cell-center"><span class="status-chip status-pending">قيد الانتظار</span></td>
+                            {% else %}
+                            <td dir="ltr">{{ item.item_number|default:"—" }}</td>
+                            <td class="cell-strong">{{ item.item_name }}</td>
+                            <td class="cell-center cell-strong">{{ item.quantity }}</td>
+                            <td class="cell-center">{{ item.package|default:"—" }}</td>
+                            <td class="cell-center"><span class="status-chip status-ok">معتمد</span></td>
+                            {% endif %}
                         </tr>
                         {% empty %}
-                        <tr><td colspan="5" class="empty-row">لا أصناف.</td></tr>
+                        <tr><td colspan="6" class="empty-row">لا أصناف.</td></tr>
                         {% endfor %}
                         </tbody>
                     </table>
@@ -224,6 +311,8 @@
         </form>
     </div>
 </div>
+{% endif %}
+{% endif %}
 {% endfor %}
 
 <div class="app-modal hidden" id="newOfferModal">
@@ -275,8 +364,8 @@
                         <thead>
                         <tr>
                             <th style="width:44px">#</th>
-                            <th>رقم الصنف</th>
                             <th>الاسم</th>
+                            <th>رقم الصنف</th>
                             <th style="width:90px">الكمية</th>
                             <th style="width:120px">العبوة</th>
                             <th style="width:72px">إجراء</th>
@@ -285,7 +374,7 @@
                         <tbody id="offerRows"></tbody>
                     </table>
                 </div>
-                <p class="font-body-md text-body-md text-on-surface-variant text-xs">الأعمدة: رقم الصنف · الاسم · الكمية · العبوة — حفظ الملف يجمع الصفوف برقم واحد.</p>
+                <p class="font-body-md text-body-md text-on-surface-variant text-xs">اكتب صنف جديد حتى لو غير موجود في الكتالوج — Enter يضيف صفاً ولا يحفظ المودال.</p>
             </div>
             <div class="app-modal-foot">
                 <button type="button" class="btn-ghost-app"
@@ -303,6 +392,7 @@
 (function () {
     const tbody = document.getElementById('offerRows');
     const addBtn = document.getElementById('addOfferRow');
+    const form = document.getElementById('offerMultiForm');
     if (!tbody || !addBtn) return;
 
     let catalog = [];
@@ -325,12 +415,28 @@
         });
     }
 
+    function bindCatalog(tr) {
+        CS.bindRow(tr, {
+            packageField: 'select[name="package"]',
+            packageChoices: packageOptions,
+            onApply: () => tr.querySelector('input[name="quantity"]')?.focus(),
+            onEnter: (row) => {
+                const name = row.querySelector('input[name="item_name"]')?.value.trim();
+                if (!name) {
+                    row.querySelector('input[name="item_name"]')?.focus();
+                    return;
+                }
+                addRow();
+            },
+        });
+    }
+
     function addRow() {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="row-num" data-row-num></td>
-            <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: 'cell-input catalog-suggest-input' })}</td>
             <td>${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: 'cell-input catalog-suggest-input' })}</td>
+            <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: 'cell-input catalog-suggest-input' })}</td>
             <td><input class="cell-input num-entry" name="quantity" type="number" min="1" required value="1" placeholder="1"></td>
             <td>${packageSelectHtml()}</td>
             <td class="cell-action">
@@ -341,12 +447,29 @@
         `;
         tbody.appendChild(tr);
         renumber();
-        CS.bindRow(tr, {
-            packageField: 'select[name="package"]',
-            packageChoices: packageOptions,
-            onApply: () => tr.querySelector('input[name="quantity"]')?.focus(),
+        bindCatalog(tr);
+        tr.querySelector('input[name="item_name"]')?.focus();
+    }
+
+    if (form) {
+        form.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            if (e.target.matches('textarea, button, input[type="submit"]')) return;
+            e.preventDefault();
         });
-        tr.querySelector('input[name="item_number"]')?.focus();
+        form.addEventListener('submit', (e) => {
+            CS.closeSuggest();
+            const rows = [...tbody.querySelectorAll('tr')];
+            const filled = rows.filter((tr) => tr.querySelector('input[name="item_name"]')?.value.trim());
+            if (!filled.length) {
+                e.preventDefault();
+                rows[0]?.querySelector('input[name="item_name"]')?.focus();
+                return;
+            }
+            rows.forEach((tr) => {
+                if (!tr.querySelector('input[name="item_name"]')?.value.trim()) tr.remove();
+            });
+        });
     }
 
     addBtn.addEventListener('click', addRow);
@@ -356,6 +479,23 @@
         if (tbody.querySelectorAll('tr').length <= 1) return;
         btn.closest('tr').remove();
         renumber();
+        CS.closeSuggest();
+    });
+    tbody.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        if (e.target.classList.contains('catalog-suggest-input')) return;
+        const cell = e.target.closest('td');
+        if (!cell) return;
+        e.preventDefault();
+        const tr = cell.parentElement;
+        const idx = Array.from(tr.children).indexOf(cell);
+        const nextRow = tr.nextElementSibling;
+        if (nextRow) {
+            const next = nextRow.children[idx]?.querySelector('input, select');
+            if (next) next.focus();
+        } else {
+            addRow();
+        }
     });
     addRow();
 })();
@@ -375,39 +515,5 @@
     });
 })();
 </script>
-<script>
-(function () {
-    function openBatch(id) {
-        const modal = document.getElementById('batchModal-' + id);
-        if (modal) modal.classList.remove('hidden');
-    }
-    function closeBatch(id) {
-        const modal = document.getElementById('batchModal-' + id);
-        if (modal) modal.classList.add('hidden');
-        const url = new URL(window.location.href);
-        if (url.searchParams.get('open')) {
-            url.searchParams.delete('open');
-            window.history.replaceState({}, '', url.pathname + url.search);
-        }
-    }
-    document.addEventListener('click', (e) => {
-        if (e.target.closest('td[onclick], .act-btn, form.inline')) return;
-        const openBtn = e.target.closest('[data-open-batch]');
-        if (openBtn) {
-            openBatch(openBtn.getAttribute('data-open-batch'));
-            return;
-        }
-        const closeBtn = e.target.closest('[data-close-batch]');
-        if (closeBtn) {
-            closeBatch(closeBtn.getAttribute('data-close-batch'));
-            return;
-        }
-        if (e.target.classList.contains('batch-detail-modal')) {
-            e.target.classList.add('hidden');
-        }
-    });
-    const openId = '{{ open_batch|default:""|escapejs }}';
-    if (openId) openBatch(openId);
-})();
-</script>
+{% include "ops/_batch_modals_js.html" %}
 {% endblock %}

@@ -457,6 +457,7 @@
                             <th>الكمية</th>
                             <th>الإجمالي</th>
                             <th>الحالة</th>
+                            <th style="width:56px"></th>
                         </tr>
                         </thead>
                         <tbody>
@@ -478,6 +479,15 @@
                             </td>
                             <td class="cell-center cell-strong" dir="ltr" data-edit-total>{{ order.total_amount|floatformat:2 }}</td>
                             <td class="cell-center"><span class="status-chip status-pending">قيد الانتظار</span></td>
+                            <td class="cell-action cell-center">
+                                <button type="submit"
+                                        class="act-btn act-icon act-delete"
+                                        form="supply-order-delete-{{ order.pk }}"
+                                        title="حذف الصف"
+                                        onclick="return confirm('حذف الصنف «{{ order.item_name|escapejs }}» من الملف؟');">
+                                    <span class="material-symbols-outlined">delete</span>
+                                </button>
+                            </td>
                             {% else %}
                             <td dir="ltr">{{ order.item_number|default:"—" }}</td>
                             <td class="cell-strong">{{ order.item_name }}</td>
@@ -491,10 +501,11 @@
                                 <span class="status-chip status-bad">مرفوض</span>
                                 {% endif %}
                             </td>
+                            <td></td>
                             {% endif %}
                         </tr>
                         {% empty %}
-                        <tr><td colspan="8" class="empty-row">لا أصناف.</td></tr>
+                        <tr><td colspan="9" class="empty-row">لا أصناف.</td></tr>
                         {% endfor %}
                         </tbody>
                     </table>
@@ -505,6 +516,13 @@
                 <button type="submit" class="btn-primary-app">حفظ التعديلات</button>
             </div>
         </form>
+        {% for order in batch.items %}
+        {% if order.status == 'pending' %}
+        <form id="supply-order-delete-{{ order.pk }}" method="post" action="{% url 'ops:supply_order_delete' order.pk %}" class="hidden">
+            {% csrf_token %}
+        </form>
+        {% endif %}
+        {% endfor %}
     </div>
 </div>
 {% endif %}
@@ -943,63 +961,7 @@
     });
 })();
 </script>
-<script>
-(function () {
-    function openBatch(id) {
-        const editModal = document.getElementById('batchModal-' + id);
-        if (editModal) {
-            editModal.classList.remove('hidden');
-            return;
-        }
-        openBatchView(id);
-    }
-    function openBatchView(id) {
-        const modal = document.getElementById('batchViewModal-' + id);
-        if (modal) modal.classList.remove('hidden');
-    }
-    function closeBatch(id) {
-        const modal = document.getElementById('batchModal-' + id);
-        if (modal) modal.classList.add('hidden');
-        const url = new URL(window.location.href);
-        if (url.searchParams.get('open')) {
-            url.searchParams.delete('open');
-            window.history.replaceState({}, '', url.pathname + url.search);
-        }
-    }
-    function closeBatchView(id) {
-        const modal = document.getElementById('batchViewModal-' + id);
-        if (modal) modal.classList.add('hidden');
-    }
-    document.addEventListener('click', (e) => {
-        const openViewBtn = e.target.closest('[data-open-batch-view]');
-        if (openViewBtn) {
-            openBatchView(openViewBtn.getAttribute('data-open-batch-view'));
-            return;
-        }
-        const openBtn = e.target.closest('[data-open-batch]');
-        if (openBtn) {
-            openBatch(openBtn.getAttribute('data-open-batch'));
-            return;
-        }
-        if (e.target.closest('.act-btn, form.inline')) return;
-        const closeViewBtn = e.target.closest('[data-close-batch-view]');
-        if (closeViewBtn) {
-            closeBatchView(closeViewBtn.getAttribute('data-close-batch-view'));
-            return;
-        }
-        const closeBtn = e.target.closest('[data-close-batch]');
-        if (closeBtn) {
-            closeBatch(closeBtn.getAttribute('data-close-batch'));
-            return;
-        }
-        if (e.target.classList.contains('batch-detail-modal')) {
-            e.target.classList.add('hidden');
-        }
-    });
-    const openId = '{{ open_batch|default:""|escapejs }}';
-    if (openId) openBatch(openId);
-})();
-</script>
+{% include "ops/_batch_modals_js.html" %}
 <script>
 (function () {
     function refreshTotal(tr) {

@@ -1,0 +1,57 @@
+<script>
+(function () {
+    function openBatchView(id) {
+        const modal = document.getElementById('batchViewModal-' + id);
+        if (modal) modal.classList.remove('hidden');
+    }
+    function openBatch(id) {
+        const editModal = document.getElementById('batchModal-' + id);
+        if (editModal) {
+            editModal.classList.remove('hidden');
+            return;
+        }
+        openBatchView(id);
+    }
+    function closeBatch(id) {
+        const modal = document.getElementById('batchModal-' + id);
+        if (modal) modal.classList.add('hidden');
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('open')) {
+            url.searchParams.delete('open');
+            window.history.replaceState({}, '', url.pathname + url.search);
+        }
+    }
+    function closeBatchView(id) {
+        const modal = document.getElementById('batchViewModal-' + id);
+        if (modal) modal.classList.add('hidden');
+    }
+    document.addEventListener('click', (e) => {
+        const openViewBtn = e.target.closest('[data-open-batch-view]');
+        if (openViewBtn) {
+            openBatchView(openViewBtn.getAttribute('data-open-batch-view'));
+            return;
+        }
+        const openBtn = e.target.closest('[data-open-batch]');
+        if (openBtn) {
+            openBatch(openBtn.getAttribute('data-open-batch'));
+            return;
+        }
+        if (e.target.closest('.act-btn, form.inline')) return;
+        const closeViewBtn = e.target.closest('[data-close-batch-view]');
+        if (closeViewBtn) {
+            closeBatchView(closeViewBtn.getAttribute('data-close-batch-view'));
+            return;
+        }
+        const closeBtn = e.target.closest('[data-close-batch]');
+        if (closeBtn) {
+            closeBatch(closeBtn.getAttribute('data-close-batch'));
+            return;
+        }
+        if (e.target.classList.contains('batch-detail-modal')) {
+            e.target.classList.add('hidden');
+        }
+    });
+    const openId = '{{ open_batch|default:""|escapejs }}';
+    if (openId) openBatch(openId);
+})();
+</script>

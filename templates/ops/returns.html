@@ -53,7 +53,7 @@
             </thead>
             <tbody>
             {% for batch in batches %}
-            <tr class="batch-row {% if batch.display_status != 'pending' %}row-done{% endif %}" data-open-batch="{{ batch.pk }}" style="cursor:pointer">
+            <tr class="batch-row {% if batch.display_status != 'pending' %}row-done{% endif %}">
                 <td class="row-num">{{ forloop.counter }}</td>
                 <td class="cell-strong">{{ batch.representative.display_name }}</td>
                 <td>{{ batch.branch }}</td>
@@ -72,39 +72,61 @@
                     {% endwith %}
                 </td>
                 <td class="cell-center cell-strong">{{ batch.items.all|length }}</td>
-                <td class="cell-action" onclick="event.stopPropagation()">
-                    <div class="flex flex-wrap gap-1 justify-center">
-                        <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="act-btn act-pdf" title="تحميل PDF">تحميل</a>
+                <td class="cell-action">
+                    <div class="row-actions">
+                        <button type="button" class="act-btn act-icon act-view" title="عرض" data-open-batch-view="{{ batch.pk }}">
+                            <span class="material-symbols-outlined">visibility</span>
+                        </button>
+                        {% if user.is_manager or batch.representative_id == user.id %}
+                        {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
+                        <button type="button" class="act-btn act-icon act-edit" title="تعديل" data-open-batch="{{ batch.pk }}">
+                            <span class="material-symbols-outlined">edit</span>
+                        </button>
+                        {% endif %}
+                        {% endif %}
+                        <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="act-btn act-icon act-pdf" title="تحميل PDF">
+                            <span class="material-symbols-outlined">download</span>
+                        </a>
                         {% if batch.rep_pending_items.exists %}
                             {% if user.is_manager or batch.representative_id == user.id %}
                         <form method="post" action="{% url 'ops:return_batch_authorize' batch.pk %}" class="inline"
                               onsubmit="return confirm('تعميد كل الأصناف في {{ batch.return_number }}؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-approve" title="تعميد الملف">تعميد</button>
+                            <button type="submit" class="act-btn act-icon act-approve" title="تعميد الملف">
+                                <span class="material-symbols-outlined">verified</span>
+                            </button>
                         </form>
                         <form method="post" action="{% url 'ops:return_batch_rep_reject' batch.pk %}" class="inline"
                               onsubmit="return confirm('رفض كل الأصناف في {{ batch.return_number }}؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-reject" title="رفض الملف">رفض</button>
+                            <button type="submit" class="act-btn act-icon act-reject" title="رفض الملف">
+                                <span class="material-symbols-outlined">cancel</span>
+                            </button>
                         </form>
                             {% endif %}
                         {% elif user.is_manager and batch.ops_pending_items.exists %}
                         <form method="post" action="{% url 'ops:return_batch_accept' batch.pk %}" class="inline"
                               onsubmit="return confirm('اعتماد {{ batch.return_number }} من العمليات؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-approve" title="اعتماد العمليات">اعتماد</button>
+                            <button type="submit" class="act-btn act-icon act-approve" title="اعتماد العمليات">
+                                <span class="material-symbols-outlined">check_circle</span>
+                            </button>
                         </form>
                         <form method="post" action="{% url 'ops:return_batch_ops_reject' batch.pk %}" class="inline"
                               onsubmit="return confirm('رفض {{ batch.return_number }} من العمليات؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-delete" title="رفض نهائي">رفض</button>
+                            <button type="submit" class="act-btn act-icon act-delete" title="رفض نهائي">
+                                <span class="material-symbols-outlined">block</span>
+                            </button>
                         </form>
                         {% endif %}
                         {% if user.is_manager or batch.representative_id == user.id or batch.created_by_id == user.id %}
                         <form method="post" action="{% url 'ops:return_batch_delete' batch.pk %}" class="inline"
                               onsubmit="return confirm('حذف المرتجع {{ batch.return_number }} وجميع أصنافه؟ لا يمكن التراجع.');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-delete" title="حذف الملف">حذف</button>
+                            <button type="submit" class="act-btn act-icon act-delete" title="حذف الملف">
+                                <span class="material-symbols-outlined">delete</span>
+                            </button>
                         </form>
                         {% endif %}
                     </div>
@@ -189,8 +211,8 @@
                         <colgroup>
                             <col style="width:44px">
                             <col style="width:160px">
-                            <col style="width:130px">
-                            <col style="width:90px">
+                            <col style="width:110px">
+                            <col style="width:100px">
                             <col style="width:70px">
                             <col style="width:120px">
                             <col style="width:160px">
@@ -199,8 +221,8 @@
                         <thead>
                         <tr>
                             <th>#</th>
-                            <th>رقم الصنف</th>
                             <th>الاسم</th>
+                            <th>رقم الصنف</th>
                             <th>العبوة</th>
                             <th>الكمية</th>
                             <th>نوع المرتجع</th>
@@ -211,7 +233,7 @@
                         <tbody id="returnRows"></tbody>
                     </table>
                 </div>
-                <p class="font-body-md text-body-md text-on-surface-variant text-xs">يمكنك إضافة أكثر من صف ثم حفظها دفعة واحدة — التنقل بين الخلايا مثل Excel.</p>
+                <p class="font-body-md text-body-md text-on-surface-variant text-xs">اكتب صنف جديد حتى لو غير موجود في الكتالوج — Enter يضيف صفاً ولا يحفظ المودال.</p>
             </div>
             <div class="app-modal-foot">
                 <button type="button" class="btn-ghost-app"
@@ -223,11 +245,11 @@
 </div>
 
 {% for batch in batches %}
-<div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.pk }}">
+<div class="app-modal hidden batch-detail-modal" id="batchViewModal-{{ batch.pk }}">
     <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
             <div class="app-modal-head-main">
-                <h3>ملف {{ batch.return_number }}</h3>
+                <h3>عرض ملف {{ batch.return_number }}</h3>
                 <p class="app-modal-sub">
                     {{ batch.representative.display_name }} · {{ batch.branch }} · {{ batch.created_at|date:"Y/m/d H:i" }}
                 </p>
@@ -237,8 +259,8 @@
                     <span class="material-symbols-outlined">download</span>
                     تحميل PDF
                 </a>
-                <button type="button" class="app-modal-close close-batch-modal" aria-label="إغلاق"
-                        data-close-batch="{{ batch.pk }}">
+                <button type="button" class="app-modal-close" aria-label="إغلاق"
+                        data-close-batch-view="{{ batch.pk }}">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
@@ -353,11 +375,110 @@
                 <button type="submit" class="btn-ghost-app" style="color:#b91c1c">رفض الكل</button>
             </form>
             {% endif %}
-            <button type="button" class="btn-ghost-app close-batch-modal"
-                    data-close-batch="{{ batch.pk }}">إغلاق</button>
+            <button type="button" class="btn-ghost-app"
+                    data-close-batch-view="{{ batch.pk }}">إغلاق</button>
         </div>
     </div>
 </div>
+
+{% if user.is_manager or batch.representative_id == user.id %}
+{% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
+<div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.pk }}">
+    <div class="app-modal-panel app-modal-panel--xl">
+        <div class="app-modal-head">
+            <div class="app-modal-head-main">
+                <h3>تعديل ملف {{ batch.return_number }}</h3>
+                <p class="app-modal-sub">
+                    {{ batch.representative.display_name }} · {{ batch.branch }} · {{ batch.created_at|date:"Y/m/d H:i" }}
+                </p>
+            </div>
+            <div class="app-modal-head-actions">
+                <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="app-modal-head-btn">
+                    <span class="material-symbols-outlined">download</span>
+                    تحميل PDF
+                </a>
+                <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch="{{ batch.pk }}">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+        </div>
+        <form method="post" action="{% url 'ops:return_batch_update' batch.pk %}" class="flex flex-col overflow-hidden flex-1 min-h-0">
+            {% csrf_token %}
+            <div class="app-modal-body flex flex-col gap-md">
+                <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+                    <table class="excel-grid batch-detail-grid resizable-cols w-full text-right border-collapse" data-resize-key="batch-edit-{{ batch.pk }}" data-return-edit>
+                        <colgroup>
+                            <col style="width:44px">
+                            <col style="width:140px">
+                            <col style="width:120px">
+                            <col style="width:90px">
+                            <col style="width:70px">
+                            <col style="width:110px">
+                            <col style="width:160px">
+                        </colgroup>
+                        <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>رقم الصنف</th>
+                            <th>الاسم</th>
+                            <th>العبوة</th>
+                            <th>الكمية</th>
+                            <th>النوع</th>
+                            <th>سبب الإرجاع</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for item in batch.items.all %}
+                        <tr>
+                            <td class="row-num">{{ forloop.counter }}</td>
+                            {% if item.status == 'pending' %}
+                            <td>
+                                <input type="hidden" name="order_id" value="{{ item.pk }}">
+                                <input name="item_number" type="text" value="{{ item.item_number }}" class="cell-input" dir="ltr" placeholder="رقم الصنف">
+                            </td>
+                            <td><input name="item_name" type="text" value="{{ item.item_name }}" required class="cell-input" placeholder="اسم الصنف"></td>
+                            <td>
+                                <select name="package" class="cell-input cell-select app-select">
+                                    <option value="">اختر...</option>
+                                    {% for p in package_choices %}
+                                    <option value="{{ p }}" {% if item.package == p %}selected{% endif %}>{{ p }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><input name="quantity" type="number" min="1" value="{{ item.quantity }}" required class="cell-input num-entry"></td>
+                            <td>
+                                <select name="return_type" class="cell-select" required>
+                                    {% for val, label in return_types %}
+                                    <option value="{{ val }}" {% if item.return_type == val %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><input name="reason" type="text" value="{{ item.reason }}" required class="cell-input" placeholder="سبب الإرجاع"></td>
+                            {% else %}
+                            <td class="cell-pad cell-text">{% if item.item_number %}{{ item.item_number }}{% else %}—{% endif %}</td>
+                            <td class="cell-pad cell-text" title="{{ item.item_name }}">{{ item.item_name }}</td>
+                            <td class="cell-pad cell-text">{% if item.package %}{{ item.package }}{% else %}—{% endif %}</td>
+                            <td class="cell-pad cell-center">{{ item.quantity }}</td>
+                            <td class="cell-pad cell-text">{{ item.get_return_type_display }}</td>
+                            <td class="cell-pad cell-text cell-reason" title="{{ item.reason }}">{{ item.reason }}</td>
+                            {% endif %}
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="7" class="empty-row">لا توجد أصناف في هذا الملف.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="app-modal-foot">
+                <button type="button" class="btn-ghost-app" data-close-batch="{{ batch.pk }}">إلغاء</button>
+                <button type="submit" class="btn-primary-app">حفظ التعديلات</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endif %}
 {% endfor %}
 {% endblock %}
 
@@ -824,49 +945,27 @@
     document.querySelectorAll('table.resizable-cols').forEach(enableColumnResize);
     window.enableColumnResize = enableColumnResize;
 })();
-
-(function () {
-    function openBatch(id) {
-        const modal = document.getElementById('batchModal-' + id);
-        if (modal) modal.classList.remove('hidden');
-    }
-    function closeBatch(id) {
-        const modal = document.getElementById('batchModal-' + id);
-        if (modal) modal.classList.add('hidden');
-        const url = new URL(window.location.href);
-        if (url.searchParams.get('open')) {
-            url.searchParams.delete('open');
-            window.history.replaceState({}, '', url.pathname + url.search);
-        }
-    }
-    document.addEventListener('click', (e) => {
-        const openBtn = e.target.closest('[data-open-batch]');
-        if (openBtn) {
-            openBatch(openBtn.getAttribute('data-open-batch'));
-            return;
-        }
-        const closeBtn = e.target.closest('[data-close-batch]');
-        if (closeBtn) {
-            closeBatch(closeBtn.getAttribute('data-close-batch'));
-            return;
-        }
-        if (e.target.classList.contains('batch-detail-modal')) {
-            e.target.classList.add('hidden');
-        }
-    });
-    const openId = '{{ open_batch|default:""|escapejs }}';
-    if (openId) openBatch(openId);
-})();
-
+</script>
+{% include "ops/_batch_modals_js.html" %}
+<script>
 (function () {
     const tbody = document.getElementById('returnRows');
     const addBtn = document.getElementById('addReturnRow');
+    const form = document.getElementById('returnMultiForm');
     if (!tbody || !addBtn) return;
 
     let catalog = [];
+    let packageOptions = [];
     try { catalog = JSON.parse('{{ catalog_json|escapejs }}') || []; } catch (e) { catalog = []; }
+    try { packageOptions = JSON.parse('{{ package_choices_json|escapejs }}') || []; } catch (e) { packageOptions = []; }
     window.FarshCatalogSuggest.setCatalog(catalog);
     const CS = window.FarshCatalogSuggest;
+
+    function packageSelectHtml() {
+        const opts = ['<option value="">اختر...</option>']
+            .concat(packageOptions.map((p) => `<option value="${p}">${p}</option>`));
+        return `<select class="cell-input cell-select app-select" name="package">${opts.join('')}</select>`;
+    }
 
     function renumber() {
         tbody.querySelectorAll('tr').forEach((tr, i) => {
@@ -875,14 +974,30 @@
         });
     }
 
+    function bindCatalog(tr) {
+        CS.bindRow(tr, {
+            packageField: 'select[name="package"]',
+            packageChoices: packageOptions,
+            onApply: () => tr.querySelector('input[name="quantity"]')?.focus(),
+            onEnter: (row) => {
+                const name = row.querySelector('input[name="item_name"]')?.value.trim();
+                if (!name) {
+                    row.querySelector('input[name="item_name"]')?.focus();
+                    return;
+                }
+                addRow();
+            },
+        });
+    }
+
     function addRow() {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="row-num" data-row-num></td>
-            <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: 'cell-input catalog-suggest-input' })}</td>
             <td>${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: 'cell-input catalog-suggest-input' })}</td>
-            <td><input class="cell-input" name="package" type="text" placeholder="العبوة"></td>
-            <td><input class="cell-input num-entry" name="quantity" type="number" min="1" required placeholder="1"></td>
+            <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: 'cell-input catalog-suggest-input' })}</td>
+            <td>${packageSelectHtml()}</td>
+            <td><input class="cell-input num-entry" name="quantity" type="number" min="1" required value="1" placeholder="1"></td>
             <td>
                 <select class="cell-select" name="return_type" required>
                     <option value="unacceptable">غير مقبول</option>
@@ -901,11 +1016,29 @@
         `;
         tbody.appendChild(tr);
         renumber();
-        CS.bindRow(tr, {
-            packageField: 'input[name="package"]',
-            onApply: () => tr.querySelector('input[name="quantity"]')?.focus(),
+        bindCatalog(tr);
+        tr.querySelector('input[name="item_name"]')?.focus();
+    }
+
+    if (form) {
+        form.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            if (e.target.matches('textarea, button, input[type="submit"]')) return;
+            e.preventDefault();
         });
-        tr.querySelector('input[name="item_number"]')?.focus();
+        form.addEventListener('submit', (e) => {
+            CS.closeSuggest();
+            const rows = [...tbody.querySelectorAll('tr')];
+            const filled = rows.filter((tr) => tr.querySelector('input[name="item_name"]')?.value.trim());
+            if (!filled.length) {
+                e.preventDefault();
+                rows[0]?.querySelector('input[name="item_name"]')?.focus();
+                return;
+            }
+            rows.forEach((tr) => {
+                if (!tr.querySelector('input[name="item_name"]')?.value.trim()) tr.remove();
+            });
+        });
     }
 
     addBtn.addEventListener('click', addRow);
@@ -933,6 +1066,7 @@
         if (tbody.querySelectorAll('tr').length <= 1) return;
         btn.closest('tr').remove();
         renumber();
+        CS.closeSuggest();
     });
 
     tbody.addEventListener('keydown', (e) => {
@@ -945,7 +1079,7 @@
         const idx = Array.from(tr.children).indexOf(cell);
         const nextRow = tr.nextElementSibling;
         if (nextRow) {
-            const next = nextRow.children[idx]?.querySelector('input,select');
+            const next = nextRow.children[idx]?.querySelector('input, select');
             if (next) next.focus();
         } else {
             addRow();

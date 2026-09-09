@@ -59,7 +59,7 @@
             </thead>
             <tbody>
             {% for batch in batches %}
-            <tr class="batch-row" data-open-batch="{{ batch.seed_pk }}" style="cursor:pointer">
+            <tr class="batch-row">
                 <td class="row-num cell-center">{{ forloop.counter }}</td>
                 <td class="cell-strong" dir="ltr">{{ batch.batch_number }}</td>
                 <td class="cell-center cell-strong">{{ batch.items_count }}</td>
@@ -75,30 +75,25 @@
                     {% endif %}
                 </td>
                 <td>{{ batch.created_by.display_name }}</td>
-                <td class="cell-center" onclick="event.stopPropagation()">
+                <td class="cell-center">
                     <div class="flex flex-wrap gap-1 justify-center">
-                        <button type="button" class="act-btn act-view" data-open-batch="{{ batch.seed_pk }}">عرض</button>
-                        {% if can_authorize %}
-                        {% for row in batch.items %}
-                        {% if row.status == 'pending' %}
-                        <form method="post" action="{% url 'ops:distribution_variance_authorize' row.pk %}" class="inline"
-                              onsubmit="return confirm('تعميد «{{ row.item_name }}» وإرسال إشعار للمورد؟');">
-                            {% csrf_token %}
-                            <button type="submit" class="act-btn act-approve" title="{{ row.item_name }}">تعميد</button>
-                        </form>
-                        <form method="post" action="{% url 'ops:distribution_variance_reject' row.pk %}" class="inline"
-                              onsubmit="return confirm('رفض «{{ row.item_name }}»؟');">
-                            {% csrf_token %}
-                            <button type="submit" class="act-btn act-reject" title="{{ row.item_name }}">رفض</button>
-                        </form>
+                        <button type="button" class="act-btn act-icon act-view" title="عرض" data-open-batch-view="{{ batch.seed_pk }}">
+                            <span class="material-symbols-outlined">visibility</span>
+                        </button>
+                        {% if user.is_manager or batch.created_by.id == user.id %}
+                        {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
+                        <button type="button" class="act-btn act-icon act-edit" title="تعديل" data-open-batch="{{ batch.seed_pk }}">
+                            <span class="material-symbols-outlined">edit</span>
+                        </button>
                         {% endif %}
-                        {% endfor %}
                         {% endif %}
                         {% if user.is_manager or batch.created_by.id == user.id %}
                         <form method="post" action="{% url 'ops:distribution_variance_delete' batch.seed_pk %}" class="inline"
                               onsubmit="return confirm('حذف ملف {{ batch.batch_number }}؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-delete">حذف</button>
+                            <button type="submit" class="act-btn act-icon act-delete" title="حذف">
+                                <span class="material-symbols-outlined">delete</span>
+                            </button>
                         </form>
                         {% endif %}
                     </div>
@@ -117,17 +112,17 @@
 
 {% block modals %}
 {% for batch in batches %}
-<div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.seed_pk }}">
+<div class="app-modal hidden batch-detail-modal" id="batchViewModal-{{ batch.seed_pk }}">
     <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
             <div class="app-modal-head-main">
-                <h3>تفاصيل الملف {{ batch.batch_number }}</h3>
+                <h3>عرض الملف {{ batch.batch_number }}</h3>
                 <p class="app-modal-sub">
                     {{ batch.created_by.display_name }} · {{ batch.record_date|date:"Y/m/d" }} · {{ batch.items_count }} سجل
                 </p>
             </div>
             <div class="app-modal-head-actions">
-                <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch="{{ batch.seed_pk }}">
+                <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch-view="{{ batch.seed_pk }}">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
@@ -139,11 +134,13 @@
                     <tr>
                         <th>#</th>
                         <th>النوع</th>
-                        <th>رقم الصنف</th>
                         <th>اسم الصنف</th>
+                        <th>رقم الصنف</th>
                         <th>الكمية</th>
                         <th>الفرع</th>
                         <th>المورد</th>
+                        <th>الحالة</th>
+                        {% if can_authorize %}<th>إجراء</th>{% endif %}
                     </tr>
                     </thead>
                     <tbody>
@@ -157,24 +154,162 @@
                             <span class="status-chip status-wait">زيادة</span>
                             {% endif %}
                         </td>
-                        <td dir="ltr">{{ row.item_number|default:"—" }}</td>
                         <td class="cell-strong">{{ row.item_name }}</td>
+                        <td dir="ltr">{{ row.item_number|default:"—" }}</td>
                         <td class="cell-center cell-strong">{{ row.quantity }}</td>
                         <td>{{ row.branch }}</td>
                         <td>{{ row.supplier }}</td>
+                        <td class="cell-center">
+                            {% if row.status == 'authorized' %}
+                            <span class="status-chip status-ok">معتمد</span>
+                            {% elif row.status == 'rejected' %}
+                            <span class="status-chip status-bad">مرفوض</span>
+                            {% else %}
+                            <span class="status-chip status-pending">بانتظار التعميد</span>
+                            {% endif %}
+                        </td>
+                        {% if can_authorize %}
+                        <td class="cell-center">
+                            {% if row.status == 'pending' %}
+                            <div class="flex flex-wrap gap-1 justify-center">
+                                <form method="post" action="{% url 'ops:distribution_variance_authorize' row.pk %}" class="inline"
+                                      onsubmit="return confirm('تعميد «{{ row.item_name }}» وإرسال إشعار للمورد؟');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-icon act-approve" title="تعميد">
+                                        <span class="material-symbols-outlined">verified</span>
+                                    </button>
+                                </form>
+                                <form method="post" action="{% url 'ops:distribution_variance_reject' row.pk %}" class="inline"
+                                      onsubmit="return confirm('رفض «{{ row.item_name }}»؟');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="act-btn act-icon act-reject" title="رفض">
+                                        <span class="material-symbols-outlined">cancel</span>
+                                    </button>
+                                </form>
+                            </div>
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                        {% endif %}
                     </tr>
                     {% empty %}
-                    <tr><td colspan="7" class="empty-row">لا سجلات.</td></tr>
+                    <tr><td colspan="{% if can_authorize %}9{% else %}8{% endif %}" class="empty-row">لا سجلات.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
             </div>
         </div>
         <div class="app-modal-foot">
-            <button type="button" class="btn-ghost-app" data-close-batch="{{ batch.seed_pk }}">إغلاق</button>
+            <button type="button" class="btn-ghost-app" data-close-batch-view="{{ batch.seed_pk }}">إغلاق</button>
         </div>
     </div>
 </div>
+
+{% if user.is_manager or batch.created_by.id == user.id %}
+{% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
+<div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.seed_pk }}">
+    <div class="app-modal-panel app-modal-panel--xl">
+        <div class="app-modal-head">
+            <div class="app-modal-head-main">
+                <h3>تعديل الملف {{ batch.batch_number }}</h3>
+                <p class="app-modal-sub">
+                    {{ batch.created_by.display_name }} · {{ batch.record_date|date:"Y/m/d" }} · {{ batch.items_count }} سجل
+                </p>
+            </div>
+            <div class="app-modal-head-actions">
+                <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch="{{ batch.seed_pk }}">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+        </div>
+        <form method="post" action="{% url 'ops:distribution_variance_batch_update' batch.seed_pk %}" class="flex flex-col overflow-hidden flex-1 min-h-0">
+            {% csrf_token %}
+            <div class="app-modal-body">
+                <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+                    <table class="excel-grid batch-detail-grid w-full" data-variance-edit>
+                        <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>النوع</th>
+                            <th>اسم الصنف</th>
+                            <th>رقم الصنف</th>
+                            <th>الكمية</th>
+                            <th>الفرع</th>
+                            <th>المورد</th>
+                            <th>الحالة</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for row in batch.items %}
+                        <tr>
+                            <td class="cell-center">{{ forloop.counter }}</td>
+                            {% if row.status == 'pending' %}
+                            <td>
+                                <input type="hidden" name="order_id" value="{{ row.pk }}">
+                                <select name="variance_type" required class="cell-select app-select">
+                                    <option value="shortage" {% if row.variance_type == 'shortage' %}selected{% endif %}>نقص</option>
+                                    <option value="excess" {% if row.variance_type == 'excess' %}selected{% endif %}>زيادة</option>
+                                </select>
+                            </td>
+                            <td><input name="item_name" type="text" value="{{ row.item_name }}" required class="cell-input" placeholder="اسم الصنف"></td>
+                            <td><input name="item_number" type="text" value="{{ row.item_number }}" class="cell-input" dir="ltr" placeholder="رقم الصنف"></td>
+                            <td><input name="quantity" type="number" min="1" value="{{ row.quantity }}" required class="cell-input num-entry"></td>
+                            <td>
+                                <select name="branch" required class="cell-select app-select">
+                                    <option value="">اختر الفرع...</option>
+                                    {% for b in branches %}
+                                    <option value="{{ b }}" {% if row.branch == b %}selected{% endif %}>{{ b }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <select name="supplier" required class="cell-select app-select">
+                                    <option value="">اختر المورد...</option>
+                                    {% for s in suppliers %}
+                                    <option value="{{ s }}" {% if row.supplier == s %}selected{% endif %}>{{ s }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td class="cell-center"><span class="status-chip status-pending">بانتظار التعميد</span></td>
+                            {% else %}
+                            <td class="cell-center">
+                                {% if row.variance_type == 'shortage' %}
+                                <span class="status-chip status-bad">نقص</span>
+                                {% else %}
+                                <span class="status-chip status-wait">زيادة</span>
+                                {% endif %}
+                            </td>
+                            <td class="cell-strong">{{ row.item_name }}</td>
+                            <td dir="ltr">{{ row.item_number|default:"—" }}</td>
+                            <td class="cell-center cell-strong">{{ row.quantity }}</td>
+                            <td>{{ row.branch }}</td>
+                            <td>{{ row.supplier }}</td>
+                            <td class="cell-center">
+                                {% if row.status == 'authorized' %}
+                                <span class="status-chip status-ok">معتمد</span>
+                                {% else %}
+                                <span class="status-chip status-bad">مرفوض</span>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="8" class="empty-row">لا سجلات.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="app-modal-foot">
+                <button type="button" class="btn-ghost-app" data-close-batch="{{ batch.seed_pk }}">إلغاء</button>
+                <button type="submit" class="btn-primary-app">حفظ التعديلات</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endif %}
 {% endfor %}
 
 <div class="app-modal hidden" id="newVarianceModal">
@@ -190,7 +325,7 @@
                 </button>
             </div>
         </div>
-        <form method="post" action="{% url 'ops:distribution_variance_create' %}" class="flex flex-col overflow-hidden">
+        <form method="post" action="{% url 'ops:distribution_variance_create' %}" class="flex flex-col overflow-hidden" id="varianceMultiForm">
             {% csrf_token %}
             <div class="app-modal-body flex flex-col gap-md">
                 <div class="flex flex-col gap-sm max-w-xs">
@@ -208,25 +343,25 @@
                     </button>
                 </div>
 
-                <div class="overflow-x-auto border border-outline-variant rounded-xl">
-                    <table class="w-full text-right border-collapse min-w-[980px]">
-                        <thead class="bg-surface-container-low">
+                <div class="excel-sheet overflow-x-auto border border-[#b4b4b4] rounded-sm bg-white shadow-sm">
+                    <table class="excel-grid w-full text-right border-collapse">
+                        <thead>
                         <tr>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-10">#</th>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">النوع</th>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">رقم الصنف</th>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">اسم الصنف</th>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">الكمية</th>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">الفرع</th>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">المورد</th>
-                            <th class="p-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant w-14"></th>
+                            <th style="width:40px">#</th>
+                            <th style="width:100px">النوع</th>
+                            <th>اسم الصنف</th>
+                            <th style="width:100px">رقم الصنف</th>
+                            <th style="width:80px">الكمية</th>
+                            <th>الفرع</th>
+                            <th>المورد</th>
+                            <th style="width:48px"></th>
                         </tr>
                         </thead>
-                        <tbody id="varianceRows" class="divide-y divide-outline-variant"></tbody>
+                        <tbody id="varianceRows"></tbody>
                     </table>
                 </div>
                 <p class="text-xs text-on-surface-variant font-bold m-0">
-                    كل حفظ = ملف واحد. تعميد كل صنف داخل الملف يرسل واتساب للمورد.
+                    اكتب صنف جديد حتى لو غير موجود في الكتالوج — Enter يضيف صفاً ولا يحفظ المودال. تعميد كل صنف من داخل المودال.
                 </p>
             </div>
             <div class="app-modal-foot">
@@ -245,6 +380,7 @@
 (function () {
     const tbody = document.getElementById('varianceRows');
     const addBtn = document.getElementById('addVarianceRow');
+    const form = document.getElementById('varianceMultiForm');
     if (!tbody || !addBtn) return;
 
     let catalog = [];
@@ -252,7 +388,7 @@
     window.FarshCatalogSuggest.setCatalog(catalog);
     const CS = window.FarshCatalogSuggest;
 
-    const inputClass = 'w-full bg-surface border border-outline-variant rounded-lg py-2 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface';
+    const inputClass = 'cell-input';
     const branchOptions = `{% for b in branches %}<option value="{{ b|escapejs }}" {% if b == default_branch %}selected{% endif %}>{{ b|escapejs }}</option>{% endfor %}`;
     const supplierOptions = `{% for s in suppliers %}<option value="{{ s|escapejs }}">{{ s|escapejs }}</option>{% endfor %}`;
 
@@ -263,45 +399,77 @@
         });
     }
 
+    function bindCatalog(tr) {
+        CS.bindRow(tr, {
+            onApply: () => tr.querySelector('input[name="quantity"]')?.focus(),
+            onEnter: (row) => {
+                const name = row.querySelector('input[name="item_name"]')?.value.trim();
+                if (!name) {
+                    row.querySelector('input[name="item_name"]')?.focus();
+                    return;
+                }
+                addRow();
+            },
+        });
+    }
+
     function addRow() {
         const tr = document.createElement('tr');
-        tr.className = 'bg-surface-container-lowest';
         tr.innerHTML = `
-            <td class="p-2 text-on-surface-variant font-label-md text-label-md text-center" data-row-num></td>
-            <td class="p-2">
-                <select name="variance_type" required class="${inputClass} app-select">
+            <td class="row-num" data-row-num></td>
+            <td>
+                <select name="variance_type" required class="cell-select app-select">
                     <option value="">اختر...</option>
                     <option value="shortage">نقص</option>
                     <option value="excess">زيادة</option>
                 </select>
             </td>
-            <td class="p-2">${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: inputClass + ' catalog-suggest-input' })}</td>
-            <td class="p-2">${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: inputClass + ' catalog-suggest-input' })}</td>
-            <td class="p-2"><input name="quantity" type="number" min="1" required placeholder="1" class="${inputClass} num-entry"></td>
-            <td class="p-2">
-                <select name="branch" required class="${inputClass} app-select">
+            <td>${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: inputClass + ' catalog-suggest-input' })}</td>
+            <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: inputClass + ' catalog-suggest-input' })}</td>
+            <td><input name="quantity" type="number" min="1" required value="1" placeholder="1" class="${inputClass} num-entry"></td>
+            <td>
+                <select name="branch" required class="cell-select app-select">
                     <option value="">اختر الفرع...</option>
                     ${branchOptions}
                 </select>
             </td>
-            <td class="p-2">
-                <select name="supplier" required class="${inputClass} app-select">
+            <td>
+                <select name="supplier" required class="cell-select app-select">
                     <option value="">اختر المورد...</option>
                     ${supplierOptions}
                 </select>
             </td>
-            <td class="p-2 text-center">
-                <button type="button" class="text-error hover:bg-error-container p-1 rounded-full remove-row" title="حذف الصف">
-                    <span class="material-symbols-outlined text-[20px]">delete</span>
-                </button>
+            <td class="cell-action">
+                <div class="row-actions">
+                    <button type="button" class="remove-row" title="حذف الصف">حذف</button>
+                </div>
             </td>
         `;
         tbody.appendChild(tr);
         renumber();
-        CS.bindRow(tr, {
-            onApply: () => tr.querySelector('input[name="quantity"]')?.focus(),
-        });
+        bindCatalog(tr);
         tr.querySelector('select[name="variance_type"]')?.focus();
+    }
+
+    if (form) {
+        form.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            if (e.target.matches('textarea, button, input[type="submit"]')) return;
+            e.preventDefault();
+        });
+        form.addEventListener('submit', (e) => {
+            CS.closeSuggest();
+            const rows = [...tbody.querySelectorAll('tr')];
+            const filled = rows.filter((tr) => tr.querySelector('input[name="item_name"]')?.value.trim());
+            if (!filled.length) {
+                e.preventDefault();
+                rows[0]?.querySelector('input[name="item_name"]')?.focus();
+                return;
+            }
+            rows.forEach((tr) => {
+                if (!tr.querySelector('input[name="item_name"]')?.value.trim()) tr.remove();
+            });
+        });
     }
 
     addBtn.addEventListener('click', addRow);
@@ -311,6 +479,23 @@
         if (tbody.querySelectorAll('tr').length <= 1) return;
         btn.closest('tr').remove();
         renumber();
+        CS.closeSuggest();
+    });
+    tbody.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        if (e.target.classList.contains('catalog-suggest-input')) return;
+        const cell = e.target.closest('td');
+        if (!cell) return;
+        e.preventDefault();
+        const tr = cell.parentElement;
+        const idx = Array.from(tr.children).indexOf(cell);
+        const nextRow = tr.nextElementSibling;
+        if (nextRow) {
+            const next = nextRow.children[idx]?.querySelector('input, select');
+            if (next) next.focus();
+        } else {
+            addRow();
+        }
     });
 
     addRow();
@@ -318,36 +503,14 @@
 </script>
 <script>
 (function () {
-    function openBatch(id) {
-        const modal = document.getElementById('batchModal-' + id);
-        if (modal) modal.classList.remove('hidden');
-    }
-    function closeBatch(id) {
-        const modal = document.getElementById('batchModal-' + id);
-        if (modal) modal.classList.add('hidden');
-        const url = new URL(window.location.href);
-        if (url.searchParams.get('open')) {
-            url.searchParams.delete('open');
-            window.history.replaceState({}, '', url.pathname + url.search);
-        }
-    }
-    document.addEventListener('click', (e) => {
-        const openBtn = e.target.closest('[data-open-batch]');
-        if (openBtn) {
-            openBatch(openBtn.getAttribute('data-open-batch'));
-            return;
-        }
-        const closeBtn = e.target.closest('[data-close-batch]');
-        if (closeBtn) {
-            closeBatch(closeBtn.getAttribute('data-close-batch'));
-            return;
-        }
-        if (e.target.classList.contains('batch-detail-modal')) {
-            e.target.classList.add('hidden');
-        }
+    const CS = window.FarshCatalogSuggest;
+    if (!CS) return;
+    document.querySelectorAll('table[data-variance-edit]').forEach((table) => {
+        CS.bindTable(table, {
+            onApply: (tr) => tr.querySelector('input[name="quantity"]')?.focus(),
+        });
     });
-    const openId = '{{ open_batch|default:""|escapejs }}';
-    if (openId) openBatch(openId);
 })();
 </script>
+{% include "ops/_batch_modals_js.html" %}
 {% endblock %}

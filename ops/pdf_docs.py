@@ -50,6 +50,15 @@ def _has_arabic(text: str) -> bool:
     return any("\u0600" <= ch <= "\u06FF" for ch in text)
 
 
+def _xml_esc(text: str) -> str:
+    return (
+        str(text)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
 def _ar(text) -> str:
     raw = str(text or "").strip()
     if not raw:
@@ -64,6 +73,21 @@ def _ar(text) -> str:
         return get_display(arabic_reshaper.reshape(raw))
     except Exception:
         return raw
+
+
+def _ltr_span(text) -> str:
+    """Render LTR with Helvetica — Noto Naskh Arabic lacks '-', '/', '#' glyphs."""
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+    return f'<font name="Helvetica">{_xml_esc(raw)}</font>'
+
+
+def _para_text(text, styles, *, ar_style: str = "meta_value", ltr_style: str = "meta_ltr"):
+    raw = str(text or "").strip() or "—"
+    if _has_arabic(raw):
+        return Paragraph(_ar(raw), styles[ar_style])
+    return Paragraph(_xml_esc(raw), styles[ltr_style])
 
 
 def _fmt_dt(value) -> str:
@@ -109,11 +133,11 @@ def _invoice_total_box(styles, *, grand_total: float, items_count: int = 0) -> T
     rows = []
     if items_count:
         rows.append([
-            Paragraph(_ar(str(items_count)), styles["meta_value"]),
+            Paragraph(_xml_esc(str(items_count)), styles["meta_ltr"]),
             Paragraph(_ar("عدد الأصناف"), styles["meta_label"]),
         ])
     rows.append([
-        Paragraph(_money(grand_total), total_style),
+        Paragraph(_ltr_span(_money(grand_total)), total_style),
         Paragraph(_ar("الإجمالي الكلي"), total_style),
     ])
     tbl = Table(rows, colWidths=[value_w, label_w])
@@ -174,8 +198,16 @@ def _styles():
             "ArMetaValue", parent=base["Normal"], fontName=font,
             fontSize=9, leading=12, alignment=TA_RIGHT, textColor=NAVY,
         ),
+        "meta_ltr": ParagraphStyle(
+            "ArMetaLtr", parent=base["Normal"], fontName="Helvetica",
+            fontSize=9, leading=12, alignment=TA_RIGHT, textColor=NAVY,
+        ),
         "cell": ParagraphStyle(
             "ArCell", parent=base["Normal"], fontName=font,
+            fontSize=8, leading=11, alignment=TA_RIGHT,
+        ),
+        "cell_ltr": ParagraphStyle(
+            "ArCellLtr", parent=base["Normal"], fontName="Helvetica",
             fontSize=8, leading=11, alignment=TA_RIGHT,
         ),
         "cell_head": ParagraphStyle(
@@ -238,11 +270,11 @@ def _doc_heading(styles, title: str, subtitle: str, ref: str, dated: str) -> lis
         Paragraph(_ar(title), styles["doc_title"]),
         Paragraph(_ar(subtitle), styles["doc_sub"]),
     ]
-    # Reshape the full phrase so Arabic labels + LTR codes stay correct
+    # Arabic label + Helvetica LTR value (hyphens/# missing from Noto Naskh)
     ref_row = Table(
         [[
-            Paragraph(_ar(f"التاريخ: {dated}"), styles["meta_value"]),
-            Paragraph(_ar(f"الرقم: {ref}"), styles["meta_value"]),
+            Paragraph(f'{_ar("التاريخ:")} {_ltr_span(dated)}', styles["meta_value"]),
+            Paragraph(f'{_ar("الرقم:")} {_ltr_span(ref)}', styles["meta_value"]),
         ]],
         colWidths=[page_w / 2, page_w / 2],
     )
@@ -271,7 +303,7 @@ def _meta_grid(rows: list[tuple[str, str]], styles) -> Table:
         inner = Table(
             [
                 [Paragraph(_ar(label), styles["meta_label"])],
-                [Paragraph(_ar(value or "—"), styles["meta_value"])],
+                [_para_text(value or "—", styles)],
             ],
             colWidths=[half - 8],
         )
@@ -311,7 +343,7 @@ def _meta_grid(rows: list[tuple[str, str]], styles) -> Table:
 def _data_table(headers: list[str], rows: list[list[str]], styles) -> Table:
     font = _ensure_font()
     head = [Paragraph(_ar(h), styles["cell_head"]) for h in headers]
-    body = [[Paragraph(_ar(c), styles["cell"]) for c in row] for row in rows]
+    body = [[_para_text(c, styles, ar_style="cell", ltr_style="cell_ltr") for c in row] for row in rows]
     data = [head] + (body or [[Paragraph(_ar("—"), styles["cell"])] * len(headers)])
     col_w = A4[0] - 2.4 * cm
     n = max(len(headers), 1)
@@ -673,7 +705,7 @@ def build_distribution_batch_pdf(rows: list, *, actor=None) -> tuple[bytes, str]
     actor = actor or first.created_by
     created = _fmt_dt(first.created_at)
     batch_ref = first.batch_number or f"DIST-{first.pk}"
-    dist_date = first.distribution_date.strftime("%Y/%m/%d")
+    dist_date = _fmt_date(first.distribution_date)
 
     story: list = []
     story.extend(_letterhead(styles, org_line="إدارة التوريد — التوزيع اليومي"))
@@ -724,7 +756,7 @@ def build_variance_batch_pdf(rows: list, *, actor=None) -> tuple[bytes, str]:
     actor = actor or first.created_by
     created = _fmt_dt(first.created_at)
     batch_ref = first.batch_number or f"VAR-{first.pk}"
-    rec_date = first.record_date.strftime("%Y/%m/%d")
+    rec_date = _fmt_date(first.record_date)
 
     story: list = []
     story.extend(_letterhead(styles, org_line="إدارة التوريد — نقص وزيادة"))

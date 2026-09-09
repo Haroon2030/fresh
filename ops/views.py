@@ -534,6 +534,36 @@ def supply_batch_delete(request, pk):
 
 @login_required
 @require_POST
+def supply_order_delete(request, pk):
+    order = get_object_or_404(
+        _supply_queryset(request.user).select_related('representative'),
+        pk=pk,
+    )
+    can_edit = request.user.is_manager or order.representative_id == request.user.id
+    if not can_edit:
+        messages.error(request, 'لا يمكنك حذف هذا الصنف.')
+        return redirect('ops:supply')
+    if order.status != SupplyOrder.Status.PENDING:
+        messages.error(request, 'لا يمكن حذف صنف غير قيد الانتظار.')
+        return redirect('ops:supply')
+
+    batch_number = (order.batch_number or '').strip()
+    item_label = order.item_name or order.order_number
+    order.delete()
+    messages.success(request, f'تم حذف الصنف «{item_label}».')
+    if batch_number:
+        seed = (
+            SupplyOrder.objects.filter(batch_number=batch_number)
+            .order_by('-created_at', 'pk')
+            .first()
+        )
+        if seed:
+            return redirect(f"{reverse('ops:supply')}?open={seed.pk}")
+    return redirect('ops:supply')
+
+
+@login_required
+@require_POST
 def supply_batch_update(request, pk):
     seed = get_object_or_404(_supply_queryset(request.user), pk=pk)
     can_edit = request.user.is_manager or seed.representative_id == request.user.id
@@ -769,6 +799,67 @@ def daily_distribution_delete(request, pk):
         count = 1
     messages.success(request, f'تم حذف ملف التوزيع {label} ({count} صنف).')
     return redirect(f"{reverse('ops:daily_distribution')}?date={dist_date.isoformat()}")
+
+
+def _dist_batch_qs(seed: DailySupplyDistribution):
+    if seed.batch_number:
+        return DailySupplyDistribution.objects.filter(batch_number=seed.batch_number).order_by('pk')
+    return DailySupplyDistribution.objects.filter(pk=seed.pk)
+
+
+@login_required
+@require_POST
+@rep_forbidden
+def daily_distribution_batch_update(request, pk):
+    seed = get_object_or_404(DailySupplyDistribution, pk=pk)
+    if not (request.user.is_manager or seed.created_by_id == request.user.id):
+        messages.error(request, 'لا يمكنك تعديل هذا الملف.')
+        return redirect('ops:daily_distribution')
+
+    rows = {r.pk: r for r in _dist_batch_qs(seed)}
+    if not rows:
+        messages.error(request, 'الملف فارغ.')
+        return redirect(f"{reverse('ops:daily_distribution')}?date={seed.distribution_date.isoformat()}")
+
+    order_ids = request.POST.getlist('order_id')
+    item_names = request.POST.getlist('item_name')
+    item_numbers = request.POST.getlist('item_number')
+    branches = request.POST.getlist('branch')
+    quantities = request.POST.getlist('quantity')
+
+    updated = 0
+    for i, raw_id in enumerate(order_ids):
+        try:
+            oid = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        row = rows.get(oid)
+        if not row:
+            continue
+        item_name = (item_names[i] if i < len(item_names) else '').strip()
+        branch = (branches[i] if i < len(branches) else '').strip()
+        if not item_name or not branch:
+            continue
+        qty_raw = quantities[i] if i < len(quantities) else '1'
+        try:
+            quantity = max(1, int(qty_raw or 1))
+        except (TypeError, ValueError):
+            quantity = 1
+        row.item_name = item_name
+        row.item_number = (item_numbers[i] if i < len(item_numbers) else '').strip()
+        row.branch = branch
+        row.quantity = quantity
+        row.save()
+        updated += 1
+
+    ref = seed.batch_number or seed.item_name
+    if updated:
+        messages.success(request, f'تم حفظ تعديلات ملف {ref} ({updated} صنف).')
+    else:
+        messages.error(request, 'لم يُحفظ أي تعديل.')
+    return redirect(
+        f"{reverse('ops:daily_distribution')}?date={seed.distribution_date.isoformat()}&open={seed.pk}"
+    )
 
 
 @login_required
@@ -1028,6 +1119,80 @@ def distribution_variance_delete(request, pk):
     return redirect(f"{reverse('ops:distribution_variance')}?date={record_date.isoformat()}")
 
 
+def _variance_batch_qs(seed: DistributionVariance):
+    if seed.batch_number:
+        return DistributionVariance.objects.filter(batch_number=seed.batch_number).order_by('pk')
+    return DistributionVariance.objects.filter(pk=seed.pk)
+
+
+@login_required
+@require_POST
+@rep_forbidden
+def distribution_variance_batch_update(request, pk):
+    seed = get_object_or_404(DistributionVariance, pk=pk)
+    if not (request.user.is_manager or seed.created_by_id == request.user.id):
+        messages.error(request, 'لا يمكنك تعديل هذا الملف.')
+        return redirect('ops:distribution_variance')
+
+    pending = {
+        r.pk: r
+        for r in _variance_batch_qs(seed).filter(status=DistributionVariance.Status.PENDING)
+    }
+    if not pending:
+        messages.error(request, 'لا سجلات قابلة للتعديل في هذا الملف.')
+        return redirect(
+            f"{reverse('ops:distribution_variance')}?date={seed.record_date.isoformat()}&open={seed.pk}"
+        )
+
+    order_ids = request.POST.getlist('order_id')
+    item_names = request.POST.getlist('item_name')
+    item_numbers = request.POST.getlist('item_number')
+    variance_types = request.POST.getlist('variance_type')
+    branches = request.POST.getlist('branch')
+    suppliers = request.POST.getlist('supplier')
+    quantities = request.POST.getlist('quantity')
+
+    updated = 0
+    for i, raw_id in enumerate(order_ids):
+        try:
+            oid = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        row = pending.get(oid)
+        if not row:
+            continue
+        item_name = (item_names[i] if i < len(item_names) else '').strip()
+        branch = (branches[i] if i < len(branches) else '').strip()
+        supplier = (suppliers[i] if i < len(suppliers) else '').strip()
+        vtype = (variance_types[i] if i < len(variance_types) else '').strip()
+        if not item_name or not branch or not supplier:
+            continue
+        if vtype not in dict(DistributionVariance.VarianceType.choices):
+            vtype = row.variance_type
+        qty_raw = quantities[i] if i < len(quantities) else '1'
+        try:
+            quantity = max(1, int(qty_raw or 1))
+        except (TypeError, ValueError):
+            quantity = 1
+        row.item_name = item_name
+        row.item_number = (item_numbers[i] if i < len(item_numbers) else '').strip()
+        row.variance_type = vtype
+        row.branch = branch
+        row.supplier = supplier
+        row.quantity = quantity
+        row.save()
+        updated += 1
+
+    ref = seed.batch_number or seed.item_name
+    if updated:
+        messages.success(request, f'تم حفظ تعديلات ملف {ref} ({updated} سجل).')
+    else:
+        messages.error(request, 'لم يُحفظ أي تعديل.')
+    return redirect(
+        f"{reverse('ops:distribution_variance')}?date={seed.record_date.isoformat()}&open={seed.pk}"
+    )
+
+
 @login_required
 def returns_list(request):
     from django.contrib.auth import get_user_model
@@ -1062,6 +1227,8 @@ def returns_list(request):
         'open_batch': open_batch,
         'active_nav': 'returns',
         'return_types': ReturnRequest.ReturnType.choices,
+        'package_choices': DAILY_ORDER_PACKAGES,
+        'package_choices_json': json.dumps(DAILY_ORDER_PACKAGES, ensure_ascii=False),
     }
     ctx.update(_catalog_context())
     return render(request, 'ops/returns.html', ctx)
@@ -1305,6 +1472,68 @@ def return_item_update(request, pk):
     item.save()
     messages.success(request, 'تم حفظ تعديلات الصنف.')
     return _redirect_returns(batch.pk if batch else None)
+
+
+@login_required
+@require_POST
+def return_batch_update(request, pk):
+    batch = get_object_or_404(_return_batch_queryset(request.user), pk=pk)
+    can_edit = request.user.is_manager or batch.representative_id == request.user.id
+    if not can_edit:
+        messages.error(request, 'لا يمكنك تعديل هذا الملف.')
+        return redirect('ops:returns')
+
+    pending = {
+        item.pk: item
+        for item in batch.items.filter(status=ReturnRequest.Status.PENDING)
+    }
+    if not pending:
+        messages.error(request, 'لا أصناف قابلة للتعديل في هذا الملف.')
+        return _redirect_returns(batch.pk)
+
+    order_ids = request.POST.getlist('order_id')
+    item_names = request.POST.getlist('item_name')
+    item_numbers = request.POST.getlist('item_number')
+    packages = request.POST.getlist('package')
+    quantities = request.POST.getlist('quantity')
+    return_types = request.POST.getlist('return_type')
+    reasons = request.POST.getlist('reason')
+
+    updated = 0
+    for i, raw_id in enumerate(order_ids):
+        try:
+            oid = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        item = pending.get(oid)
+        if not item:
+            continue
+        item_name = (item_names[i] if i < len(item_names) else '').strip()
+        reason = (reasons[i] if i < len(reasons) else '').strip()
+        if not item_name or not reason:
+            continue
+        qty_raw = quantities[i] if i < len(quantities) else '1'
+        try:
+            quantity = max(1, int(qty_raw or 1))
+        except (TypeError, ValueError):
+            quantity = 1
+        rtype = (return_types[i] if i < len(return_types) else '').strip()
+        if rtype not in dict(ReturnRequest.ReturnType.choices):
+            rtype = item.return_type
+        item.item_name = item_name
+        item.item_number = (item_numbers[i] if i < len(item_numbers) else '').strip()
+        item.package = (packages[i] if i < len(packages) else '').strip()
+        item.quantity = quantity
+        item.return_type = rtype
+        item.reason = reason
+        item.save()
+        updated += 1
+
+    if updated:
+        messages.success(request, f'تم حفظ تعديلات ملف {batch.return_number} ({updated} صنف).')
+    else:
+        messages.error(request, 'لم يُحفظ أي تعديل.')
+    return _redirect_returns(batch.pk)
 
 
 @login_required
@@ -1704,6 +1933,67 @@ def daily_order_delete(request, pk):
         count = 1
     messages.success(request, f'تم حذف ملف الطلبية {label} ({count} صنف).')
     return redirect(f"{reverse('ops:daily_orders')}?date={order_date.isoformat()}")
+
+
+def _daily_order_batch_qs(seed: DailyOrder):
+    if seed.batch_number:
+        return DailyOrder.objects.filter(batch_number=seed.batch_number).order_by('pk')
+    return DailyOrder.objects.filter(pk=seed.pk)
+
+
+@login_required
+@require_POST
+def daily_order_batch_update(request, pk):
+    seed = get_object_or_404(_daily_order_queryset(request.user), pk=pk)
+    can_edit = request.user.is_manager or seed.representative_id == request.user.id
+    if not can_edit:
+        messages.error(request, 'لا يمكنك تعديل هذا الملف.')
+        return redirect('ops:daily_orders')
+
+    pending = {
+        o.pk: o
+        for o in _daily_order_batch_qs(seed).filter(status=DailyOrder.Status.PENDING)
+    }
+    if not pending:
+        messages.error(request, 'لا أصناف قابلة للتعديل في هذا الملف.')
+        return redirect(f"{reverse('ops:daily_orders')}?date={seed.order_date.isoformat()}&open={seed.pk}")
+
+    order_ids = request.POST.getlist('order_id')
+    item_names = request.POST.getlist('item_name')
+    item_numbers = request.POST.getlist('item_number')
+    packages = request.POST.getlist('package')
+    quantities = request.POST.getlist('quantity')
+
+    updated = 0
+    for i, raw_id in enumerate(order_ids):
+        try:
+            oid = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        order = pending.get(oid)
+        if not order:
+            continue
+        item_name = (item_names[i] if i < len(item_names) else '').strip()
+        if not item_name:
+            continue
+        qty_raw = quantities[i] if i < len(quantities) else '1'
+        try:
+            quantity = max(1, int(qty_raw or 1))
+        except (TypeError, ValueError):
+            quantity = 1
+        order.item_name = item_name
+        order.item_number = (item_numbers[i] if i < len(item_numbers) else '').strip()
+        order.package = (packages[i] if i < len(packages) else '').strip()
+        order.quantity = quantity
+        order.save()
+        updated += 1
+
+    ref = seed.batch_number or seed.order_number
+    if updated:
+        messages.success(request, f'تم حفظ تعديلات ملف {ref} ({updated} صنف).')
+    else:
+        messages.error(request, 'لم يُحفظ أي تعديل.')
+    return redirect(f"{reverse('ops:daily_orders')}?date={seed.order_date.isoformat()}&open={seed.pk}")
 
 
 @manager_required
@@ -2785,10 +3075,18 @@ def offers_create(request):
 @require_POST
 def offers_batch_update(request, pk):
     seed = get_object_or_404(_offer_queryset(request.user), pk=pk)
-    items = {o.pk: o for o in _offer_batch_items(seed)}
-    if not items:
-        messages.error(request, 'الملف فارغ.')
+    can_edit = request.user.is_manager or seed.representative_id == request.user.id
+    if not can_edit:
+        messages.error(request, 'لا يمكنك تعديل هذا الملف.')
         return redirect('ops:offers')
+
+    pending = {
+        o.pk: o
+        for o in _offer_batch_items(seed).filter(status=OfferItem.Status.PENDING)
+    }
+    if not pending:
+        messages.error(request, 'لا أصناف قابلة للتعديل في هذا الملف.')
+        return redirect(f"{reverse('ops:offers')}?open={seed.pk}")
 
     order_ids = request.POST.getlist('order_id')
     item_names = request.POST.getlist('item_name')
@@ -2802,7 +3100,7 @@ def offers_batch_update(request, pk):
             oid = int(raw_id)
         except (TypeError, ValueError):
             continue
-        row = items.get(oid)
+        row = pending.get(oid)
         if not row:
             continue
         item_name = (item_names[i] if i < len(item_names) else '').strip()
