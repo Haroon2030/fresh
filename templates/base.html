@@ -109,30 +109,28 @@
     </script>
     <style>
         :root {
-            --app-bg: #f3f8fc;
+            --app-bg: #f1f5f9;
             --app-bg-elevated: #ffffff;
             --app-text: #0f172a;
-            --app-text-muted: #475569;
+            --app-text-muted: #64748b;
             --app-ink: #1d4ed8;
-            --app-accent: #059669;
+            --app-accent: #0d9488;
             --app-warm: #f59e0b;
             --app-coral: #f43f5e;
             --app-sky: #0ea5e9;
-            --app-icon: #1d4ed8;
+            --app-icon: #475569;
             --app-table: #1d4ed8;
             --app-table-soft: #eff6ff;
-            --app-border: #bfdbfe;
+            --app-border: #e2e8f0;
             --app-gold: #d97706;
             --app-modal-scrim: rgba(15, 23, 42, 0.45);
-            --app-shadow: 0 12px 36px rgba(29, 78, 216, 0.14);
+            --app-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+            --app-radius: 14px;
+            --app-radius-sm: 10px;
         }
         body {
             font-family: 'IBM Plex Sans Arabic', sans-serif;
-            background:
-                radial-gradient(900px 420px at 100% -8%, rgba(14, 165, 233, 0.18), transparent 55%),
-                radial-gradient(780px 380px at 0% 100%, rgba(5, 150, 105, 0.14), transparent 52%),
-                radial-gradient(640px 300px at 70% 80%, rgba(245, 158, 11, 0.10), transparent 50%),
-                linear-gradient(180deg, #eef6ff 0%, #f3f8fc 40%, #f0fdf4 100%);
+            background: #f1f5f9;
             color: var(--app-text);
             min-height: 100vh;
         }
@@ -166,7 +164,7 @@
             color: inherit;
         }
         .nav-link.bg-secondary-container .material-symbols-outlined {
-            color: #0f2744;
+            color: inherit;
         }
         html.fonts-icons-ready .material-symbols-outlined {
             visibility: visible;
@@ -181,54 +179,208 @@
         .table-container { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); }
         tr:last-child td { border-bottom: none; }
 
+        /* ===== شريط جانبي احترافي (فاتح / SaaS) ===== */
         #sidebar {
+            --sb-bg: #f8fafc;
+            --sb-surface: #ffffff;
+            --sb-border: #e2e8f0;
+            --sb-text: #0f172a;
+            --sb-muted: #64748b;
+            --sb-accent: #1d4ed8;
+            --sb-accent-soft: #eff6ff;
+            --sb-icon-bg: #eef2f7;
+            --sb-hover: #f1f5f9;
             width: 280px;
             transition: width 0.25s ease;
             overflow: visible;
-            background: #ffffff;
-            box-shadow: -4px 0 14px rgba(0, 0, 0, 0.03);
-            border-top-left-radius: 28px;
-            border-bottom-left-radius: 28px;
+            background: var(--sb-bg);
+            border-left: 1px solid var(--sb-border);
+            box-shadow: -8px 0 24px rgba(15, 23, 42, 0.04);
+            border-top-left-radius: 20px;
+            border-bottom-left-radius: 20px;
         }
-        #sidebar::before {
-            content: '';
-            position: absolute;
-            top: 24px;
-            bottom: 24px;
-            left: 0;
-            width: 2px;
-            border-radius: 999px;
-            background: linear-gradient(
-                180deg,
-                transparent 0%,
-                rgba(0, 0, 0, 0.2) 12%,
-                rgba(20, 92, 76, 0.45) 50%,
-                rgba(0, 0, 0, 0.2) 88%,
-                transparent 100%
-            );
-            box-shadow: none;
-            opacity: 0.85;
-        }
+        #sidebar::before,
         #sidebar::after {
-            content: '';
-            position: absolute;
-            top: 18px;
-            bottom: 18px;
-            left: 0;
-            width: 1px;
-            border-radius: 999px;
-            background: linear-gradient(
-                180deg,
-                transparent 0%,
-                rgba(0, 0, 0, 0.06) 15%,
-                rgba(0, 0, 0, 0.1) 50%,
-                rgba(0, 0, 0, 0.06) 85%,
-                transparent 100%
-            );
-            pointer-events: none;
+            display: none;
         }
         #mainContent {
             transition: margin-right 0.25s ease;
+            background: var(--app-bg);
+            gap: 16px;
+        }
+        .app-topbar {
+            display: none;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            min-height: 60px;
+            padding: 10px 14px;
+            background: #ffffff;
+            border: 1px solid var(--app-border);
+            border-radius: var(--app-radius);
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+            position: sticky;
+            top: 12px;
+            z-index: 20;
+            margin-bottom: 4px;
+        }
+        @media (min-width: 768px) {
+            .app-topbar { display: flex; }
+        }
+        .app-topbar-search {
+            position: relative;
+            flex: 1;
+            max-width: 420px;
+        }
+        .app-topbar-search > .material-symbols-outlined {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 20px;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .app-topbar-search input[type="search"],
+        .app-topbar-search input[type="text"],
+        .app-topbar-search input:not([type]) {
+            width: 100%;
+            min-height: 40px;
+            background: #f8fafc !important;
+            border: 1px solid var(--app-border) !important;
+            border-radius: 10px !important;
+            padding: 8px 40px 8px 14px !important;
+            font-size: 13px !important;
+            font-weight: 600;
+            color: var(--app-text);
+            outline: none;
+            transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+        }
+        .app-topbar-search input:focus {
+            background: #fff !important;
+            border-color: #93c5fd !important;
+            box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
+        }
+        .app-topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .app-icon-btn {
+            width: 36px;
+            height: 36px;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            background: transparent;
+            color: #64748b;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background .15s ease, color .15s ease, border-color .15s ease;
+        }
+        .app-icon-btn:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+            border-color: var(--app-border);
+        }
+        .app-icon-btn .material-symbols-outlined {
+            font-size: 20px;
+            color: inherit;
+        }
+        .app-topbar-divider {
+            width: 1px;
+            height: 28px;
+            background: var(--app-border);
+            margin: 0 4px;
+        }
+        .app-topbar-user {
+            display: none;
+            text-align: left;
+            line-height: 1.25;
+        }
+        @media (min-width: 1024px) {
+            .app-topbar-user { display: block; }
+        }
+        .app-topbar-user strong {
+            display: block;
+            font-family: 'Cairo', sans-serif;
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--app-text);
+        }
+        .app-topbar-user span {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--app-text-muted);
+            margin-top: 2px;
+        }
+        .app-logout-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 1px solid #fecaca;
+            background: #fff1f2;
+            color: #b91c1c;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background .15s ease, border-color .15s ease;
+        }
+        .app-logout-btn:hover {
+            background: #ffe4e6;
+            border-color: #fca5a5;
+        }
+        .app-logout-btn .material-symbols-outlined {
+            font-size: 18px;
+            color: inherit !important;
+        }
+        .page-flash {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .page-flash-item {
+            border-radius: 10px;
+            padding: 10px 14px;
+            border: 1px solid var(--app-border);
+            font-size: 13px;
+            font-weight: 600;
+            background: #fff;
+            color: var(--app-text);
+        }
+        .page-flash-item.is-error {
+            background: #fff1f2;
+            border-color: #fecaca;
+            color: #9f1239;
+        }
+        .page-flash-item.is-warning {
+            background: #fffbeb;
+            border-color: #fde68a;
+            color: #92400e;
+        }
+        .page-flash-item.is-ok {
+            background: #ecfdf5;
+            border-color: #a7f3d0;
+            color: #065f46;
+        }
+        #mainContent .font-headline-lg,
+        #mainContent h2.font-headline-lg {
+            font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.01em;
+            color: var(--app-text);
+            line-height: 1.3;
+        }
+        #mainContent p.font-body-md.text-on-surface-variant {
+            color: var(--app-text-muted);
+            font-size: 13.5px;
+            font-weight: 500;
+            line-height: 1.55;
         }
         body.sidebar-collapsed #sidebar {
             width: 80px;
@@ -253,8 +405,9 @@
             justify-content: center;
             padding-left: 0.5rem;
             padding-right: 0.5rem;
+            gap: 0;
         }
-        body.sidebar-collapsed #sidebar .nav-link .material-symbols-outlined {
+        body.sidebar-collapsed #sidebar .nav-link .nav-icon {
             margin: 0;
         }
         #sidebarToggle {
@@ -266,25 +419,27 @@
             width: 28px;
             height: 28px;
             border-radius: 9999px;
-            border: 1px solid #e0e0e0;
-            background: #ffffff;
-            color: var(--app-icon);
+            border: 1px solid var(--sb-border);
+            background: var(--sb-surface);
+            color: var(--sb-text);
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
             cursor: pointer;
-            transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+            transition: background 0.2s, color 0.2s, box-shadow 0.2s, border-color 0.2s;
         }
         #sidebarToggle:hover {
-            background: #f5f5f5;
-            color: #000000;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.14);
+            background: var(--sb-accent-soft);
+            color: var(--sb-accent);
+            border-color: #bfdbfe;
+            box-shadow: 0 4px 12px rgba(29, 78, 216, 0.12);
         }
         #sidebarToggleIcon {
             font-size: 18px;
             transition: transform 0.25s ease;
             line-height: 1;
+            color: inherit;
         }
         #sidebarToggleIcon.collapsed {
             transform: rotate(180deg);
@@ -292,36 +447,13 @@
         .sidebar-footer {
             position: relative;
             margin-top: auto;
-            padding: 12px 10px;
-            border-radius: 18px;
-            background: #ffffff;
-            box-shadow:
-                inset 0 0 0 1px rgba(0, 0, 0, 0.06),
-                0 2px 10px rgba(15, 39, 68, 0.08);
+            padding: 8px;
+            border-radius: 14px;
+            background: var(--sb-surface);
+            border: 1px solid var(--sb-border);
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
         }
-        .sidebar-footer::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: 18px;
-            padding: 2px;
-            background: linear-gradient(
-                135deg,
-                #111111 0%,
-                #145c4c 35%,
-                #3b82f6 65%,
-                #111111 100%
-            );
-            -webkit-mask:
-                linear-gradient(#fff 0 0) content-box,
-                linear-gradient(#fff 0 0);
-            -webkit-mask-composite: xor;
-            mask:
-                linear-gradient(#fff 0 0) content-box,
-                linear-gradient(#fff 0 0);
-            mask-composite: exclude;
-            pointer-events: none;
-        }
+        .sidebar-footer::before,
         .sidebar-footer::after {
             display: none;
         }
@@ -329,16 +461,17 @@
             border: 0;
             background: transparent;
             cursor: default;
-            transition: background 0.2s ease;
+            border-radius: 10px;
+            transition: background 0.15s ease;
         }
         .sidebar-user-btn:hover {
-            background: #eff6ff;
+            background: var(--sb-accent-soft);
         }
         .sidebar-user-avatar {
-            background: linear-gradient(145deg, #1d4ed8 0%, #2563eb 50%, #059669 130%);
+            background: linear-gradient(145deg, #1d4ed8 0%, #2563eb 55%, #0d9488 130%);
             color: #fff;
-            border: 1px solid rgba(255,255,255,0.25);
-            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 2px 8px rgba(29, 78, 216, 0.22);
         }
         .sidebar-user-avatar .material-symbols-outlined {
             color: #fff !important;
@@ -357,35 +490,31 @@
         }
         .sidebar-brand {
             position: relative;
-            padding: 12px 10px;
-            border-radius: 18px;
-            background: #ffffff;
-            box-shadow:
-                inset 0 0 0 1px rgba(0, 0, 0, 0.06),
-                0 2px 10px rgba(15, 39, 68, 0.08);
+            padding: 12px 12px;
+            border-radius: 14px;
+            background: var(--sb-surface);
+            border: 1px solid var(--sb-border);
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+            margin-bottom: 12px !important;
         }
         .sidebar-brand::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: 18px;
-            padding: 2px;
-            background: linear-gradient(
-                135deg,
-                #111111 0%,
-                #145c4c 35%,
-                #3b82f6 65%,
-                #111111 100%
-            );
-            -webkit-mask:
-                linear-gradient(#fff 0 0) content-box,
-                linear-gradient(#fff 0 0);
-            -webkit-mask-composite: xor;
-            mask:
-                linear-gradient(#fff 0 0) content-box,
-                linear-gradient(#fff 0 0);
-            mask-composite: exclude;
-            pointer-events: none;
+            display: none;
+        }
+        .sidebar-brand .brand-text h1 {
+            font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+            font-size: 17px;
+            font-weight: 800;
+            line-height: 1.25;
+            color: var(--sb-text);
+            margin: 0;
+        }
+        .sidebar-brand .brand-text p {
+            font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--sb-muted);
+            margin: 2px 0 0;
+            letter-spacing: 0.02em;
         }
         body.sidebar-collapsed #sidebar .sidebar-brand {
             justify-content: center;
@@ -393,20 +522,20 @@
             padding-right: 8px;
         }
         .brand-mark {
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
+            width: 42px;
+            height: 42px;
+            border-radius: 11px;
             display: grid;
             place-items: center;
             flex-shrink: 0;
-            background: linear-gradient(145deg, #1d4ed8 0%, #2563eb 42%, #059669 120%);
-            border: 1px solid rgba(255,255,255,0.2);
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28);
+            background: linear-gradient(145deg, #1d4ed8 0%, #2563eb 48%, #0d9488 125%);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            box-shadow: 0 4px 12px rgba(29, 78, 216, 0.22);
             overflow: hidden;
         }
         .brand-mark svg {
-            width: 26px;
-            height: 26px;
+            width: 24px;
+            height: 24px;
             display: block;
         }
         .brand-mark-lg {
@@ -428,7 +557,7 @@
         }
         #sidebar .nav-label {
             font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
-            font-size: 14.5px;
+            font-size: 13.5px;
             font-weight: 700;
             line-height: 1.3;
             letter-spacing: 0;
@@ -436,45 +565,63 @@
         #sidebar .nav-menu {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 2px;
             flex-grow: 1;
             min-height: 0;
             overflow-y: auto;
-            padding: 4px 2px 8px;
+            padding: 2px 2px 10px;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+        #sidebar .nav-menu::-webkit-scrollbar {
+            width: 4px;
+        }
+        #sidebar .nav-menu::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 999px;
         }
         #sidebar .nav-section-label {
-            margin: 12px 10px 6px;
-            font-size: 10.5px;
+            margin: 14px 8px 6px;
+            padding-top: 10px;
+            border-top: 1px solid var(--sb-border);
+            font-size: 10px;
             font-weight: 800;
-            letter-spacing: 0.08em;
+            letter-spacing: 0.1em;
             color: #94a3b8;
             font-family: 'Cairo', sans-serif;
             text-transform: uppercase;
         }
         #sidebar .nav-section-label:first-child {
-            margin-top: 2px;
+            margin-top: 0;
+            padding-top: 0;
+            border-top: 0;
         }
         #sidebar .nav-link {
             position: relative;
             display: flex;
             align-items: center;
-            gap: 11px;
-            padding: 9px 12px;
-            border-radius: 11px;
-            color: #64748b;
+            gap: 10px;
+            min-height: 40px;
+            padding: 6px 10px;
+            border-radius: 10px;
+            color: var(--sb-muted);
             font-weight: 700;
             text-decoration: none;
             transition: background .15s ease, color .15s ease, box-shadow .15s ease;
         }
         #sidebar .nav-link:hover {
-            background: #f1f5f9;
-            color: #0f172a;
+            background: var(--sb-hover);
+            color: var(--sb-text);
+        }
+        #sidebar .nav-link:hover .nav-icon {
+            background: #e2e8f0;
+            color: var(--sb-text);
         }
         #sidebar .nav-link.is-active,
         #sidebar .nav-link.bg-secondary-container {
-            background: linear-gradient(135deg, #eff6ff, #ecfdf5) !important;
-            color: #1e3a8a !important;
-            box-shadow: inset 0 0 0 1px #bfdbfe;
+            background: #1d4ed8 !important;
+            color: #ffffff !important;
+            box-shadow: 0 4px 12px rgba(29, 78, 216, 0.28);
             font-weight: 800;
         }
         #sidebar .nav-link.is-active::before,
@@ -482,21 +629,40 @@
             content: '';
             position: absolute;
             right: 0;
-            top: 8px;
-            bottom: 8px;
+            top: 6px;
+            bottom: 6px;
             width: 3px;
             border-radius: 999px;
-            background: linear-gradient(180deg, #1d4ed8, #059669);
+            background: #93c5fd;
         }
-        #sidebar .nav-link .material-symbols-outlined {
-            font-size: 21px;
-            width: 24px;
-            text-align: center;
+        #sidebar .nav-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: var(--sb-icon-bg);
+            color: var(--sb-muted);
+            transition: background .15s ease, color .15s ease;
+        }
+        #sidebar .nav-link .nav-icon .material-symbols-outlined,
+        #sidebar .nav-group-toggle .nav-icon .material-symbols-outlined {
+            font-size: 18px;
+            width: auto;
+            height: auto;
+            line-height: 1;
             color: inherit;
         }
-        #sidebar .nav-link.is-active .material-symbols-outlined,
-        #sidebar .nav-link.bg-secondary-container .material-symbols-outlined {
-            color: #1d4ed8;
+        #sidebar .nav-link.is-active .nav-icon,
+        #sidebar .nav-link.bg-secondary-container .nav-icon {
+            background: rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+        }
+        #sidebar .nav-link.is-active .nav-icon .material-symbols-outlined,
+        #sidebar .nav-link.bg-secondary-container .nav-icon .material-symbols-outlined {
+            color: #ffffff !important;
         }
         #sidebar .nav-group {
             display: flex;
@@ -508,54 +674,59 @@
             transition: border-color .15s ease, background .15s ease;
         }
         #sidebar .nav-group.open {
-            border-color: #bfdbfe;
-            background: #f8fbff;
+            border-color: var(--sb-border);
+            background: var(--sb-surface);
             padding-bottom: 6px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
         }
         #sidebar .nav-group-toggle {
             display: flex;
             align-items: center;
-            gap: 11px;
+            gap: 10px;
             width: 100%;
-            padding: 9px 12px;
+            min-height: 40px;
+            padding: 6px 10px;
             border: 0;
-            border-radius: 11px;
+            border-radius: 10px;
             background: transparent;
-            color: #64748b;
+            color: var(--sb-muted);
             font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
-            font-size: 14.5px;
+            font-size: 13.5px;
             font-weight: 800;
             cursor: pointer;
             text-align: right;
             transition: background .15s ease, color .15s ease;
         }
         #sidebar .nav-group-toggle:hover {
-            background: #f1f5f9;
-            color: #0f172a;
+            background: var(--sb-hover);
+            color: var(--sb-text);
+        }
+        #sidebar .nav-group-toggle:hover .nav-icon {
+            background: #e2e8f0;
+            color: var(--sb-text);
         }
         #sidebar .nav-group-toggle.is-active {
-            color: #1d4ed8;
-            background: linear-gradient(135deg, #eff6ff, #ecfdf5);
-            box-shadow: inset 0 0 0 1px #bfdbfe;
+            color: var(--sb-accent);
+            background: var(--sb-accent-soft);
+            box-shadow: none;
+        }
+        #sidebar .nav-group-toggle.is-active .nav-icon {
+            background: #dbeafe;
+            color: var(--sb-accent);
         }
         #sidebar .nav-group.open .nav-group-toggle {
-            color: #1d4ed8;
+            color: var(--sb-accent);
             background: transparent;
             box-shadow: none;
-            border-radius: 11px 11px 0 0;
-        }
-        #sidebar .nav-group-toggle .material-symbols-outlined:first-child {
-            font-size: 21px;
-            width: 24px;
-            text-align: center;
-            color: inherit;
+            border-radius: 10px 10px 0 0;
         }
         #sidebar .nav-group-toggle .nav-chevron {
             margin-right: auto;
             margin-left: 0;
             font-size: 18px;
-            opacity: .7;
+            opacity: .65;
             transition: transform .2s ease;
+            color: inherit;
         }
         #sidebar .nav-group.open .nav-group-toggle .nav-chevron {
             transform: rotate(180deg);
@@ -565,7 +736,7 @@
             display: none;
             flex-direction: column;
             gap: 2px;
-            padding: 0 8px 2px 8px;
+            padding: 0 6px 4px 6px;
         }
         #sidebar .nav-group.open .nav-submenu {
             display: flex;
@@ -576,20 +747,26 @@
             to { opacity: 1; transform: translateY(0); }
         }
         #sidebar .nav-submenu .nav-link {
-            padding: 8px 10px 8px 10px;
-            border-radius: 9px;
-            gap: 10px;
+            min-height: 36px;
+            padding: 5px 8px;
+            border-radius: 8px;
+            gap: 8px;
         }
         #sidebar .nav-submenu .nav-label {
-            font-size: 13.5px;
+            font-size: 13px;
             font-weight: 700;
         }
-        #sidebar .nav-submenu .nav-link .material-symbols-outlined {
-            font-size: 19px;
+        #sidebar .nav-submenu .nav-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+        }
+        #sidebar .nav-submenu .nav-icon .material-symbols-outlined {
+            font-size: 16px;
         }
         #sidebar .nav-submenu .nav-link.is-active::before,
         #sidebar .nav-submenu .nav-link.bg-secondary-container::before {
-            right: 2px;
+            right: 0;
         }
         body.sidebar-collapsed #sidebar .nav-section-label,
         body.sidebar-collapsed #sidebar .nav-group-toggle .nav-label,
@@ -600,6 +777,7 @@
             justify-content: center;
             padding-left: 0.5rem;
             padding-right: 0.5rem;
+            gap: 0;
         }
         body.sidebar-collapsed #sidebar .nav-group.open {
             padding-bottom: 4px;
@@ -614,41 +792,140 @@
             line-height: 1.35;
         }
         #sidebar .sidebar-user-text .sidebar-user-name {
-            font-size: 16px;
-            font-weight: 700;
+            font-size: 14px;
+            font-weight: 800;
+            color: var(--sb-text);
         }
         #sidebar .sidebar-user-text .sidebar-user-role {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
-        }
-        #sidebar .nav-link .material-symbols-outlined {
-            font-size: 22px;
+            color: var(--sb-muted);
         }
         #sidebar .sidebar-inner {
             overflow: hidden;
             height: 100%;
             display: flex;
             flex-direction: column;
+            gap: 0;
+            padding: 2px;
         }
 
         /* ===== نظام تصميم موحّد: جداول + أزرار + نوافذ منبثقة ===== */
         .app-table-frame {
             border: 1px solid var(--app-border);
-            border-radius: 14px;
+            border-radius: var(--app-radius);
             background: var(--app-bg-elevated);
-            padding: 12px;
-            box-shadow: 0 4px 18px rgba(15, 39, 68, 0.06);
+            padding: 14px;
+            box-shadow: var(--app-shadow);
+        }
+        .app-table-frame.ops-excel-frame {
+            padding: 0;
+            overflow: hidden;
         }
         .app-table-sheet {
             width: 100%;
             max-width: 100%;
             overflow: auto;
             border: 1px solid var(--app-border);
-            border-radius: 10px;
+            border-radius: var(--app-radius-sm);
             background: #fff;
+        }
+        .ops-excel-frame .app-table-sheet,
+        .ops-excel-sheet {
+            border: 0;
+            border-radius: 0;
+            max-height: min(62vh, 560px);
+        }
+        .ops-excel-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 12px;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .ops-excel-toolbar .toolbar-title {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 13px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .ops-excel-toolbar .toolbar-title .material-symbols-outlined {
+            font-size: 18px;
+            color: #2563eb;
+        }
+        .ops-excel-toolbar select {
+            height: 32px;
+            min-width: 140px;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 0 28px 0 10px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #0f172a;
+            outline: none;
+        }
+        .ops-excel-toolbar select:focus {
+            border-color: #93c5fd;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        }
+        .ops-excel-foot {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+        }
+        .ops-page-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #fff;
+            color: #2563eb;
+            text-decoration: none;
+            transition: background .15s ease, border-color .15s ease;
+        }
+        .ops-page-btn:hover {
+            background: #eff6ff;
+            border-color: #93c5fd;
+        }
+        .ops-page-btn.is-disabled {
+            opacity: 0.4;
+            pointer-events: none;
+            color: #94a3b8;
+        }
+        .ops-page-btn .material-symbols-outlined {
+            font-size: 18px;
+            color: inherit;
         }
         .excel-grid,
         .app-data-grid {
+            --xl-border: #e2e8f0;
+            --xl-head: #0f172a;
+            --xl-head-text: #f8fafc;
+            --xl-row: #ffffff;
+            --xl-row-alt: #f8fafc;
+            --xl-hover: #eff6ff;
+            --xl-num: #f1f5f9;
+            --xl-num-text: #64748b;
+            --xl-accent: #2563eb;
+            --xl-text: #0f172a;
+            --xl-muted: #64748b;
             font-family: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
             font-size: 12px;
             width: 100%;
@@ -659,137 +936,203 @@
         .excel-grid td,
         .app-data-grid th,
         .app-data-grid td {
-            border: 1px solid #c6c6c6;
+            border: 1px solid var(--xl-border);
             vertical-align: middle;
-            background: #fff;
-            color: var(--app-text);
+            background: var(--xl-row);
+            color: var(--xl-text);
         }
         .excel-grid thead th,
         .app-data-grid thead th {
-            background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 45%, #059669 130%) !important;
-            color: #ffffff !important;
+            background: var(--xl-head) !important;
+            color: var(--xl-head-text) !important;
             font-weight: 700;
-            font-size: 12px;
+            font-size: 11.5px;
             text-align: center;
-            padding: 6px 8px !important;
-            height: 32px;
-            border-color: #1e40af !important;
+            padding: 0 6px !important;
+            height: 32px !important;
+            border-color: #1e293b !important;
             white-space: nowrap;
             position: sticky;
             top: 0;
             z-index: 1;
-            letter-spacing: 0.02em;
+            letter-spacing: 0.03em;
             font-family: 'Cairo', sans-serif;
         }
         /* خلايا إكسل موحّدة: صف منخفض مرتّب */
+        .excel-grid tbody tr,
+        .app-data-grid tbody tr {
+            height: 28px;
+        }
         .excel-grid tbody td,
         .app-data-grid tbody td {
-            padding: 0 8px !important;
-            height: 28px;
-            min-height: 28px;
-            line-height: 28px;
+            padding: 0 6px !important;
+            height: 28px !important;
+            max-height: 28px !important;
+            min-height: 28px !important;
+            line-height: 28px !important;
             font-size: 12px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             vertical-align: middle !important;
+            background: var(--xl-row) !important;
+            color: var(--xl-text);
+        }
+        .excel-grid tbody tr:nth-child(even) td,
+        .app-data-grid tbody tr:nth-child(even) td {
+            background: var(--xl-row-alt) !important;
+        }
+        .excel-grid tbody tr:hover td,
+        .app-data-grid tbody tr:hover td {
+            background: var(--xl-hover) !important;
         }
         .excel-grid tbody td:has(.act-btn),
         .app-data-grid tbody td:has(.act-btn),
         .excel-grid tbody td:has(.row-actions),
-        .app-data-grid tbody td:has(.row-actions) {
-            height: auto;
-            min-height: 28px;
-            line-height: 1.2;
-            padding: 2px 4px !important;
-            white-space: normal;
-            overflow: visible;
+        .app-data-grid tbody td:has(.row-actions),
+        .excel-grid tbody td.cell-action,
+        .app-data-grid tbody td.cell-action {
+            height: 28px !important;
+            max-height: 28px !important;
+            min-height: 28px !important;
+            line-height: 28px !important;
+            padding: 0 4px !important;
+            white-space: nowrap !important;
+            overflow: visible !important;
         }
-        /* رؤوس أعمدة جداول الأصناف — لون موحّد */
+        .excel-grid .row-actions,
+        .app-data-grid .row-actions {
+            display: inline-flex;
+            flex-wrap: nowrap;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            height: 28px;
+        }
+        .excel-grid td.cell-action form,
+        .app-data-grid td.cell-action form,
+        .excel-grid td:has(.act-btn) form,
+        .app-data-grid td:has(.act-btn) form {
+            display: inline-flex;
+            margin: 0;
+            height: 22px;
+        }
+        .excel-grid .status-chip,
+        .app-data-grid .status-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 4.2rem;
+            height: 18px;
+            max-height: 18px;
+            padding: 0 6px;
+            font-size: 10px;
+            line-height: 1;
+            border-radius: 999px;
+            vertical-align: middle;
+        }
+        .excel-grid .act-btn,
+        .app-data-grid .act-btn {
+            height: 22px;
+            min-height: 22px;
+            padding: 0 6px;
+            font-size: 10px;
+            border-radius: 6px;
+        }
+        .excel-grid .act-icon,
+        .app-data-grid .act-icon {
+            width: 22px;
+            min-width: 22px;
+            padding: 0;
+            font-size: 0;
+        }
+        .excel-grid .act-icon .material-symbols-outlined,
+        .app-data-grid .act-icon .material-symbols-outlined {
+            font-size: 15px;
+            line-height: 1;
+            color: inherit;
+        }
+        /* رؤوس أعمدة جداول الأصناف داخل المودال — نفس النظام العصري */
         .batch-detail-modal .excel-grid thead th,
         .batch-detail-grid thead th,
         .excel-item-cols thead th {
-            background: #64748b !important;
-            color: #fff !important;
-            border-color: #475569 !important;
+            background: var(--xl-head) !important;
+            color: var(--xl-head-text) !important;
+            border-color: #1e293b !important;
             font-weight: 700;
-            font-size: 12px;
+            font-size: 11.5px;
             text-align: center;
-            padding: 6px 8px !important;
-            height: 32px;
+            padding: 0 6px !important;
+            height: 32px !important;
             white-space: nowrap;
             position: sticky;
             top: 0;
             z-index: 2;
-            letter-spacing: 0.01em;
+            letter-spacing: 0.03em;
             font-family: 'Cairo', sans-serif;
         }
         .batch-detail-modal .excel-grid th,
         .batch-detail-modal .excel-grid td,
         .batch-detail-grid th,
         .batch-detail-grid td {
-            border-color: #dbeafe !important;
+            border-color: var(--xl-border) !important;
         }
         .batch-detail-modal .excel-grid tbody tr:nth-child(even) td,
         .batch-detail-grid tbody tr:nth-child(even) td {
-            background: #eff6ff !important;
+            background: var(--xl-row-alt) !important;
         }
         .batch-detail-modal .excel-grid tbody tr:hover td,
         .batch-detail-grid tbody tr:hover td {
-            background: #dbeafe !important;
+            background: var(--xl-hover) !important;
         }
         .batch-detail-modal .excel-grid td.row-num,
         .batch-detail-grid td.row-num {
-            background: #eff6ff !important;
-            color: #1d4ed8 !important;
+            background: var(--xl-num) !important;
+            color: var(--xl-num-text) !important;
             font-weight: 700;
         }
         .batch-detail-modal .excel-grid tbody tr:nth-child(even) td.row-num,
         .batch-detail-grid tbody tr:nth-child(even) td.row-num {
-            background: #dbeafe !important;
-        }
-        .excel-grid tbody tr:nth-child(even) td,
-        .app-data-grid tbody tr:nth-child(even) td {
-            background: #eff6ff;
-        }
-        .excel-grid tbody tr:hover td,
-        .app-data-grid tbody tr:hover td {
-            background: #dbeafe !important;
+            background: #e2e8f0 !important;
         }
         .app-data-grid td.cell-strong,
-        .excel-grid td.cell-strong { font-weight: 600; }
+        .excel-grid td.cell-strong { font-weight: 700; }
         .app-data-grid td.cell-center,
         .excel-grid td.cell-center { text-align: center; }
         .app-data-grid td.empty-row,
         .excel-grid td.empty-row {
             text-align: center;
             padding: 20px 8px !important;
-            height: auto;
-            max-height: none;
-            line-height: 1.5;
-            color: var(--app-text-muted);
+            height: auto !important;
+            max-height: none !important;
+            min-height: 48px !important;
+            line-height: 1.5 !important;
+            background: #f1f5f9 !important;
+            color: #64748b !important;
+            font-weight: 600;
             white-space: normal;
             overflow: visible;
         }
+        .excel-grid tbody tr:hover td.empty-row,
+        .app-data-grid tbody tr:hover td.empty-row,
+        .excel-grid tbody tr:nth-child(even) td.empty-row,
+        .app-data-grid tbody tr:nth-child(even) td.empty-row {
+            background: #f1f5f9 !important;
+            color: #64748b !important;
+        }
         .app-data-grid td.row-num,
         .excel-grid td.row-num {
-            background: #e8eef4 !important;
-            color: var(--app-ink) !important;
+            background: var(--xl-num) !important;
+            color: var(--xl-num-text) !important;
             text-align: center;
             font-size: 12px;
             font-weight: 700;
             width: 2.5rem;
             padding: 0 4px !important;
         }
-        .excel-grid td.cell-action,
-        .app-data-grid td.cell-action {
-            height: auto;
-            max-height: none;
-            min-height: 28px;
-            line-height: 1.2;
-            padding: 2px 4px !important;
-            white-space: normal;
-            overflow: visible;
+        .excel-grid tbody tr:nth-child(even) td.row-num,
+        .app-data-grid tbody tr:nth-child(even) td.row-num {
+            background: #e2e8f0 !important;
         }
         .excel-grid .cell-input,
         .excel-grid .cell-select,
@@ -854,18 +1197,19 @@
             align-items: center;
             justify-content: center;
             max-width: 100%;
-            padding: 1px 6px;
-            border-radius: 4px;
+            padding: 0 6px;
+            border-radius: 999px;
             font-size: 10px;
             font-weight: 700;
-            line-height: 1.25;
+            line-height: 1;
+            height: 18px;
             white-space: nowrap;
             font-family: 'Cairo', sans-serif;
         }
-        .status-pending { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
-        .status-wait { background: #f0f9ff; color: #0369a1; border: 1px solid #7dd3fc; }
-        .status-ok { background: #ecfdf5; color: #047857; border: 1px solid #6ee7b7; }
-        .status-bad { background: #fff1f2; color: #be123c; border: 1px solid #fda4af; }
+        .status-pending { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+        .status-wait { background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd; }
+        .status-ok { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+        .status-bad { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; }
         .act-btn {
             border: 0;
             border-radius: 4px;
@@ -901,23 +1245,27 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
-            background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #0891b2 120%);
+            background: #1d4ed8;
             color: #fff;
             border: 0;
-            border-radius: 0.75rem;
-            padding: 0.7rem 1.35rem;
+            border-radius: 10px;
+            padding: 0.65rem 1.15rem;
             font-size: 13px;
             font-weight: 700;
-            letter-spacing: 0.02em;
-            transition: filter 0.2s, transform 0.15s;
+            letter-spacing: 0.01em;
+            transition: background 0.15s, box-shadow 0.15s, transform 0.15s;
             white-space: nowrap;
-            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
+            box-shadow: 0 4px 12px rgba(29, 78, 216, 0.22);
             font-family: 'Cairo', sans-serif;
         }
-        .btn-primary-app:hover { filter: brightness(1.06); transform: translateY(-1px); }
+        .btn-primary-app:hover {
+            background: #1e40af;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(29, 78, 216, 0.28);
+        }
         .btn-primary-app .material-symbols-outlined {
             color: #fff !important;
-            font-size: 20px;
+            font-size: 18px;
         }
         .btn-ghost-app {
             display: inline-flex;
@@ -925,15 +1273,19 @@
             justify-content: center;
             gap: 6px;
             background: #fff;
-            color: var(--app-ink);
+            color: var(--app-text);
             border: 1px solid var(--app-border);
-            border-radius: 0.75rem;
-            padding: 0.65rem 1.1rem;
+            border-radius: 10px;
+            padding: 0.6rem 1rem;
             font-size: 13px;
             font-weight: 700;
             font-family: 'Cairo', sans-serif;
+            transition: background .15s ease, border-color .15s ease;
         }
-        .btn-ghost-app:hover { background: #eef3f0; }
+        .btn-ghost-app:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
 
         .app-modal {
             position: fixed;
@@ -952,12 +1304,12 @@
             width: 100%;
             background: #fff;
             border: 1px solid var(--app-border);
-            border-radius: 18px;
-            box-shadow: var(--app-shadow);
+            border-radius: 16px;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.16);
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            max-height: 90vh;
+            max-height: min(92vh, 920px);
         }
         .app-modal-panel--md { max-width: 36rem; }
         .app-modal-panel--lg { max-width: 56rem; }
@@ -968,7 +1320,7 @@
             justify-content: space-between;
             gap: 12px;
             padding: 16px 20px;
-            background: linear-gradient(120deg, #1d4ed8 0%, #2563eb 40%, #059669 115%);
+            background: #1d4ed8;
             color: #fff;
         }
         .app-modal-head-main {
@@ -1165,9 +1517,30 @@
             gap: 12px;
             margin-bottom: 12px;
             padding: 10px 12px;
-            background: linear-gradient(135deg, #eff6ff, #ecfdf5);
-            border: 1px solid #bfdbfe;
-            border-radius: 10px;
+            background: #f8fafc;
+            border: 1px solid var(--app-border);
+            border-radius: var(--app-radius-sm);
+        }
+        .app-toolbar .font-label-md {
+            font-family: 'Cairo', sans-serif;
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--app-text);
+        }
+        .ops-excel-frame .app-toolbar {
+            margin-bottom: 0;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            border: 0;
+            border-bottom: 1px solid #e2e8f0;
+            border-radius: 0;
+        }
+        .ops-excel-frame > .pt-md,
+        .ops-excel-frame > .ops-excel-foot,
+        .ops-excel-frame .ops-excel-foot {
+            margin: 0;
+            padding: 10px 12px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
         }
     </style>
     {% block extra_head %}{% endblock %}
@@ -1195,7 +1568,7 @@
         <span id="sidebarToggleIcon" class="material-symbols-outlined">chevron_left</span>
     </button>
     <div class="sidebar-inner">
-    <div class="mb-lg brand-wrap sidebar-brand flex items-center gap-md">
+    <div class="brand-wrap sidebar-brand flex items-center gap-md">
         <div class="brand-mark shrink-0" title="عمليات الفرش" aria-label="شعار عمليات الفرش">
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 <path d="M24 6c-2.5 8.5-2.5 15.5 0 24 2.5-8.5 2.5-15.5 0-24Z" fill="white" opacity=".95"/>
@@ -1205,47 +1578,47 @@
             </svg>
         </div>
         <div class="brand-text min-w-0">
-            <h1 class="font-headline-md text-headline-md text-primary font-bold truncate">إدارة الفرش</h1>
-            <p class="font-label-md text-label-md text-on-surface-variant mt-xs truncate">بوابة العمليات</p>
+            <h1 class="truncate">إدارة الفرش</h1>
+            <p class="truncate">بوابة العمليات</p>
         </div>
     </div>
     <div class="nav-menu">
         <div class="nav-section-label">الرئيسية</div>
         <a class="nav-link {% if active_nav == 'dashboard' %}is-active{% endif %}" href="{% url 'ops:dashboard' %}" title="لوحة التحكم">
-            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'dashboard' %}filled-icon{% endif %}">dashboard</span>
+            <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'dashboard' %}filled-icon{% endif %}">dashboard</span></span>
             <span class="nav-label">لوحة التحكم</span>
         </a>
 
         <div class="nav-section-label">سلسلة التوريد</div>
         <a class="nav-link {% if active_nav == 'orders' %}is-active{% endif %}" href="{% url 'ops:daily_orders' %}" title="طلبيات الفروع اليومية">
-            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'orders' %}filled-icon{% endif %}">receipt_long</span>
+            <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'orders' %}filled-icon{% endif %}">receipt_long</span></span>
             <span class="nav-label">الطلبيات اليومية</span>
         </a>
         <a class="nav-link {% if active_nav == 'supply' %}is-active{% endif %}" href="{% url 'ops:supply' %}" title="توريد الأصناف من الموردين">
-            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'supply' %}filled-icon{% endif %}">shopping_cart</span>
+            <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'supply' %}filled-icon{% endif %}">shopping_cart</span></span>
             <span class="nav-label">التوريد</span>
         </a>
         <a class="nav-link {% if active_nav == 'offers' %}is-active{% endif %}" href="{% url 'ops:offers' %}" title="أصناف العروض">
-            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'offers' %}filled-icon{% endif %}">local_offer</span>
+            <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'offers' %}filled-icon{% endif %}">local_offer</span></span>
             <span class="nav-label">أصناف العروض</span>
         </a>
         {% if not user.is_representative %}
         <a class="nav-link {% if active_nav == 'distribution' %}is-active{% endif %}" href="{% url 'ops:daily_distribution' %}" title="توزيع التوريد على الفروع">
-            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'distribution' %}filled-icon{% endif %}">route</span>
+            <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'distribution' %}filled-icon{% endif %}">route</span></span>
             <span class="nav-label">التوزيع اليومي</span>
         </a>
         <a class="nav-link {% if active_nav == 'variance' %}is-active{% endif %}" href="{% url 'ops:distribution_variance' %}" title="تسجيل نقص وزيادة التوزيع">
-            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'variance' %}filled-icon{% endif %}">balance</span>
+            <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'variance' %}filled-icon{% endif %}">balance</span></span>
             <span class="nav-label">فروقات التوزيع</span>
         </a>
         {% endif %}
         <a class="nav-link {% if active_nav == 'returns' %}is-active{% endif %}" href="{% url 'ops:returns' %}" title="مرتجعات الفروع">
-            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'returns' %}filled-icon{% endif %}">assignment_return</span>
+            <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'returns' %}filled-icon{% endif %}">assignment_return</span></span>
             <span class="nav-label">المرتجعات</span>
         </a>
         {% if user.is_representative %}
         <a class="nav-link {% if active_nav == 'items' %}is-active{% endif %}" href="{% url 'ops:items' %}" title="إضافة وإدارة الأصناف">
-            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'items' %}filled-icon{% endif %}">inventory_2</span>
+            <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'items' %}filled-icon{% endif %}">inventory_2</span></span>
             <span class="nav-label">الأصناف</span>
         </a>
         {% endif %}
@@ -1253,11 +1626,11 @@
         {% if not user.is_representative %}
         <div class="nav-section-label">متابعة وتحليل</div>
         <a class="nav-link {% if active_nav == 'price_compare' %}is-active{% endif %}" href="{% url 'ops:price_compare' %}" title="مقارنة أسعار الشراء بين الموردين">
-            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'price_compare' %}filled-icon{% endif %}">compare_arrows</span>
+            <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'price_compare' %}filled-icon{% endif %}">compare_arrows</span></span>
             <span class="nav-label">مقارنة الأسعار</span>
         </a>
         <a class="nav-link {% if active_nav == 'tasks' %}is-active{% endif %}" href="{% url 'ops:tasks' %}" title="مهام الفريق والمتابعة الميدانية">
-            <span class="material-symbols-outlined shrink-0 {% if active_nav == 'tasks' %}filled-icon{% endif %}">checklist</span>
+            <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'tasks' %}filled-icon{% endif %}">checklist</span></span>
             <span class="nav-label">المهام</span>
         </a>
 
@@ -1268,30 +1641,30 @@
                     aria-expanded="false"
                     aria-controls="navSetupSubmenu"
                     title="البيانات الأساسية">
-                <span class="material-symbols-outlined shrink-0">database</span>
+                <span class="nav-icon"><span class="material-symbols-outlined">database</span></span>
                 <span class="nav-label">إعداد البيانات</span>
                 <span class="material-symbols-outlined nav-chevron">expand_more</span>
             </button>
             <div class="nav-submenu" id="navSetupSubmenu" role="group" aria-label="قائمة البيانات الأساسية">
                 <a class="nav-link {% if active_nav == 'items' %}is-active{% endif %}" href="{% url 'ops:items' %}" title="دليل الأصناف">
-                    <span class="material-symbols-outlined shrink-0 {% if active_nav == 'items' %}filled-icon{% endif %}">inventory_2</span>
+                    <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'items' %}filled-icon{% endif %}">inventory_2</span></span>
                     <span class="nav-label">الأصناف</span>
                 </a>
                 {% if user.is_manager %}
                 <a class="nav-link {% if active_nav == 'branches' %}is-active{% endif %}" href="{% url 'ops:branches' %}" title="فروع المنشأة">
-                    <span class="material-symbols-outlined shrink-0 {% if active_nav == 'branches' %}filled-icon{% endif %}">store</span>
+                    <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'branches' %}filled-icon{% endif %}">store</span></span>
                     <span class="nav-label">الفروع</span>
                 </a>
                 <a class="nav-link {% if active_nav == 'suppliers' %}is-active{% endif %}" href="{% url 'ops:suppliers' %}" title="موردو التوريد">
-                    <span class="material-symbols-outlined shrink-0 {% if active_nav == 'suppliers' %}filled-icon{% endif %}">corporate_fare</span>
+                    <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'suppliers' %}filled-icon{% endif %}">corporate_fare</span></span>
                     <span class="nav-label">الموردون</span>
                 </a>
                 <a class="nav-link {% if active_nav == 'users' %}is-active{% endif %}" href="{% url 'accounts:users' %}" title="مستخدمو النظام">
-                    <span class="material-symbols-outlined shrink-0 {% if active_nav == 'users' %}filled-icon{% endif %}">group</span>
+                    <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'users' %}filled-icon{% endif %}">group</span></span>
                     <span class="nav-label">المستخدمون</span>
                 </a>
                 <a class="nav-link {% if active_nav == 'whatsapp' %}is-active{% endif %}" href="{% url 'ops:whatsapp' %}" title="ربط واتساب للإشعارات">
-                    <span class="material-symbols-outlined shrink-0 {% if active_nav == 'whatsapp' %}filled-icon{% endif %}">chat</span>
+                    <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'whatsapp' %}filled-icon{% endif %}">chat</span></span>
                     <span class="nav-label">واتساب</span>
                 </a>
                 {% endif %}
@@ -1306,10 +1679,10 @@
                 <span class="material-symbols-outlined text-[22px] text-inherit filled-icon">person</span>
             </span>
             <span class="min-w-0 flex-1 sidebar-user-text">
-                <span class="block sidebar-user-name text-on-surface truncate">{{ user.display_name }}</span>
-                <span class="block sidebar-user-role text-on-surface-variant mt-0.5 truncate">{{ user.get_role_display }}</span>
+                <span class="block sidebar-user-name truncate">{{ user.display_name }}</span>
+                <span class="block sidebar-user-role mt-0.5 truncate">{{ user.get_role_display }}</span>
             </span>
-            <span class="material-symbols-outlined text-[20px] shrink-0 sidebar-user-text" style="color:var(--app-icon)">badge</span>
+            <span class="material-symbols-outlined text-[18px] shrink-0 sidebar-user-text" style="color:#94a3b8">badge</span>
         </button>
     </div>
     </div>
@@ -1365,51 +1738,46 @@
 {% endif %}
 
 {% block body %}
-<main id="mainContent" class="flex-1 {% if user.is_authenticated %}md:mr-[280px] pb-20 md:pb-0{% endif %} p-md md:p-margin flex flex-col gap-margin bg-background min-h-screen">
+<main id="mainContent" class="flex-1 {% if user.is_authenticated %}md:mr-[280px] pb-20 md:pb-0{% endif %} p-md md:p-lg flex flex-col min-h-screen">
     {% if user.is_authenticated %}
-    <header class="hidden md:flex justify-between items-center w-full h-16 px-lg bg-white border-b-2 border-black/80 sticky top-0 z-20 rounded-xl mb-md shadow-sm">
-        <div class="flex items-center gap-md flex-1">
-            <button type="button" id="sidebarToggleHeader" title="طي / فتح القائمة"
-                    class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full transition-colors shrink-0">
+    <header class="app-topbar">
+        <div class="flex items-center gap-md flex-1 min-w-0">
+            <button type="button" id="sidebarToggleHeader" class="app-icon-btn shrink-0" title="طي / فتح القائمة" aria-label="طي / فتح القائمة">
                 <span class="material-symbols-outlined">menu</span>
             </button>
-            <div class="flex items-center gap-md relative w-full max-w-md">
+            <div class="app-topbar-search">
             {% block header_search %}
-            <span class="material-symbols-outlined absolute right-3 text-on-surface-variant">search</span>
-            <input class="w-full bg-surface-container-low border border-outline-variant rounded-full py-2 pr-10 pl-4 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors" placeholder="بحث..." type="text" disabled>
+            <span class="material-symbols-outlined">search</span>
+            <input placeholder="بحث..." type="text" disabled>
             {% endblock %}
             </div>
         </div>
-        <div class="flex items-center gap-lg">
-            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full transition-colors">
+        <div class="app-topbar-actions">
+            <button type="button" class="app-icon-btn" title="الإشعارات" aria-label="الإشعارات">
                 <span class="material-symbols-outlined">notifications</span>
             </button>
-            <button type="button" class="text-on-surface-variant hover:bg-surface-container-low p-sm rounded-full transition-colors"
-                    id="btnSupportHelp" title="معلومات الصيانة والدعم" aria-label="معلومات الصيانة والدعم">
+            <button type="button" class="app-icon-btn" id="btnSupportHelp" title="معلومات الصيانة والدعم" aria-label="معلومات الصيانة والدعم">
                 <span class="material-symbols-outlined">help</span>
             </button>
-            <div class="h-8 w-px bg-outline-variant"></div>
-            <div class="flex items-center gap-sm">
-                <div class="hidden lg:block text-left">
-                    <p class="font-label-md text-label-md font-bold text-on-surface">{{ user.display_name }}</p>
-                    <p class="font-body-md text-[11px] text-on-surface-variant leading-none mt-1">{{ user.get_role_display }}</p>
-                </div>
-                <form method="post" action="{% url 'accounts:logout' %}">
-                    {% csrf_token %}
-                    <button type="submit" title="تسجيل الخروج"
-                            class="w-10 h-10 rounded-full bg-error-container text-error flex items-center justify-center border border-error/30 hover:bg-error hover:text-on-error transition-colors">
-                        <span class="material-symbols-outlined text-[22px] text-inherit">logout</span>
-                    </button>
-                </form>
+            <div class="app-topbar-divider" aria-hidden="true"></div>
+            <div class="app-topbar-user">
+                <strong>{{ user.display_name }}</strong>
+                <span>{{ user.get_role_display }}</span>
             </div>
+            <form method="post" action="{% url 'accounts:logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="app-logout-btn" title="تسجيل الخروج" aria-label="تسجيل الخروج">
+                    <span class="material-symbols-outlined">logout</span>
+                </button>
+            </form>
         </div>
     </header>
     {% endif %}
 
     {% if messages %}
-    <div class="flex flex-col gap-sm">
+    <div class="page-flash">
         {% for message in messages %}
-        <div class="rounded-lg px-md py-3 border {% if 'error' in message.tags %}bg-error-container text-on-error-container border-error{% elif 'warning' in message.tags %}bg-amber-50 text-amber-800 border-amber-200{% else %}bg-secondary-fixed text-on-secondary-fixed border-outline-variant{% endif %} font-body-md text-body-md">
+        <div class="page-flash-item {% if 'error' in message.tags %}is-error{% elif 'warning' in message.tags %}is-warning{% else %}is-ok{% endif %}">
             {{ message }}
         </div>
         {% endfor %}
@@ -1518,10 +1886,10 @@
     const btn = document.getElementById('navSetupToggle');
     if (!group || !btn) return;
 
-    // Always start closed on page load — open only on click.
-    group.classList.remove('open');
-    btn.setAttribute('aria-expanded', 'false');
-    try { localStorage.removeItem('farsh-nav-setup-open'); } catch (e) {}
+    const childActive = !!group.querySelector('.nav-submenu .nav-link.is-active');
+    const shouldOpen = childActive || btn.classList.contains('is-active');
+    group.classList.toggle('open', shouldOpen);
+    btn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
 
     btn.addEventListener('click', function () {
         const open = !group.classList.contains('open');

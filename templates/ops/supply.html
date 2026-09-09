@@ -158,6 +158,35 @@
         color: #be123c;
         cursor: pointer;
     }
+
+    /* أعمدة قائمة التوريد فقط — الألوان العامة من base */
+    .supply-list-grid td.col-batch {
+        width: 5rem;
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+        text-align: center;
+    }
+    .supply-list-grid td.col-rep { width: 8rem; font-weight: 700; }
+    .supply-list-grid td.col-branch { width: 7rem; color: #64748b; }
+    .supply-list-grid td.col-supplier { width: 7rem; color: #64748b; }
+    .supply-list-grid td.col-date {
+        width: 6rem;
+        font-variant-numeric: tabular-nums;
+        direction: ltr;
+        text-align: center;
+        color: #64748b;
+        font-weight: 600;
+    }
+    .supply-list-grid td.col-status { width: 6.2rem; text-align: center; }
+    .supply-list-grid td.col-count {
+        width: 3.5rem;
+        text-align: center;
+        font-weight: 800;
+    }
+    .supply-list-grid td.col-actions {
+        width: 6.5rem;
+        text-align: center;
+    }
 </style>
 {% endblock %}
 
@@ -228,22 +257,20 @@
     </div>
 </div>
 
-<div class="app-table-frame w-full">
-    <div class="app-toolbar">
-        <div class="flex items-center gap-sm">
+<div class="app-table-frame ops-excel-frame w-full">
+    <div class="ops-excel-toolbar">
+        <div class="toolbar-title">
             <span class="material-symbols-outlined">filter_list</span>
-            <span class="font-label-md text-label-md font-bold text-on-surface">التصفية</span>
+            تصفية الملفات
         </div>
         <form method="get" class="flex flex-wrap gap-sm w-full sm:w-auto">
-            <select name="status" onchange="this.form.submit()"
-                    class="bg-white border border-[#bfdbfe] rounded-lg py-2 px-3 pr-8 font-body-md text-body-md text-on-surface focus:ring-1 focus:ring-[#1d4ed8] focus:border-[#1d4ed8] w-full sm:w-auto">
+            <select name="status" onchange="this.form.submit()" class="app-select">
                 <option value="" {% if not status_filter %}selected{% endif %}>جميع الحالات</option>
                 <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>مكتمل</option>
                 <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>قيد الانتظار</option>
                 <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>مرفوض</option>
             </select>
-            <select name="period" onchange="this.form.submit()"
-                    class="bg-white border border-[#bfdbfe] rounded-lg py-2 px-3 pr-8 font-body-md text-body-md text-on-surface focus:ring-1 focus:ring-[#1d4ed8] focus:border-[#1d4ed8] w-full sm:w-auto">
+            <select name="period" onchange="this.form.submit()" class="app-select">
                 <option value="all" {% if period_filter == 'all' %}selected{% endif %}>كل الفترات</option>
                 <option value="week" {% if period_filter == 'week' %}selected{% endif %}>هذا الأسبوع</option>
                 <option value="month" {% if period_filter == 'month' %}selected{% endif %}>هذا الشهر</option>
@@ -251,13 +278,12 @@
             </select>
         </form>
     </div>
-    <div class="app-table-sheet overflow-x-auto">
-        <table class="excel-grid app-data-grid w-full">
+    <div class="app-table-sheet ops-excel-sheet overflow-x-auto">
+        <table class="excel-grid app-data-grid supply-list-grid w-full">
             <thead>
             <tr>
-                <th>#</th>
                 <th>رقم الملف</th>
-                <th>اسم المندوب</th>
+                <th>المندوب</th>
                 <th>الفرع</th>
                 <th>المورد</th>
                 <th>التاريخ</th>
@@ -270,20 +296,12 @@
             {% for batch in batches %}
             <tr class="batch-row {% if batch.display_status != 'pending' %}row-done{% endif %}"
                 data-open-batch="{{ batch.seed_pk }}" style="cursor:pointer">
-                <td class="row-num cell-center">{{ forloop.counter }}</td>
-                <td class="cell-strong" dir="ltr">{{ batch.batch_number }}</td>
-                <td>
-                    <div class="flex items-center gap-sm">
-                        <div class="w-8 h-8 rounded-full bg-[#dbeafe] text-[#1e3a8a] flex items-center justify-center font-bold text-xs">
-                            {{ batch.representative.initials }}
-                        </div>
-                        <span class="cell-strong">{{ batch.representative.display_name }}</span>
-                    </div>
-                </td>
-                <td>{{ batch.branch|default:"—" }}</td>
-                <td>{{ batch.supplier|default:"—" }}</td>
-                <td>{{ batch.created_at|date:"Y/m/d" }}</td>
-                <td class="cell-center">
+                <td class="col-batch" dir="ltr" title="{{ batch.batch_number }}">{{ batch.batch_no }}</td>
+                <td class="col-rep cell-strong" title="{{ batch.representative.display_name }}">{{ batch.representative.display_name }}</td>
+                <td class="col-branch" title="{{ batch.branch|default:'—' }}">{{ batch.branch|default:"—" }}</td>
+                <td class="col-supplier" title="{{ batch.supplier|default:'—' }}">{{ batch.supplier|default:"—" }}</td>
+                <td class="col-date">{{ batch.created_at|date:"Y/m/d" }}</td>
+                <td class="col-status cell-center">
                     {% if batch.display_status == 'completed' %}
                     <span class="status-chip status-ok">مكتمل</span>
                     {% elif batch.display_status == 'rejected' %}
@@ -294,41 +312,49 @@
                     <span class="status-chip status-pending">قيد الانتظار</span>
                     {% endif %}
                 </td>
-                <td class="cell-center cell-strong">{{ batch.items_count }}</td>
-                <td class="cell-center" onclick="event.stopPropagation()">
-                    <div class="flex flex-wrap gap-1 justify-center">
+                <td class="col-count cell-center cell-strong">{{ batch.items_count }}</td>
+                <td class="col-actions cell-center cell-action" onclick="event.stopPropagation()">
+                    <div class="row-actions">
                         {% if user.is_manager %}
                         {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
-                        <form method="post" action="{% url 'ops:supply_complete' batch.seed_pk %}" class="inline"
+                        <form method="post" action="{% url 'ops:supply_complete' batch.seed_pk %}"
                               onsubmit="return confirm('إكمال ملف التوريد؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-approve">إكمال</button>
+                            <button type="submit" class="act-btn act-icon act-approve" title="إكمال">
+                                <span class="material-symbols-outlined">check</span>
+                            </button>
                         </form>
-                        <form method="post" action="{% url 'ops:supply_reject' batch.seed_pk %}" class="inline"
+                        <form method="post" action="{% url 'ops:supply_reject' batch.seed_pk %}"
                               onsubmit="return confirm('رفض ملف التوريد؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-reject">رفض</button>
+                            <button type="submit" class="act-btn act-icon act-reject" title="رفض">
+                                <span class="material-symbols-outlined">close</span>
+                            </button>
                         </form>
                         {% endif %}
-                        <form method="post" action="{% url 'ops:supply_batch_delete' batch.seed_pk %}" class="inline"
+                        <form method="post" action="{% url 'ops:supply_batch_delete' batch.seed_pk %}"
                               onsubmit="return confirm('حذف ملف {{ batch.batch_number }} وجميع أصنافه؟');">
                             {% csrf_token %}
-                            <button type="submit" class="act-btn act-delete">حذف</button>
+                            <button type="submit" class="act-btn act-icon act-delete" title="حذف">
+                                <span class="material-symbols-outlined">delete</span>
+                            </button>
                         </form>
+                        {% else %}
+                        <span class="status-chip status-wait" title="اضغط الصف للعرض">عرض</span>
                         {% endif %}
                     </div>
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="9" class="empty-row">لا توجد ملفات توريد.</td>
+                <td colspan="8" class="empty-row">لا توجد ملفات توريد.</td>
             </tr>
             {% endfor %}
             </tbody>
         </table>
     </div>
-    <div class="pt-md flex justify-between items-center">
-        <span class="font-body-md text-body-md text-on-surface-variant">
+    <div class="ops-excel-foot">
+        <span>
             {% if page_obj.paginator.count %}
             عرض {{ page_obj.start_index }}-{{ page_obj.end_index }} من {{ page_obj.paginator.count }}
             {% else %}
@@ -338,23 +364,23 @@
         <div class="flex gap-sm">
             {% if page_obj.has_previous %}
             <a href="?page={{ page_obj.previous_page_number }}&status={{ status_filter }}&period={{ period_filter }}"
-               class="p-2 border border-[#bfdbfe] rounded-lg text-[#1d4ed8] hover:bg-[#eff6ff]">
-                <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+               class="ops-page-btn" title="السابق">
+                <span class="material-symbols-outlined">chevron_right</span>
             </a>
             {% else %}
-            <button class="p-2 border border-[#dbeafe] rounded-lg text-on-surface-variant opacity-50" disabled>
-                <span class="material-symbols-outlined text-[20px]">chevron_right</span>
-            </button>
+            <span class="ops-page-btn is-disabled" aria-disabled="true">
+                <span class="material-symbols-outlined">chevron_right</span>
+            </span>
             {% endif %}
             {% if page_obj.has_next %}
             <a href="?page={{ page_obj.next_page_number }}&status={{ status_filter }}&period={{ period_filter }}"
-               class="p-2 border border-[#bfdbfe] rounded-lg text-[#1d4ed8] hover:bg-[#eff6ff]">
-                <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+               class="ops-page-btn" title="التالي">
+                <span class="material-symbols-outlined">chevron_left</span>
             </a>
             {% else %}
-            <button class="p-2 border border-[#dbeafe] rounded-lg text-on-surface-variant opacity-50" disabled>
-                <span class="material-symbols-outlined text-[20px]">chevron_left</span>
-            </button>
+            <span class="ops-page-btn is-disabled" aria-disabled="true">
+                <span class="material-symbols-outlined">chevron_left</span>
+            </span>
             {% endif %}
         </div>
     </div>

@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 import json
 import os
+import re
 
 from django.conf import settings
 from django.contrib import messages
@@ -251,6 +252,15 @@ def _supply_batch_orders(seed: SupplyOrder):
     )
 
 
+def _batch_display_no(batch_number, fallback=None):
+    """Extract a plain integer from codes like #SUPB-0004 → 4."""
+    text = str(batch_number or '').strip()
+    match = re.search(r'(\d+)\s*$', text)
+    if match:
+        return str(int(match.group(1)))
+    return str(fallback) if fallback is not None else text
+
+
 def _group_supply_batches(qs):
     batches_map = {}
     for order in qs.select_related('representative').order_by('-created_at', 'pk'):
@@ -283,6 +293,7 @@ def _group_supply_batches(qs):
         else:
             b['display_status'] = 'mixed'
         b['items_count'] = len(b['items'])
+        b['batch_no'] = _batch_display_no(b['batch_number'], b['seed_pk'])
         batches.append(b)
     batches.sort(key=lambda x: x['created_at'], reverse=True)
     return batches
