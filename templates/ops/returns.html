@@ -78,11 +78,9 @@
                             <span class="material-symbols-outlined">visibility</span>
                         </button>
                         {% if user.is_manager or batch.representative_id == user.id %}
-                        {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
                         <button type="button" class="act-btn act-icon act-edit" title="تعديل" data-open-batch="{{ batch.pk }}">
                             <span class="material-symbols-outlined">edit</span>
                         </button>
-                        {% endif %}
                         {% endif %}
                         <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="act-btn act-icon act-pdf" title="تحميل PDF">
                             <span class="material-symbols-outlined">download</span>
@@ -382,7 +380,6 @@
 </div>
 
 {% if user.is_manager or batch.representative_id == user.id %}
-{% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
 <div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.pk }}">
     <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
@@ -415,6 +412,7 @@
                             <col style="width:70px">
                             <col style="width:110px">
                             <col style="width:160px">
+                            <col style="width:100px">
                         </colgroup>
                         <thead>
                         <tr>
@@ -425,13 +423,13 @@
                             <th>الكمية</th>
                             <th>النوع</th>
                             <th>سبب الإرجاع</th>
+                            <th>الحالة</th>
                         </tr>
                         </thead>
                         <tbody>
                         {% for item in batch.items.all %}
                         <tr>
                             <td class="row-num">{{ forloop.counter }}</td>
-                            {% if item.status == 'pending' %}
                             <td>
                                 <input type="hidden" name="order_id" value="{{ item.pk }}">
                                 <input name="item_number" type="text" value="{{ item.item_number }}" class="cell-input" dir="ltr" placeholder="رقم الصنف">
@@ -454,17 +452,22 @@
                                 </select>
                             </td>
                             <td><input name="reason" type="text" value="{{ item.reason }}" required class="cell-input" placeholder="سبب الإرجاع"></td>
-                            {% else %}
-                            <td class="cell-pad cell-text">{% if item.item_number %}{{ item.item_number }}{% else %}—{% endif %}</td>
-                            <td class="cell-pad cell-text" title="{{ item.item_name }}">{{ item.item_name }}</td>
-                            <td class="cell-pad cell-text">{% if item.package %}{{ item.package }}{% else %}—{% endif %}</td>
-                            <td class="cell-pad cell-center">{{ item.quantity }}</td>
-                            <td class="cell-pad cell-text">{{ item.get_return_type_display }}</td>
-                            <td class="cell-pad cell-text cell-reason" title="{{ item.reason }}">{{ item.reason }}</td>
-                            {% endif %}
+                            <td class="cell-center">
+                                {% if item.status == 'accepted' %}
+                                <span class="status-chip status-ok">مقبول</span>
+                                {% elif item.status == 'rejected' %}
+                                <span class="status-chip status-bad">مرفوض</span>
+                                {% elif item.status == 'pending' and item.rep_decision == 'authorized' %}
+                                <span class="status-chip status-wait">بانتظار الاعتماد</span>
+                                {% elif item.status == 'pending' %}
+                                <span class="status-chip status-pending">قيد الانتظار</span>
+                                {% else %}
+                                <span class="status-chip status-wait">{{ item.get_rep_decision_display }}</span>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="7" class="empty-row">لا توجد أصناف في هذا الملف.</td></tr>
+                        <tr><td colspan="8" class="empty-row">لا توجد أصناف في هذا الملف.</td></tr>
                         {% endfor %}
                         </tbody>
                     </table>
@@ -477,7 +480,6 @@
         </form>
     </div>
 </div>
-{% endif %}
 {% endif %}
 {% endfor %}
 {% endblock %}

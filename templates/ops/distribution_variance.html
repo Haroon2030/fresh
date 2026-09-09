@@ -81,11 +81,9 @@
                             <span class="material-symbols-outlined">visibility</span>
                         </button>
                         {% if user.is_manager or batch.created_by.id == user.id %}
-                        {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
                         <button type="button" class="act-btn act-icon act-edit" title="تعديل" data-open-batch="{{ batch.seed_pk }}">
                             <span class="material-symbols-outlined">edit</span>
                         </button>
-                        {% endif %}
                         {% endif %}
                         {% if user.is_manager or batch.created_by.id == user.id %}
                         <form method="post" action="{% url 'ops:distribution_variance_delete' batch.seed_pk %}" class="inline"
@@ -207,7 +205,6 @@
 </div>
 
 {% if user.is_manager or batch.created_by.id == user.id %}
-{% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
 <div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.seed_pk }}">
     <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
@@ -244,7 +241,6 @@
                         {% for row in batch.items %}
                         <tr>
                             <td class="cell-center">{{ forloop.counter }}</td>
-                            {% if row.status == 'pending' %}
                             <td>
                                 <input type="hidden" name="order_id" value="{{ row.pk }}">
                                 <select name="variance_type" required class="cell-select app-select">
@@ -271,28 +267,15 @@
                                     {% endfor %}
                                 </select>
                             </td>
-                            <td class="cell-center"><span class="status-chip status-pending">بانتظار التعميد</span></td>
-                            {% else %}
-                            <td class="cell-center">
-                                {% if row.variance_type == 'shortage' %}
-                                <span class="status-chip status-bad">نقص</span>
-                                {% else %}
-                                <span class="status-chip status-wait">زيادة</span>
-                                {% endif %}
-                            </td>
-                            <td class="cell-strong">{{ row.item_name }}</td>
-                            <td dir="ltr">{{ row.item_number|default:"—" }}</td>
-                            <td class="cell-center cell-strong">{{ row.quantity }}</td>
-                            <td>{{ row.branch }}</td>
-                            <td>{{ row.supplier }}</td>
                             <td class="cell-center">
                                 {% if row.status == 'authorized' %}
                                 <span class="status-chip status-ok">معتمد</span>
-                                {% else %}
+                                {% elif row.status == 'rejected' %}
                                 <span class="status-chip status-bad">مرفوض</span>
+                                {% else %}
+                                <span class="status-chip status-pending">بانتظار التعميد</span>
                                 {% endif %}
                             </td>
-                            {% endif %}
                         </tr>
                         {% empty %}
                         <tr><td colspan="8" class="empty-row">لا سجلات.</td></tr>
@@ -308,7 +291,6 @@
         </form>
     </div>
 </div>
-{% endif %}
 {% endif %}
 {% endfor %}
 

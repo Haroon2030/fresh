@@ -543,7 +543,7 @@ def supply_order_delete(request, pk):
     if not can_edit:
         messages.error(request, 'لا يمكنك حذف هذا الصنف.')
         return redirect('ops:supply')
-    if order.status != SupplyOrder.Status.PENDING:
+    if order.status != SupplyOrder.Status.PENDING and not request.user.is_manager:
         messages.error(request, 'لا يمكن حذف صنف غير قيد الانتظار.')
         return redirect('ops:supply')
 
@@ -571,12 +571,9 @@ def supply_batch_update(request, pk):
         messages.error(request, 'لا يمكنك تعديل هذا الملف.')
         return redirect('ops:supply')
 
-    pending = {
-        o.pk: o
-        for o in _supply_batch_orders(seed).filter(status=SupplyOrder.Status.PENDING)
-    }
-    if not pending:
-        messages.error(request, 'لا أصناف قابلة للتعديل في هذا الملف.')
+    items = {o.pk: o for o in _supply_batch_orders(seed)}
+    if not items:
+        messages.error(request, 'الملف فارغ.')
         return redirect(f"{reverse('ops:supply')}?open={seed.pk}")
 
     order_ids = request.POST.getlist('order_id')
@@ -593,7 +590,7 @@ def supply_batch_update(request, pk):
             oid = int(raw_id)
         except (TypeError, ValueError):
             continue
-        order = pending.get(oid)
+        order = items.get(oid)
         if not order:
             continue
         item_name = (item_names[i] if i < len(item_names) else '').strip()
@@ -1134,12 +1131,9 @@ def distribution_variance_batch_update(request, pk):
         messages.error(request, 'لا يمكنك تعديل هذا الملف.')
         return redirect('ops:distribution_variance')
 
-    pending = {
-        r.pk: r
-        for r in _variance_batch_qs(seed).filter(status=DistributionVariance.Status.PENDING)
-    }
-    if not pending:
-        messages.error(request, 'لا سجلات قابلة للتعديل في هذا الملف.')
+    rows = {r.pk: r for r in _variance_batch_qs(seed)}
+    if not rows:
+        messages.error(request, 'الملف فارغ.')
         return redirect(
             f"{reverse('ops:distribution_variance')}?date={seed.record_date.isoformat()}&open={seed.pk}"
         )
@@ -1158,7 +1152,7 @@ def distribution_variance_batch_update(request, pk):
             oid = int(raw_id)
         except (TypeError, ValueError):
             continue
-        row = pending.get(oid)
+        row = rows.get(oid)
         if not row:
             continue
         item_name = (item_names[i] if i < len(item_names) else '').strip()
@@ -1483,12 +1477,9 @@ def return_batch_update(request, pk):
         messages.error(request, 'لا يمكنك تعديل هذا الملف.')
         return redirect('ops:returns')
 
-    pending = {
-        item.pk: item
-        for item in batch.items.filter(status=ReturnRequest.Status.PENDING)
-    }
-    if not pending:
-        messages.error(request, 'لا أصناف قابلة للتعديل في هذا الملف.')
+    items = {item.pk: item for item in batch.items.all()}
+    if not items:
+        messages.error(request, 'الملف فارغ.')
         return _redirect_returns(batch.pk)
 
     order_ids = request.POST.getlist('order_id')
@@ -1505,7 +1496,7 @@ def return_batch_update(request, pk):
             oid = int(raw_id)
         except (TypeError, ValueError):
             continue
-        item = pending.get(oid)
+        item = items.get(oid)
         if not item:
             continue
         item_name = (item_names[i] if i < len(item_names) else '').strip()
@@ -1950,12 +1941,9 @@ def daily_order_batch_update(request, pk):
         messages.error(request, 'لا يمكنك تعديل هذا الملف.')
         return redirect('ops:daily_orders')
 
-    pending = {
-        o.pk: o
-        for o in _daily_order_batch_qs(seed).filter(status=DailyOrder.Status.PENDING)
-    }
-    if not pending:
-        messages.error(request, 'لا أصناف قابلة للتعديل في هذا الملف.')
+    items = {o.pk: o for o in _daily_order_batch_qs(seed)}
+    if not items:
+        messages.error(request, 'الملف فارغ.')
         return redirect(f"{reverse('ops:daily_orders')}?date={seed.order_date.isoformat()}&open={seed.pk}")
 
     order_ids = request.POST.getlist('order_id')
@@ -1970,7 +1958,7 @@ def daily_order_batch_update(request, pk):
             oid = int(raw_id)
         except (TypeError, ValueError):
             continue
-        order = pending.get(oid)
+        order = items.get(oid)
         if not order:
             continue
         item_name = (item_names[i] if i < len(item_names) else '').strip()
@@ -3080,12 +3068,9 @@ def offers_batch_update(request, pk):
         messages.error(request, 'لا يمكنك تعديل هذا الملف.')
         return redirect('ops:offers')
 
-    pending = {
-        o.pk: o
-        for o in _offer_batch_items(seed).filter(status=OfferItem.Status.PENDING)
-    }
-    if not pending:
-        messages.error(request, 'لا أصناف قابلة للتعديل في هذا الملف.')
+    items = {o.pk: o for o in _offer_batch_items(seed)}
+    if not items:
+        messages.error(request, 'الملف فارغ.')
         return redirect(f"{reverse('ops:offers')}?open={seed.pk}")
 
     order_ids = request.POST.getlist('order_id')
@@ -3100,7 +3085,7 @@ def offers_batch_update(request, pk):
             oid = int(raw_id)
         except (TypeError, ValueError):
             continue
-        row = pending.get(oid)
+        row = items.get(oid)
         if not row:
             continue
         item_name = (item_names[i] if i < len(item_names) else '').strip()

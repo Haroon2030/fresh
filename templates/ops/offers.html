@@ -110,12 +110,10 @@
                         <button type="button" class="act-btn act-icon act-view" title="عرض" data-open-batch-view="{{ batch.seed_pk }}">
                             <span class="material-symbols-outlined">visibility</span>
                         </button>
-                        {% if batch.display_status != 'approved' %}
                         {% if user.is_manager or batch.representative.id == user.id %}
                         <button type="button" class="act-btn act-icon act-edit" title="تعديل" data-open-batch="{{ batch.seed_pk }}">
                             <span class="material-symbols-outlined">edit</span>
                         </button>
-                        {% endif %}
                         {% endif %}
                         {% if user.is_manager and batch.display_status != 'approved' %}
                         <form method="post" action="{% url 'ops:offers_batch_approve' batch.seed_pk %}"
@@ -233,7 +231,6 @@
     </div>
 </div>
 
-{% if batch.display_status != 'approved' %}
 {% if user.is_manager or batch.representative.id == user.id %}
 <div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.seed_pk }}">
     <div class="app-modal-panel app-modal-panel--xl">
@@ -273,7 +270,6 @@
                         {% for item in batch.items %}
                         <tr>
                             <td class="cell-center">{{ forloop.counter }}</td>
-                            {% if item.status == 'pending' %}
                             <td>
                                 <input type="hidden" name="order_id" value="{{ item.pk }}">
                                 <input name="item_number" type="text" value="{{ item.item_number }}" class="cell-input" dir="ltr" placeholder="رقم الصنف">
@@ -288,14 +284,13 @@
                                     {% endfor %}
                                 </select>
                             </td>
-                            <td class="cell-center"><span class="status-chip status-pending">قيد الانتظار</span></td>
-                            {% else %}
-                            <td dir="ltr">{{ item.item_number|default:"—" }}</td>
-                            <td class="cell-strong">{{ item.item_name }}</td>
-                            <td class="cell-center cell-strong">{{ item.quantity }}</td>
-                            <td class="cell-center">{{ item.package|default:"—" }}</td>
-                            <td class="cell-center"><span class="status-chip status-ok">معتمد</span></td>
-                            {% endif %}
+                            <td class="cell-center">
+                                {% if item.status == 'approved' %}
+                                <span class="status-chip status-ok">معتمد</span>
+                                {% else %}
+                                <span class="status-chip status-pending">قيد الانتظار</span>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% empty %}
                         <tr><td colspan="6" class="empty-row">لا أصناف.</td></tr>
@@ -311,7 +306,6 @@
         </form>
     </div>
 </div>
-{% endif %}
 {% endif %}
 {% endfor %}
 

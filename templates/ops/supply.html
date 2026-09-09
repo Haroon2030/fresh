@@ -318,11 +318,9 @@
                             <span class="material-symbols-outlined">visibility</span>
                         </button>
                         {% if user.is_manager or batch.representative.id == user.id %}
-                        {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
                         <button type="button" class="act-btn act-icon act-edit" title="تعديل" data-open-batch="{{ batch.seed_pk }}">
                             <span class="material-symbols-outlined">edit</span>
                         </button>
-                        {% endif %}
                         {% endif %}
                         {% if user.is_manager %}
                         {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
@@ -421,7 +419,6 @@
 </div>
 
 {% if user.is_manager or batch.representative.id == user.id %}
-{% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
 {# مودال التعديل #}
 <div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.seed_pk }}">
     <div class="app-modal-panel app-modal-panel--xl">
@@ -462,10 +459,9 @@
                         </thead>
                         <tbody>
                         {% for order in batch.items %}
-                        <tr {% if order.status == 'pending' %}data-edit-row{% endif %}>
+                        <tr data-edit-row>
                             <td class="cell-center">{{ forloop.counter }}</td>
                             <td dir="ltr">{{ order.order_number }}</td>
-                            {% if order.status == 'pending' %}
                             <td>
                                 <input type="hidden" name="order_id" value="{{ order.pk }}">
                                 <input name="item_number" type="text" value="{{ order.item_number }}" class="cell-input" dir="ltr" placeholder="رقم الصنف">
@@ -478,7 +474,15 @@
                                 <input type="hidden" name="notes" value="{{ order.notes }}">
                             </td>
                             <td class="cell-center cell-strong" dir="ltr" data-edit-total>{{ order.total_amount|floatformat:2 }}</td>
-                            <td class="cell-center"><span class="status-chip status-pending">قيد الانتظار</span></td>
+                            <td class="cell-center">
+                                {% if order.status == 'completed' %}
+                                <span class="status-chip status-ok">مكتمل</span>
+                                {% elif order.status == 'rejected' %}
+                                <span class="status-chip status-bad">مرفوض</span>
+                                {% else %}
+                                <span class="status-chip status-pending">قيد الانتظار</span>
+                                {% endif %}
+                            </td>
                             <td class="cell-action cell-center">
                                 <button type="submit"
                                         class="act-btn act-icon act-delete"
@@ -488,21 +492,6 @@
                                     <span class="material-symbols-outlined">delete</span>
                                 </button>
                             </td>
-                            {% else %}
-                            <td dir="ltr">{{ order.item_number|default:"—" }}</td>
-                            <td class="cell-strong">{{ order.item_name }}</td>
-                            <td>{{ order.unit|default:"—" }}</td>
-                            <td class="cell-center cell-strong">{{ order.quantity }}</td>
-                            <td class="cell-center cell-strong" dir="ltr">{{ order.total_amount|floatformat:2 }}</td>
-                            <td class="cell-center">
-                                {% if order.status == 'completed' %}
-                                <span class="status-chip status-ok">مكتمل</span>
-                                {% else %}
-                                <span class="status-chip status-bad">مرفوض</span>
-                                {% endif %}
-                            </td>
-                            <td></td>
-                            {% endif %}
                         </tr>
                         {% empty %}
                         <tr><td colspan="9" class="empty-row">لا أصناف.</td></tr>
@@ -517,15 +506,12 @@
             </div>
         </form>
         {% for order in batch.items %}
-        {% if order.status == 'pending' %}
         <form id="supply-order-delete-{{ order.pk }}" method="post" action="{% url 'ops:supply_order_delete' order.pk %}" class="hidden">
             {% csrf_token %}
         </form>
-        {% endif %}
         {% endfor %}
     </div>
 </div>
-{% endif %}
 {% endif %}
 {% endfor %}
 
