@@ -316,16 +316,16 @@
                     <div class="row-actions">
                         {% if user.is_manager or batch.representative.id == user.id %}
                         {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
-                        <button type="button" class="act-btn act-icon" title="تعديل" data-open-batch="{{ batch.seed_pk }}">
+                        <button type="button" class="act-btn act-icon act-edit" title="تعديل" data-open-batch="{{ batch.seed_pk }}">
                             <span class="material-symbols-outlined">edit</span>
                         </button>
                         {% else %}
-                        <button type="button" class="act-btn act-icon" title="عرض" data-open-batch="{{ batch.seed_pk }}">
+                        <button type="button" class="act-btn act-icon act-view" title="عرض" data-open-batch="{{ batch.seed_pk }}">
                             <span class="material-symbols-outlined">visibility</span>
                         </button>
                         {% endif %}
                         {% else %}
-                        <button type="button" class="act-btn act-icon" title="عرض" data-open-batch="{{ batch.seed_pk }}">
+                        <button type="button" class="act-btn act-icon act-view" title="عرض" data-open-batch="{{ batch.seed_pk }}">
                             <span class="material-symbols-outlined">visibility</span>
                         </button>
                         {% endif %}
@@ -510,6 +510,10 @@
                 <h3>طلب شراء جديد</h3>
             </div>
             <div class="app-modal-head-actions">
+                <button type="button" class="app-modal-head-btn" id="toggleQuickItemBtn" title="إضافة صنف للكتالوج">
+                    <span class="material-symbols-outlined">playlist_add</span>
+                    إضافة صنف
+                </button>
                 <button type="button" class="app-modal-close" aria-label="إغلاق"
                         onclick="document.getElementById('newSupplyModal').classList.add('hidden')">
                     <span class="material-symbols-outlined">close</span>
@@ -519,6 +523,42 @@
         <form method="post" action="{% url 'ops:supply_create' %}" class="flex flex-col overflow-hidden" id="supplyMultiForm">
             {% csrf_token %}
             <div class="app-modal-body flex flex-col gap-md">
+                <div id="quickItemPanel" class="hidden rounded-lg border border-[#c7d2fe] bg-[#eef2ff] p-md">
+                    <div class="flex items-center justify-between gap-sm mb-sm">
+                        <span class="font-bold text-[13px] text-[#312e81]">إضافة صنف جديد للكتالوج</span>
+                        <button type="button" id="closeQuickItemBtn" class="text-[#4338ca] text-xs font-bold">إخفاء</button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-sm items-end">
+                        <div class="flex flex-col gap-xs">
+                            <label class="text-xs font-bold text-[#4338ca]" for="quickItemName">الاسم</label>
+                            <input type="text" id="quickItemName" class="cell-input" placeholder="اسم الصنف" autocomplete="off">
+                        </div>
+                        <div class="flex flex-col gap-xs">
+                            <label class="text-xs font-bold text-[#4338ca]" for="quickItemNumber">رقم الصنف</label>
+                            <input type="text" id="quickItemNumber" class="cell-input" placeholder="مثل 06100" dir="ltr" autocomplete="off">
+                        </div>
+                        <div class="flex flex-col gap-xs">
+                            <label class="text-xs font-bold text-[#4338ca]" for="quickItemUnit">الوحدة</label>
+                            <div class="flex flex-col gap-1">
+                                <select id="quickItemUnit" class="cell-select">
+                                    <option value="">اختر...</option>
+                                    {% for u in unit_choices %}
+                                    <option value="{{ u }}">{{ u }}</option>
+                                    {% endfor %}
+                                    <option value="كيلو">كيلو</option>
+                                    <option value="قطعة">قطعة</option>
+                                    <option value="__custom__">+ وحدة جديدة...</option>
+                                </select>
+                                <input type="text" id="quickItemUnitCustom" class="cell-input hidden" placeholder="اكتب الوحدة الجديدة" autocomplete="off">
+                            </div>
+                        </div>
+                        <button type="button" id="saveQuickItemBtn" class="btn-primary-app !h-[28px] !px-3 !text-xs !rounded-md">
+                            <span class="material-symbols-outlined text-[16px]">save</span>
+                            حفظ الصنف
+                        </button>
+                    </div>
+                    <p id="quickItemMsg" class="text-xs mt-sm font-semibold text-[#4338ca] hidden"></p>
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
                     {% if user.is_representative %}
                     <input type="hidden" name="representative" value="{{ user.pk }}">
@@ -604,7 +644,7 @@
                         <tbody id="supplyRows"></tbody>
                     </table>
                 </div>
-                <p class="font-body-md text-body-md text-on-surface-variant text-xs">أضف عدة صفوف ثم احفظ ملفاً واحداً — سعر الشراء مطلوب لكل صف.</p>
+                <p class="font-body-md text-body-md text-on-surface-variant text-xs">اكتب اسم صنف جديد حتى لو غير موجود في الكتالوج — يكفي الاسم للحفظ. أضف عدة صفوف ثم احفظ ملفاً واحداً.</p>
             </div>
             <div class="app-modal-foot">
                 <button type="button" class="btn-ghost-app"
@@ -651,7 +691,7 @@
         return Array.from(bag);
     }
 
-    const unitChoices = collectCatalogUnits();
+    let unitChoices = collectCatalogUnits();
 
     function unitSelectHtml() {
         const options = ['<option value="">اختر...</option>']
@@ -689,8 +729,8 @@
             <td>${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: inputClass + ' catalog-suggest-input' })}</td>
             <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: inputClass + ' catalog-suggest-input' })}</td>
             <td>${unitSelectHtml()}</td>
-            <td><input name="quantity" type="number" min="1" required placeholder="1" class="${inputClass} num-entry"></td>
-            <td><input name="unit_price" type="number" min="0" step="0.01" required placeholder="0.00" class="${inputClass} num-entry" dir="ltr"></td>
+            <td><input name="quantity" type="number" min="1" required value="1" placeholder="1" class="${inputClass} num-entry"></td>
+            <td><input name="unit_price" type="number" min="0" step="0.01" value="0" placeholder="0.00" class="${inputClass} num-entry" dir="ltr"></td>
             <td class="cell-action">
                 <div class="row-actions">
                     <button type="button" class="remove-row" title="حذف الصف">حذف</button>
@@ -709,6 +749,19 @@
             if (e.key !== 'Enter') return;
             if (e.target.matches('textarea, button, input[type="submit"]')) return;
             e.preventDefault();
+        });
+        form.addEventListener('submit', (e) => {
+            CS.closeSuggest();
+            const rows = [...tbody.querySelectorAll('tr')];
+            const filled = rows.filter((tr) => tr.querySelector('input[name="item_name"]')?.value.trim());
+            if (!filled.length) {
+                e.preventDefault();
+                rows[0]?.querySelector('input[name="item_name"]')?.focus();
+                return;
+            }
+            rows.forEach((tr) => {
+                if (!tr.querySelector('input[name="item_name"]')?.value.trim()) tr.remove();
+            });
         });
     }
 
@@ -739,6 +792,135 @@
     });
 
     addRow();
+
+    // إضافة صنف للكتالوج من داخل المودال
+    const quickPanel = document.getElementById('quickItemPanel');
+    const toggleQuick = document.getElementById('toggleQuickItemBtn');
+    const closeQuick = document.getElementById('closeQuickItemBtn');
+    const saveQuick = document.getElementById('saveQuickItemBtn');
+    const quickMsg = document.getElementById('quickItemMsg');
+    const createUrl = '{% url "ops:item_create_api" %}';
+    const csrf = form.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+
+    function showQuickMsg(text, isError) {
+        if (!quickMsg) return;
+        quickMsg.textContent = text;
+        quickMsg.classList.remove('hidden');
+        quickMsg.style.color = isError ? '#b91c1c' : '#047857';
+    }
+
+    function fillRowWithItem(item) {
+        let target = [...tbody.querySelectorAll('tr')].find((tr) => {
+            const name = tr.querySelector('input[name="item_name"]')?.value.trim();
+            return !name;
+        });
+        if (!target) {
+            addRow();
+            target = tbody.querySelector('tr:last-child');
+        }
+        if (!target) return;
+        CS.applyItem(target, item, {
+            unitField: '[name="unit"]',
+            onApply: () => target.querySelector('input[name="quantity"]')?.focus(),
+        });
+    }
+
+    function ensureUnitOption(unit) {
+        if (!unit || unit === '__custom__') return;
+        if (!unitChoices.includes(unit)) unitChoices.push(unit);
+        tbody.querySelectorAll('select[name="unit"]').forEach((sel) => {
+            if (![...sel.options].some((o) => o.value === unit)) {
+                const opt = document.createElement('option');
+                opt.value = unit;
+                opt.textContent = unit;
+                sel.appendChild(opt);
+            }
+        });
+        const quickUnit = document.getElementById('quickItemUnit');
+        if (quickUnit && ![...quickUnit.options].some((o) => o.value === unit)) {
+            const opt = document.createElement('option');
+            opt.value = unit;
+            opt.textContent = unit;
+            const customOpt = [...quickUnit.options].find((o) => o.value === '__custom__');
+            if (customOpt) quickUnit.insertBefore(opt, customOpt);
+            else quickUnit.appendChild(opt);
+        }
+    }
+
+    function resolveQuickUnit() {
+        const sel = document.getElementById('quickItemUnit');
+        const custom = document.getElementById('quickItemUnitCustom');
+        const picked = (sel?.value || '').trim();
+        if (picked === '__custom__') return (custom?.value || '').trim();
+        return picked;
+    }
+
+    function syncQuickUnitCustom() {
+        const sel = document.getElementById('quickItemUnit');
+        const custom = document.getElementById('quickItemUnitCustom');
+        if (!sel || !custom) return;
+        const isCustom = sel.value === '__custom__';
+        custom.classList.toggle('hidden', !isCustom);
+        if (isCustom) {
+            custom.focus();
+        } else {
+            custom.value = '';
+        }
+    }
+
+    toggleQuick?.addEventListener('click', () => {
+        quickPanel?.classList.toggle('hidden');
+        if (quickPanel && !quickPanel.classList.contains('hidden')) {
+            document.getElementById('quickItemName')?.focus();
+        }
+    });
+    closeQuick?.addEventListener('click', () => quickPanel?.classList.add('hidden'));
+    document.getElementById('quickItemUnit')?.addEventListener('change', syncQuickUnitCustom);
+
+    saveQuick?.addEventListener('click', async () => {
+        const name = document.getElementById('quickItemName')?.value.trim() || '';
+        const item_number = document.getElementById('quickItemNumber')?.value.trim() || '';
+        const unit = resolveQuickUnit();
+        if (!name || !item_number || !unit) {
+            showQuickMsg('أكمل الاسم ورقم الصنف والوحدة (اختيار أو كتابة وحدة جديدة).', true);
+            return;
+        }
+        saveQuick.disabled = true;
+        try {
+            const body = new FormData();
+            body.append('name', name);
+            body.append('item_number', item_number);
+            body.append('unit', unit);
+            body.append('csrfmiddlewaretoken', csrf);
+            const res = await fetch(createUrl, {
+                method: 'POST',
+                body,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const data = await res.json();
+            if (!data.ok) {
+                showQuickMsg(data.error || 'تعذّر الحفظ.', true);
+                return;
+            }
+            CS.addItem(data.item);
+            catalog = CS.getCatalog();
+            ensureUnitOption(data.item.unit);
+            fillRowWithItem(data.item);
+            showQuickMsg(`تم إضافة «${data.item.name}» ووضعه في الصف.`, false);
+            document.getElementById('quickItemName').value = '';
+            document.getElementById('quickItemNumber').value = '';
+            document.getElementById('quickItemUnit').value = '';
+            const custom = document.getElementById('quickItemUnitCustom');
+            if (custom) {
+                custom.value = '';
+                custom.classList.add('hidden');
+            }
+        } catch (err) {
+            showQuickMsg('تعذّر الاتصال. حاول مرة أخرى.', true);
+        } finally {
+            saveQuick.disabled = false;
+        }
+    });
 })();
 </script>
 <script>

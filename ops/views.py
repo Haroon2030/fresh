@@ -378,6 +378,7 @@ def supply_list(request):
         'active_nav': 'supply',
     }
     ctx.update(_catalog_context())
+    ctx['unit_choices'] = DAILY_ORDER_PACKAGES
     return render(request, 'ops/supply.html', ctx)
 
 
@@ -442,16 +443,13 @@ def supply_create(request):
             quantity = max(1, int(qty_raw or 1))
         except (TypeError, ValueError):
             quantity = 1
-        price_raw = unit_prices[i] if i < len(unit_prices) else None
-        if price_raw is None or str(price_raw).strip() == '':
-            unit_price = order.unit_price
-        else:
-            try:
-                unit_price = Decimal(str(price_raw).strip())
-            except Exception:
-                unit_price = order.unit_price
-            if unit_price < 0:
-                unit_price = Decimal('0')
+        price_raw = unit_prices[i] if i < len(unit_prices) else '0'
+        try:
+            unit_price = Decimal(str(price_raw or '0').strip() or '0')
+        except Exception:
+            unit_price = Decimal('0')
+        if unit_price < 0:
+            unit_price = Decimal('0')
         order = SupplyOrder(
             batch_number=batch_number,
             representative=representative,
@@ -2457,6 +2455,42 @@ def items_list(request):
         'total_items': CatalogItem.objects.count(),
         'unit_choices': DAILY_ORDER_PACKAGES,
         'active_nav': 'items',
+    })
+
+
+@login_required
+@require_POST
+def item_create_api(request):
+    """إنشاء صنف من داخل شاشات التشغيل دون الخروج (JSON)."""
+    name = (request.POST.get('name') or '').strip()
+    item_number = (request.POST.get('item_number') or '').strip()
+    unit = (request.POST.get('unit') or '').strip()
+
+    if not name:
+        return JsonResponse({'ok': False, 'error': 'اسم الصنف مطلوب.'}, status=400)
+    if not item_number:
+        return JsonResponse({'ok': False, 'error': 'رقم الصنف مطلوب.'}, status=400)
+    if not unit:
+        return JsonResponse({'ok': False, 'error': 'اختر الوحدة.'}, status=400)
+
+    if CatalogItem.objects.filter(name=name).exists():
+        return JsonResponse({'ok': False, 'error': f'الصنف «{name}» موجود مسبقاً.'}, status=400)
+    if CatalogItem.objects.filter(item_number=item_number).exists():
+        return JsonResponse({'ok': False, 'error': f'رقم الصنف «{item_number}» مستخدم مسبقاً.'}, status=400)
+
+    item = CatalogItem.objects.create(
+        name=name,
+        item_number=item_number,
+        unit=unit,
+        package='',
+    )
+    return JsonResponse({
+        'ok': True,
+        'item': {
+            'item_number': item.item_number,
+            'name': item.name,
+            'unit': item.unit,
+        },
     })
 
 

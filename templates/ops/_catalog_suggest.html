@@ -332,10 +332,33 @@ window.FarshCatalogSuggest = (function () {
     function markFilled(tr) {
         const numInput = tr.querySelector('input[name="item_number"]');
         const nameInput = tr.querySelector('input[name="item_name"]');
-        const filled = !!(numInput?.value.trim() && nameInput?.value.trim());
+        const hasName = !!(nameInput?.value.trim());
+        const hasNum = !!(numInput?.value.trim());
         tr.querySelectorAll('.catalog-suggest-wrap').forEach((wrap) => {
-            wrap.classList.toggle('is-filled', filled);
+            const input = wrap.querySelector('.catalog-suggest-input');
+            const field = input?.getAttribute('data-catalog-field') || input?.name;
+            const active = field === 'item_number' || field === 'number' ? hasNum : hasName;
+            wrap.classList.toggle('is-filled', active);
         });
+    }
+
+    function acceptTypedItem(tr, input, options) {
+        if (!tr || !input) return;
+        const opts = options || {};
+        const query = (input.value || '').trim();
+        if (!query) return;
+        markFilled(tr);
+        closeSuggest();
+        const nameInput = tr.querySelector('input[name="item_name"]');
+        if (!(nameInput?.value.trim())) {
+            nameInput?.focus();
+            return;
+        }
+        if (typeof opts.onApply === 'function') {
+            opts.onApply(tr);
+        } else {
+            tr.querySelector('input[name="quantity"], [name="quantity"]')?.focus();
+        }
     }
 
     function clearRow(tr, focusName, options) {
@@ -444,7 +467,12 @@ window.FarshCatalogSuggest = (function () {
     function renderSuggest(menu, items, query, tr, options, input) {
         let html = '';
         if (!items.length) {
-            html = `<div class="catalog-suggest-empty">لا نتائج لـ «${escapeHtml(query)}»</div>`;
+            html = `
+                <div class="catalog-suggest-empty">لا يوجد في الكتالوج — يمكنك الحفظ كصنف جديد</div>
+                <div class="catalog-suggest-actions">
+                    <button type="button" data-suggest-action="use-typed">اعتماد «${escapeHtml(query)}»</button>
+                    <button type="button" class="is-clear" data-suggest-action="clear">مسح</button>
+                </div>`;
             activeItems = [];
             activeIndex = -1;
         } else {
@@ -513,6 +541,10 @@ window.FarshCatalogSuggest = (function () {
                 const action = actionBtn.getAttribute('data-suggest-action');
                 if (action === 'clear') {
                     clearRow(tr, true, options);
+                    return;
+                }
+                if (action === 'use-typed') {
+                    acceptTypedItem(tr, input, options);
                     return;
                 }
                 if (action === 'replace') {
@@ -615,6 +647,10 @@ window.FarshCatalogSuggest = (function () {
                         applyItem(tr, activeItems[activeIndex], opts);
                         return;
                     }
+                    if ((input.value || '').trim()) {
+                        acceptTypedItem(tr, input, opts);
+                        return;
+                    }
                     closeSuggest();
                     if (typeof opts.onEnter === 'function') {
                         opts.onEnter(tr, input, e);
@@ -672,6 +708,25 @@ window.FarshCatalogSuggest = (function () {
 
     return {
         setCatalog,
+        getCatalog: () => catalog.slice(),
+        addItem(item) {
+            const resolved = resolveCatalogItem(item);
+            if (!resolved) return;
+            const exists = catalog.some(
+                (row) =>
+                    row.name === resolved.name ||
+                    (resolved.item_number && row.item_number === resolved.item_number)
+            );
+            if (!exists) catalog.unshift(resolved);
+            else {
+                catalog = catalog.map((row) =>
+                    row.name === resolved.name ||
+                    (resolved.item_number && row.item_number === resolved.item_number)
+                        ? resolved
+                        : row
+                );
+            }
+        },
         fieldHtml,
         bindRow,
         bindTable,

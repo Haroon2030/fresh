@@ -1234,6 +1234,8 @@
         .act-pdf:hover { background: #ffe4e6; }
         .act-view { background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; }
         .act-view:hover { background: #dbeafe; }
+        .act-edit { background: #eef2ff; color: #4338ca; border: 1px solid #a5b4fc; }
+        .act-edit:hover { background: #e0e7ff; }
         .act-approve { background: #ecfdf5; color: #047857; border: 1px solid #6ee7b7; }
         .act-approve:hover { background: #d1fae5; }
         .act-reject { background: #fffbeb; color: #b45309; border: 1px solid #fcd34d; }
@@ -1922,17 +1924,6 @@
         .catch(function () {
             setTimeout(ready, 600);
         });
-})();
-</script>
-<script>
-(function () {
-    var NUM_ENTRY_SEL = 'input[type="number"].num-entry, .excel-grid input[type="number"], .excel-sheet input[type="number"]';
-    document.addEventListener('focusin', function (e) {
-        var input = e.target;
-        if (!(input instanceof HTMLInputElement) || !input.matches(NUM_ENTRY_SEL)) return;
-        if (input.dataset.preserveValue === 'true') return;
-        input.value = '';
-    });
 })();
 </script>
 </body>

@@ -46,10 +46,17 @@ def _ensure_font() -> str:
     return _FONT_NAME if _FONT_REGISTERED else "Helvetica"
 
 
+def _has_arabic(text: str) -> bool:
+    return any("\u0600" <= ch <= "\u06FF" for ch in text)
+
+
 def _ar(text) -> str:
     raw = str(text or "").strip()
     if not raw:
         return ""
+    # Keep pure LTR codes/dates/numbers intact (#SUPB-0004, 2026/08/22, 522.00)
+    if not _has_arabic(raw):
+        return raw
     try:
         import arabic_reshaper
         from bidi.algorithm import get_display
@@ -57,6 +64,32 @@ def _ar(text) -> str:
         return get_display(arabic_reshaper.reshape(raw))
     except Exception:
         return raw
+
+
+def _fmt_dt(value) -> str:
+    if not value:
+        return "—"
+    try:
+        local = timezone.localtime(value)
+        return local.strftime("%Y/%m/%d %H:%M")
+    except Exception:
+        return str(value)
+
+
+def _fmt_date(value) -> str:
+    if not value:
+        return "—"
+    try:
+        return value.strftime("%Y/%m/%d")
+    except Exception:
+        return str(value)
+
+
+def _money(value) -> str:
+    try:
+        return f"{float(value or 0):.2f}"
+    except Exception:
+        return "0.00"
 
 
 def _styles():
@@ -164,10 +197,11 @@ def _doc_heading(styles, title: str, subtitle: str, ref: str, dated: str) -> lis
         Paragraph(_ar(title), styles["doc_title"]),
         Paragraph(_ar(subtitle), styles["doc_sub"]),
     ]
+    # Reshape the full phrase so Arabic labels + LTR codes stay correct
     ref_row = Table(
         [[
-            Paragraph(f"{_ar(dated)}  :{_ar('التاريخ')}", styles["meta_value"]),
-            Paragraph(f"{_ar(ref)}  :{_ar('الرقم')}", styles["meta_value"]),
+            Paragraph(_ar(f"التاريخ: {dated}"), styles["meta_value"]),
+            Paragraph(_ar(f"الرقم: {ref}"), styles["meta_value"]),
         ]],
         colWidths=[page_w / 2, page_w / 2],
     )
@@ -327,7 +361,7 @@ def role_label(user) -> str:
 def build_return_batch_pdf(batch) -> tuple[bytes, str]:
     styles = _styles()
     items = list(batch.items.select_related("representative").all())
-    created = timezone.localtime(batch.created_at).strftime("%Y-%m-%d %H:%M")
+    created = _fmt_dt(batch.created_at)
     creator = batch.created_by
     rep = batch.representative
 
@@ -388,12 +422,15 @@ def build_supply_orders_pdf(orders: list, *, actor) -> tuple[bytes, str]:
     if not orders:
         raise ValueError("لا توجد طلبات توريد")
     first = orders[0]
-    created = timezone.localtime(first.created_at).strftime("%Y-%m-%d %H:%M")
     rep = first.representative
-    nums = [o.order_number for o in orders]
-    batch_ref = getattr(first, "batch_number", "") or ""
-    ref = batch_ref or (nums[0] if len(nums) == 1 else f"{nums[0]} … {nums[-1]}")
-    status_label = first.get_status_display() if len(orders) == 1 else "مجموعة طلبات"
+    created = _fmt_dt(first.created_at)
+    expected = _fmt_date(getattr(first, "expected_date", None))
+    batch_ref = (getattr(first, "batch_number", "") or "").strip() or first.order_number
+    statuses = {o.status for o in orders}
+    if len(statuses) == 1:
+        status_label = first.get_status_display()
+    else:
+        status_label = "متعدد"
 
     story: list = []
     story.extend(_letterhead(styles, org_line="إدارة المشتريات والتوريد"))
@@ -402,49 +439,50 @@ def build_supply_orders_pdf(orders: list, *, actor) -> tuple[bytes, str]:
             styles,
             title="أمر توريد / طلب شراء",
             subtitle="مستند رسمي مبسّط للاعتماد والتنفيذ",
-            ref=ref,
+            ref=batch_ref,
             dated=created,
         )
     )
     story.append(
         _meta_grid(
             [
-                ("نوع المستند", "أمر توريد"),
+                ("رقم الملف", batch_ref),
+                ("تاريخ الإنشاء", created),
+                ("التاريخ المتوقع", expected),
                 ("الحالة", status_label),
-                ("عدد الأصناف", str(len(orders))),
-                ("أرقام الطلبات", "، ".join(nums)),
-                ("طالب التوريد", f"{actor.display_name} — {role_label(actor)}"),
-                ("المندوب", f"{rep.display_name} — {role_label(rep)}"),
                 ("الفرع", getattr(first, "branch", "") or "—"),
                 ("المورد", getattr(first, "supplier", "") or "—"),
+                ("المندوب", f"{rep.display_name} — {role_label(rep)}"),
+                ("طالب التوريد", f"{actor.display_name} — {role_label(actor)}" if actor else "—"),
+                ("عدد الأصناف", str(len(orders))),
+                ("نوع المستند", "أمر توريد"),
             ],
             styles,
         )
     )
     story.append(Spacer(1, 0.3 * cm))
     story.append(Paragraph(_ar("بيان الأصناف"), styles["h"]))
-    headers = ["ملاحظات", "الإجمالي", "سعر", "كمية", "وحدة", "الصنف", "رقم", "طلب"]
+    headers = ["الإجمالي", "سعر الشراء", "الكمية", "الوحدة", "الاسم", "رقم الصنف", "#"]
     rows = []
-    grand_total = 0
-    for o in orders:
+    grand_total = 0.0
+    for i, o in enumerate(orders, 1):
         line_total = float(o.quantity) * float(o.unit_price or 0)
         grand_total += line_total
         rows.append(
             [
-                (o.notes or "")[:50] or "—",
-                f"{line_total:.2f}",
-                f"{o.unit_price:.2f}",
+                _money(line_total),
+                _money(o.unit_price),
                 str(o.quantity),
                 o.unit or "—",
-                o.item_name,
+                o.item_name or "—",
                 o.item_number or "—",
-                o.order_number,
+                str(i),
             ]
         )
     story.append(_data_table(headers, rows, styles))
     story.append(Spacer(1, 0.25 * cm))
     total_tbl = Table(
-        [[Paragraph(_ar(f"الإجمالي الكلي: {grand_total:.2f}"), styles["meta_value"])]],
+        [[Paragraph(_ar(f"الإجمالي الكلي: {_money(grand_total)}"), styles["meta_value"])]],
         colWidths=[A4[0] - 2.4 * cm],
     )
     total_tbl.setStyle(
@@ -468,10 +506,9 @@ def build_supply_orders_pdf(orders: list, *, actor) -> tuple[bytes, str]:
         )
     )
     story.extend(_signatures(styles, "توقيع طالب الشراء", "اعتماد أمر التوريد"))
-    filename = f"purchase_order_{nums[0].replace('#', '')}.pdf"
-    if len(nums) > 1:
-        filename = f"purchase_order_batch_{len(nums)}.pdf"
-    return _build(story, title=f"أمر توريد {ref}"), filename
+    safe_ref = str(batch_ref).replace("#", "").replace("/", "-")
+    filename = f"supply_{safe_ref}.pdf"
+    return _build(story, title=f"أمر توريد {batch_ref}"), filename
 
 
 def build_daily_orders_pdf(orders: list, *, actor=None) -> tuple[bytes, str]:
@@ -480,7 +517,7 @@ def build_daily_orders_pdf(orders: list, *, actor=None) -> tuple[bytes, str]:
     if not orders:
         raise ValueError("لا توجد طلبيات")
     first = orders[0]
-    created = timezone.localtime(first.created_at).strftime("%Y-%m-%d %H:%M")
+    created = _fmt_dt(first.created_at)
     rep = first.representative
     actor = actor or first.reviewed_by or first.created_by
     batch_ref = first.batch_number or first.order_number
@@ -505,7 +542,7 @@ def build_daily_orders_pdf(orders: list, *, actor=None) -> tuple[bytes, str]:
         _meta_grid(
             [
                 ("رقم الملف", batch_ref),
-                ("تاريخ الطلبية", first.order_date.isoformat()),
+                ("تاريخ الطلبية", _fmt_date(first.order_date)),
                 ("الفرع", first.branch or "—"),
                 ("المورد", first.supplier or "—"),
                 ("المندوب", f"{rep.display_name} — {role_label(rep)}"),
@@ -550,7 +587,7 @@ def build_offers_batch_pdf(items: list, *, actor=None) -> tuple[bytes, str]:
         raise ValueError("لا توجد أصناف عروض")
     first = items[0]
     actor = actor or first.created_by
-    created = timezone.localtime(first.created_at).strftime("%Y-%m-%d %H:%M")
+    created = _fmt_dt(first.created_at)
     batch_ref = first.batch_number or f"#OFF-{first.pk}"
 
     story: list = []
@@ -610,7 +647,7 @@ def build_distribution_batch_pdf(rows: list, *, actor=None) -> tuple[bytes, str]
         raise ValueError("لا توجد سجلات توزيع")
     first = rows[0]
     actor = actor or first.created_by
-    created = timezone.localtime(first.created_at).strftime("%Y-%m-%d %H:%M")
+    created = _fmt_dt(first.created_at)
     batch_ref = first.batch_number or f"DIST-{first.pk}"
     dist_date = first.distribution_date.strftime("%Y/%m/%d")
 
@@ -661,7 +698,7 @@ def build_variance_batch_pdf(rows: list, *, actor=None) -> tuple[bytes, str]:
         raise ValueError("لا توجد سجلات")
     first = rows[0]
     actor = actor or first.created_by
-    created = timezone.localtime(first.created_at).strftime("%Y-%m-%d %H:%M")
+    created = _fmt_dt(first.created_at)
     batch_ref = first.batch_number or f"VAR-{first.pk}"
     rec_date = first.record_date.strftime("%Y/%m/%d")
 
@@ -711,7 +748,7 @@ def build_variance_batch_pdf(rows: list, *, actor=None) -> tuple[bytes, str]:
 def build_task_pdf(task, *, actor=None) -> tuple[bytes, str]:
     styles = _styles()
     actor = actor or task.created_by
-    created = timezone.localtime(task.created_at).strftime("%Y-%m-%d %H:%M")
+    created = _fmt_dt(task.created_at)
     assignee = task.assigned_to
 
     story: list = []
