@@ -117,9 +117,30 @@ def _redirect_returns(batch_id=None):
 
 
 def _catalog_context():
-    catalog = list(
-        CatalogItem.objects.order_by('name').values('item_number', 'name', 'unit')[:2000]
-    )
+    from .catalog_units import looks_like_item_number
+
+    def _has_arabic(text: str) -> bool:
+        return any('\u0600' <= ch <= '\u06FF' for ch in text)
+
+    def _normalize_entry(row: dict) -> dict:
+        number = (row.get('item_number') or '').strip()
+        name = (row.get('name') or '').strip()
+        unit = (row.get('unit') or '').strip()
+        # Excel أحياناً يضع الرقم والاسم معكوسين
+        if (
+            looks_like_item_number(name)
+            and not looks_like_item_number(number)
+            and (_has_arabic(number) or (number and not name))
+        ):
+            number, name = name, number
+        elif looks_like_item_number(name) and _has_arabic(number) and not looks_like_item_number(number):
+            number, name = name, number
+        return {'item_number': number, 'name': name, 'unit': unit}
+
+    catalog = [
+        _normalize_entry(row)
+        for row in CatalogItem.objects.order_by('name').values('item_number', 'name', 'unit')[:2000]
+    ]
     return {
         'catalog': catalog,
         'catalog_json': json.dumps(catalog, ensure_ascii=False),
@@ -421,13 +442,16 @@ def supply_create(request):
             quantity = max(1, int(qty_raw or 1))
         except (TypeError, ValueError):
             quantity = 1
-        price_raw = unit_prices[i] if i < len(unit_prices) else '0'
-        try:
-            unit_price = Decimal(str(price_raw or '0').strip() or '0')
-        except Exception:
-            unit_price = Decimal('0')
-        if unit_price < 0:
-            unit_price = Decimal('0')
+        price_raw = unit_prices[i] if i < len(unit_prices) else None
+        if price_raw is None or str(price_raw).strip() == '':
+            unit_price = order.unit_price
+        else:
+            try:
+                unit_price = Decimal(str(price_raw).strip())
+            except Exception:
+                unit_price = order.unit_price
+            if unit_price < 0:
+                unit_price = Decimal('0')
         order = SupplyOrder(
             batch_number=batch_number,
             representative=representative,
@@ -565,7 +589,8 @@ def supply_batch_update(request, pk):
         order.unit = (units[i] if i < len(units) else '').strip()
         order.quantity = quantity
         order.unit_price = unit_price
-        order.notes = (notes_list[i] if i < len(notes_list) else '').strip()
+        if i < len(notes_list):
+            order.notes = (notes_list[i] or '').strip()
         order.save()
         updated += 1
 
@@ -637,9 +662,6 @@ def daily_distribution_list(request):
         b['branches_label'] = '، '.join(branches[:3]) + ('…' if len(branches) > 3 else '')
     batches.sort(key=lambda x: x['created_at'], reverse=True)
 
-    catalog = list(
-        CatalogItem.objects.order_by('name').values('item_number', 'name', 'unit')[:2000]
-    )
     open_batch = (request.GET.get('open') or '').strip()
     ctx = {
         'batches': batches,

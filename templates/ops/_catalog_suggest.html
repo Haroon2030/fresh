@@ -151,7 +151,9 @@ window.FarshCatalogSuggest = (function () {
     let activeIndex = -1;
 
     function setCatalog(list) {
-        catalog = Array.isArray(list) ? list : [];
+        catalog = (Array.isArray(list) ? list : [])
+            .map((row) => resolveCatalogItem(row))
+            .filter(Boolean);
     }
 
     function escapeHtml(text) {
@@ -207,9 +209,11 @@ window.FarshCatalogSuggest = (function () {
         const ph = o.placeholder || (name === 'item_number' ? 'رقم الصنف' : 'ابحث عن الصنف...');
         const dir = o.dir ? ` dir="${o.dir}"` : '';
         const req = o.required ? ' required' : '';
+        const field = name === 'item_number' ? 'number' : 'name';
         return `
             <div class="catalog-suggest-wrap">
-                <input class="${cls}" name="${name}" type="text" placeholder="${ph}"${dir}${req} autocomplete="off">
+                <input class="${cls}" name="${name}" type="text" placeholder="${ph}"${dir}${req}
+                       data-catalog-field="${field}" autocomplete="off">
                 <button type="button" class="catalog-clear-btn" title="إلغاء الصنف" aria-label="إلغاء الصنف">
                     <span class="material-symbols-outlined">close</span>
                 </button>
@@ -229,6 +233,10 @@ window.FarshCatalogSuggest = (function () {
 
     function ensureWrapped(input) {
         if (!input) return null;
+        if (!input.getAttribute('data-catalog-field')) {
+            const field = input.name === 'item_number' ? 'number' : (input.name === 'item_name' ? 'name' : '');
+            if (field) input.setAttribute('data-catalog-field', field);
+        }
         let wrap = input.closest('.catalog-suggest-wrap');
         if (wrap) return wrap;
         wrap = document.createElement('div');
@@ -352,12 +360,32 @@ window.FarshCatalogSuggest = (function () {
         if (focusEl) openSuggestFor(focusEl, tr, opts);
     }
 
+    function looksLikeSku(value) {
+        const v = String(value || '').trim();
+        if (!v) return false;
+        if (/[\u0600-\u06FF]/.test(v)) return false;
+        return /^[0-9][0-9A-Za-z\-_./]*$/.test(v);
+    }
+
+    function looksLikeProductName(value) {
+        const v = String(value || '').trim();
+        if (!v) return false;
+        if (looksLikeSku(v)) return false;
+        return /[\u0600-\u06FFA-Za-z]/.test(v);
+    }
+
     function resolveCatalogItem(item) {
         if (!item || typeof item !== 'object') return null;
-        const number = String(item.item_number ?? item.number ?? '').trim();
-        const name = String(item.name ?? item.item_name ?? '').trim();
+        let number = String(item.item_number ?? item.number ?? '').trim();
+        let name = String(item.name ?? item.item_name ?? '').trim();
         const unit = String(item.unit ?? '').trim();
         if (!number && !name) return null;
+        // صحّح إن كان الرقم والاسم معكوسين في الكتالوج
+        if (looksLikeSku(name) && looksLikeProductName(number)) {
+            const tmp = number;
+            number = name;
+            name = tmp;
+        }
         return { item_number: number, name, unit };
     }
 
@@ -366,9 +394,12 @@ window.FarshCatalogSuggest = (function () {
         const resolved = resolveCatalogItem(item);
         if (!resolved) return;
         const opts = options || {};
-        // Always map by input name — never by column order / typed field
-        const numInput = tr.querySelector('input[name="item_number"]');
-        const nameInput = tr.querySelector('input[name="item_name"]');
+        const numInput =
+            tr.querySelector('input[data-catalog-field="number"]') ||
+            tr.querySelector('input[name="item_number"]');
+        const nameInput =
+            tr.querySelector('input[data-catalog-field="name"]') ||
+            tr.querySelector('input[name="item_name"]');
         if (numInput) numInput.value = resolved.item_number;
         if (nameInput) nameInput.value = resolved.name;
 
@@ -418,11 +449,18 @@ window.FarshCatalogSuggest = (function () {
             activeIndex = -1;
         } else {
             html = items.map((item, idx) => {
-                const unit = String(item.unit || '').trim();
-                const num = String(item.item_number || '').trim();
-                const name = String(item.name || '').trim();
+                const resolved = resolveCatalogItem(item) || { item_number: '', name: '', unit: '' };
+                const unit = String(resolved.unit || '').trim();
+                const num = String(resolved.item_number || '').trim();
+                const name = String(resolved.name || '').trim();
+                const payload = encodeURIComponent(JSON.stringify({
+                    item_number: num,
+                    name,
+                    unit,
+                }));
                 return `
                 <button type="button" class="catalog-suggest-item" data-idx="${idx}"
+                    data-payload="${payload}"
                     data-item-number="${escapeHtml(num)}"
                     data-item-name="${escapeHtml(name)}"
                     data-item-unit="${escapeHtml(unit)}">
@@ -433,7 +471,7 @@ window.FarshCatalogSuggest = (function () {
                     </span>
                 </button>`;
             }).join('');
-            activeItems = items;
+            activeItems = items.map((it) => resolveCatalogItem(it)).filter(Boolean);
             activeIndex = 0;
         }
         html += `
@@ -451,6 +489,12 @@ window.FarshCatalogSuggest = (function () {
 
         function itemFromButton(btn) {
             if (!btn) return null;
+            const raw = btn.getAttribute('data-payload');
+            if (raw) {
+                try {
+                    return resolveCatalogItem(JSON.parse(decodeURIComponent(raw)));
+                } catch (err) { /* fall through */ }
+            }
             const fromAttr = resolveCatalogItem({
                 item_number: btn.getAttribute('data-item-number') || '',
                 name: btn.getAttribute('data-item-name') || '',
