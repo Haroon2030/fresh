@@ -523,7 +523,7 @@ def build_supply_orders_pdf(orders: list, *, actor) -> tuple[bytes, str]:
                 ("تاريخ الإنشاء", created),
                 ("التاريخ المتوقع", expected),
                 ("الحالة", status_label),
-                ("الفرع", getattr(first, "branch", "") or "—"),
+                ("الشركة", getattr(first, "branch", "") or "—"),
                 ("المورد", getattr(first, "supplier", "") or "—"),
                 ("المندوب", f"{rep.display_name} — {role_label(rep)}"),
                 ("طالب التوريد", f"{actor.display_name} — {role_label(actor)}" if actor else "—"),

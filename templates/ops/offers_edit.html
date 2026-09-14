@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}تعديل ملف عروض - عمليات الفرش{% endblock %}
+
+{% block content %}
+<div class="mb-md">
+    <a href="{% url 'ops:offers' %}" class="inline-flex items-center gap-1 text-sm font-bold text-on-surface-variant hover:text-primary mb-1">
+        <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+        رجوع للقائمة
+    </a>
+    <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">تعديل ملف عروض</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-xs">{{ batch.batch_number }}</p>
+</div>
+
+<div class="app-inline-create app-create-page" id="batchModal-{{ batch.seed_pk }}">
+    <div class="app-inline-create-inner">
+        <div class="app-inline-create-head">
+            <div class="app-modal-head-main">
+                <h3>تعديل أصناف الملف {{ batch.batch_number }}</h3>
+                <p class="app-modal-sub">
+                    المندوب: {{ batch.representative.display_name }} · {{ batch.created_by.display_name }} · {{ batch.created_at|date:"Y/m/d" }} · {{ batch.items_count }} صنف
+                </p>
+            </div>
+            <div class="app-modal-head-actions">
+                <a href="{% url 'ops:offers_batch_pdf' batch.seed_pk %}" class="app-modal-head-btn">
+                    <span class="material-symbols-outlined">download</span>
+                    تحميل PDF
+                </a>
+                <a href="{% url 'ops:offers' %}" class="app-modal-close" aria-label="إغلاق"><span class="material-symbols-outlined">close</span></a>
+            </div>
+        </div>
+        <form method="post" action="{% url 'ops:offers_batch_update' batch.seed_pk %}" class="flex flex-col">
+            {% csrf_token %}
+            <div class="app-modal-body">
+                <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+                    <table class="excel-grid batch-detail-grid w-full" data-offer-edit>
+                        <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>رقم الصنف</th>
+                            <th>الاسم</th>
+                            <th>الكمية</th>
+                            <th>العبوة</th>
+                            <th>الحالة</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for item in batch.items %}
+                        <tr>
+                            <td class="cell-center">{{ forloop.counter }}</td>
+                            <td>
+                                <input type="hidden" name="order_id" value="{{ item.pk }}">
+                                <input name="item_number" type="text" value="{{ item.item_number }}" class="cell-input" dir="ltr" placeholder="رقم الصنف">
+                            </td>
+                            <td><input name="item_name" type="text" value="{{ item.item_name }}" required class="cell-input" placeholder="اسم الصنف"></td>
+                            <td><input name="quantity" type="number" min="1" value="{{ item.quantity }}" required class="cell-input num-entry"></td>
+                            <td>
+                                <select name="package" class="cell-input cell-select app-select">
+                                    <option value="">اختر...</option>
+                                    {% for p in package_choices %}
+                                    <option value="{{ p }}" {% if item.package == p %}selected{% endif %}>{{ p }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td class="cell-center">
+                                {% if item.status == 'approved' %}
+                                <span class="status-chip status-ok">معتمد</span>
+                                {% else %}
+                                <span class="status-chip status-pending">قيد الانتظار</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="empty-row">لا أصناف.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="app-modal-foot">
+                <a href="{% url 'ops:offers' %}" class="btn-ghost-app">إلغاء</a>
+                <button type="submit" class="btn-primary-app">حفظ التعديلات</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% include "ops/_catalog_suggest.html" %}
+<script>
+(function () {
+    const CS = window.FarshCatalogSuggest;
+    if (!CS) return;
+    let packageOptions = [];
+    try { packageOptions = JSON.parse('{{ package_choices_json|escapejs }}') || []; } catch (e) { packageOptions = []; }
+    document.querySelectorAll('table[data-offer-edit]').forEach((table) => {
+        CS.bindTable(table, {
+            packageField: 'select[name="package"]',
+            packageChoices: packageOptions,
+            onApply: (tr) => tr.querySelector('input[name="quantity"]')?.focus(),
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -147,6 +147,21 @@ def _catalog_context():
     }
 
 
+def _representatives_qs():
+    User = get_user_model()
+    reps = User.objects.filter(role=User.Role.REPRESENTATIVE, is_active=True)
+    if not reps.exists():
+        return User.objects.filter(is_active=True).order_by('first_name', 'username')
+    return reps.order_by('first_name', 'username')
+
+
+def _package_ctx():
+    return {
+        'package_choices': DAILY_ORDER_PACKAGES,
+        'package_choices_json': json.dumps(DAILY_ORDER_PACKAGES, ensure_ascii=False),
+    }
+
+
 def _greeting_for(now):
     hour = now.hour
     if 5 <= hour < 12:
@@ -376,6 +391,7 @@ def supply_list(request):
         'budget_pct': budget_pct,
         'open_batch': open_batch,
         'active_nav': 'supply',
+        'company_name': Branch.COMPANY_NAME,
     }
     ctx.update(_catalog_context())
     ctx['unit_choices'] = DAILY_ORDER_PACKAGES
@@ -383,10 +399,21 @@ def supply_list(request):
 
 
 @login_required
-@require_POST
 def supply_create(request):
     from django.contrib.auth import get_user_model
     User = get_user_model()
+
+    if request.method != 'POST':
+        ctx = {
+            'representatives': _representatives_qs(),
+            'branches': Branch.active_names(),
+            'suppliers': Supplier.active_names(),
+            'unit_choices': DAILY_ORDER_PACKAGES,
+            'active_nav': 'supply',
+            'company_name': Branch.COMPANY_NAME,
+        }
+        ctx.update(_catalog_context())
+        return render(request, 'ops/supply_create.html', ctx)
 
     if request.user.is_representative:
         representative = request.user
@@ -395,18 +422,14 @@ def supply_create(request):
         representative = User.objects.filter(pk=rep_id, is_active=True).first()
         if not representative:
             messages.error(request, 'اختر المندوب أولاً.')
-            return redirect('ops:supply')
+            return redirect('ops:supply_create')
 
     expected_raw = (request.POST.get('expected_date') or '').strip() or None
-    branch = (request.POST.get('branch') or '').strip() or Branch.default_name()
-    if not branch:
-        messages.error(request, 'اختر الفرع.')
-        return redirect('ops:supply')
-
+    branch = Branch.COMPANY_NAME
     supplier = (request.POST.get('supplier') or '').strip()
     if not supplier:
         messages.error(request, 'اختر المورد.')
-        return redirect('ops:supply')
+        return redirect('ops:supply_create')
 
     item_names = request.POST.getlist('item_name')
     item_numbers = request.POST.getlist('item_number')
@@ -481,7 +504,7 @@ def supply_create(request):
         messages.info(request, 'جاري إرسال إشعار واتساب في الخلفية.')
         return redirect(f"{reverse('ops:supply')}?open={created[0].pk}")
     messages.error(request, 'أضف صفاً واحداً على الأقل مع الاسم.')
-    return redirect('ops:supply')
+    return redirect('ops:supply_create')
 
 
 @login_required
@@ -558,12 +581,11 @@ def supply_order_delete(request, pk):
             .first()
         )
         if seed:
-            return redirect(f"{reverse('ops:supply')}?open={seed.pk}")
+            return redirect('ops:supply_batch_update', pk=seed.pk)
     return redirect('ops:supply')
 
 
 @login_required
-@require_POST
 def supply_batch_update(request, pk):
     seed = get_object_or_404(_supply_queryset(request.user), pk=pk)
     can_edit = request.user.is_manager or seed.representative_id == request.user.id
@@ -571,10 +593,29 @@ def supply_batch_update(request, pk):
         messages.error(request, 'لا يمكنك تعديل هذا الملف.')
         return redirect('ops:supply')
 
+    if request.method != 'POST':
+        batches = _group_supply_batches(_supply_batch_orders(seed))
+        batch = batches[0] if batches else None
+        if not batch:
+            messages.error(request, 'الملف غير موجود.')
+            return redirect('ops:supply')
+        ctx = {
+            'batch': batch,
+            'suppliers': Supplier.active_names(),
+            'company_name': Branch.COMPANY_NAME,
+            'active_nav': 'supply',
+        }
+        ctx.update(_catalog_context())
+        return render(request, 'ops/supply_edit.html', ctx)
+
     items = {o.pk: o for o in _supply_batch_orders(seed)}
-    if not items:
-        messages.error(request, 'الملف فارغ.')
-        return redirect(f"{reverse('ops:supply')}?open={seed.pk}")
+
+    branch = Branch.COMPANY_NAME
+    supplier = (request.POST.get('supplier') or '').strip()
+    expected_raw = (request.POST.get('expected_date') or '').strip() or None
+    if not supplier:
+        messages.error(request, 'اختر المورد.')
+        return redirect('ops:supply_batch_update', pk=seed.pk)
 
     order_ids = request.POST.getlist('order_id')
     item_names = request.POST.getlist('item_name')
@@ -584,15 +625,24 @@ def supply_batch_update(request, pk):
     quantities = request.POST.getlist('quantity')
     notes_list = request.POST.getlist('notes')
 
+    # Align by row index across parallel lists (new rows send empty order_id)
+    row_count = max(len(item_names), len(order_ids), 0)
     updated = 0
-    for i, raw_id in enumerate(order_ids):
-        try:
-            oid = int(raw_id)
-        except (TypeError, ValueError):
-            continue
-        order = items.get(oid)
-        if not order:
-            continue
+    created = 0
+    batch_number = (seed.batch_number or '').strip()
+    if not batch_number:
+        batch_number = seed.order_number
+        seed.batch_number = batch_number
+        seed.save(update_fields=['batch_number'])
+
+    # حدّث المورد/الفرع/التاريخ على كل أصناف الملف
+    meta_qs = _supply_batch_orders(seed)
+    meta_qs.update(branch=branch, supplier=supplier, expected_date=expected_raw)
+    seed.branch = branch
+    seed.supplier = supplier
+    seed.expected_date = expected_raw
+
+    for i in range(row_count):
         item_name = (item_names[i] if i < len(item_names) else '').strip()
         if not item_name:
             continue
@@ -609,19 +659,60 @@ def supply_batch_update(request, pk):
         if unit_price < 0:
             unit_price = Decimal('0')
 
-        order.item_name = item_name
-        order.item_number = (item_numbers[i] if i < len(item_numbers) else '').strip()
-        order.unit = (units[i] if i < len(units) else '').strip()
-        order.quantity = quantity
-        order.unit_price = unit_price
-        if i < len(notes_list):
-            order.notes = (notes_list[i] or '').strip()
-        order.save()
-        updated += 1
+        item_number = (item_numbers[i] if i < len(item_numbers) else '').strip()
+        unit = (units[i] if i < len(units) else '').strip()
+        notes = (notes_list[i] if i < len(notes_list) else '').strip()
 
-    if updated:
-        ref = seed.batch_number or seed.order_number
-        messages.success(request, f'تم حفظ تعديلات ملف {ref} ({updated} صنف).')
+        raw_id = (order_ids[i] if i < len(order_ids) else '').strip()
+        order = None
+        if raw_id:
+            try:
+                order = items.get(int(raw_id))
+            except (TypeError, ValueError):
+                order = None
+
+        if order:
+            order.item_name = item_name
+            order.item_number = item_number
+            order.unit = unit
+            order.quantity = quantity
+            order.unit_price = unit_price
+            order.notes = notes
+            order.branch = branch
+            order.supplier = supplier
+            order.expected_date = expected_raw
+            order.save()
+            updated += 1
+        else:
+            SupplyOrder.objects.create(
+                batch_number=batch_number,
+                representative=seed.representative,
+                item_name=item_name,
+                item_number=item_number,
+                unit=unit,
+                quantity=quantity,
+                unit_price=unit_price,
+                notes=notes,
+                branch=branch,
+                supplier=supplier,
+                expected_date=expected_raw,
+                created_by=request.user,
+                public_token=seed.public_token or '',
+                status=SupplyOrder.Status.PENDING,
+            )
+            created += 1
+
+    total = updated + created
+    ref = batch_number or seed.order_number
+    if total or meta_qs.exists():
+        parts = []
+        if updated:
+            parts.append(f'{updated} معدّل')
+        if created:
+            parts.append(f'{created} جديد')
+        if not parts:
+            parts.append('بيانات الملف')
+        messages.success(request, f'تم حفظ ملف {ref} ({" · ".join(parts)}).')
     else:
         messages.error(request, 'لم يُحفظ أي تعديل. تأكد من تعبئة اسم الصنف.')
     return redirect(f"{reverse('ops:supply')}?open={seed.pk}")
@@ -702,9 +793,18 @@ def daily_distribution_list(request):
 
 
 @login_required
-@require_POST
 @rep_forbidden
 def daily_distribution_create(request):
+    if request.method != 'POST':
+        today = timezone.localdate()
+        ctx = {
+            'dist_date': today,
+            'branches': Branch.active_names(),
+            'active_nav': 'distribution',
+        }
+        ctx.update(_catalog_context())
+        return render(request, 'ops/daily_distribution_create.html', ctx)
+
     date_raw = (request.POST.get('distribution_date') or '').strip()
     today = timezone.localdate()
     if date_raw:
@@ -769,7 +869,7 @@ def daily_distribution_create(request):
 
     if not created_ids:
         messages.error(request, 'أضف صنفاً واحداً على الأقل مع الكمية والفرع.')
-        return redirect(f"{reverse('ops:daily_distribution')}?date={dist_date.isoformat()}")
+        return redirect('ops:daily_distribution_create')
 
     schedule_daily_distribution_notify(created_ids, request.user.pk)
     messages.success(
@@ -805,10 +905,31 @@ def _dist_batch_qs(seed: DailySupplyDistribution):
 
 
 @login_required
-@require_POST
 @rep_forbidden
 def daily_distribution_batch_update(request, pk):
     seed = get_object_or_404(DailySupplyDistribution, pk=pk)
+    if request.method != 'POST':
+        qs = DailySupplyDistribution.objects.filter(
+            batch_number=seed.batch_number
+        ) if seed.batch_number else DailySupplyDistribution.objects.filter(pk=seed.pk)
+        qs = qs.select_related('created_by').order_by('pk')
+        items = list(qs)
+        batch = {
+            'batch_number': seed.batch_number or f'#DIST-{seed.pk:04d}',
+            'seed_pk': seed.pk,
+            'distribution_date': seed.distribution_date,
+            'created_by': seed.created_by,
+            'created_at': seed.created_at,
+            'items': items,
+            'items_count': len(items),
+        }
+        ctx = {
+            'batch': batch,
+            'branches': Branch.active_names(),
+            'active_nav': 'distribution',
+        }
+        ctx.update(_catalog_context())
+        return render(request, 'ops/daily_distribution_edit.html', ctx)
     if not (request.user.is_manager or seed.created_by_id == request.user.id):
         messages.error(request, 'لا يمكنك تعديل هذا الملف.')
         return redirect('ops:daily_distribution')
@@ -940,9 +1061,19 @@ def distribution_variance_list(request):
 
 
 @login_required
-@require_POST
 @rep_forbidden
 def distribution_variance_create(request):
+    if request.method != 'POST':
+        today = timezone.localdate()
+        ctx = {
+            'record_date': today,
+            'branches': Branch.active_names(),
+            'suppliers': Supplier.active_names(),
+            'active_nav': 'variance',
+        }
+        ctx.update(_catalog_context())
+        return render(request, 'ops/distribution_variance_create.html', ctx)
+
     date_raw = (request.POST.get('record_date') or '').strip()
     today = timezone.localdate()
     if date_raw:
@@ -1019,13 +1150,12 @@ def distribution_variance_create(request):
 
     if not created_ids:
         messages.error(request, 'أضف صنفاً واحداً على الأقل.')
-    else:
-        messages.success(
-            request,
-            f'تم حفظ ملف {batch_number} بـ {len(created_ids)} سجل — بانتظار تعميد المستلم.',
-        )
-    open_q = f'&open={created_ids[0]}' if created_ids else ''
-    return redirect(f"{reverse('ops:distribution_variance')}?date={record_date.isoformat()}{open_q}")
+        return redirect('ops:distribution_variance_create')
+    messages.success(
+        request,
+        f'تم حفظ ملف {batch_number} بـ {len(created_ids)} سجل — بانتظار تعميد المستلم.',
+    )
+    return redirect(f"{reverse('ops:distribution_variance')}?date={record_date.isoformat()}&open={created_ids[0]}")
 
 
 @login_required
@@ -1123,10 +1253,32 @@ def _variance_batch_qs(seed: DistributionVariance):
 
 
 @login_required
-@require_POST
 @rep_forbidden
 def distribution_variance_batch_update(request, pk):
     seed = get_object_or_404(DistributionVariance, pk=pk)
+    if request.method != 'POST':
+        qs = DistributionVariance.objects.filter(
+            batch_number=seed.batch_number
+        ) if seed.batch_number else DistributionVariance.objects.filter(pk=seed.pk)
+        qs = qs.select_related('created_by', 'authorized_by').order_by('pk')
+        items = list(qs)
+        batch = {
+            'batch_number': seed.batch_number or f'#VAR-{seed.pk:04d}',
+            'seed_pk': seed.pk,
+            'record_date': seed.record_date,
+            'created_by': seed.created_by,
+            'created_at': seed.created_at,
+            'items': items,
+            'items_count': len(items),
+        }
+        ctx = {
+            'batch': batch,
+            'branches': Branch.active_names(),
+            'suppliers': Supplier.active_names(),
+            'active_nav': 'variance',
+        }
+        ctx.update(_catalog_context())
+        return render(request, 'ops/distribution_variance_edit.html', ctx)
     if not (request.user.is_manager or seed.created_by_id == request.user.id):
         messages.error(request, 'لا يمكنك تعديل هذا الملف.')
         return redirect('ops:distribution_variance')
@@ -1229,10 +1381,20 @@ def returns_list(request):
 
 
 @login_required
-@require_POST
 def return_create(request):
     from django.contrib.auth import get_user_model
     User = get_user_model()
+
+    if request.method != 'POST':
+        ctx = {
+            'representatives': _representatives_qs(),
+            'branches': Branch.active_names(),
+            'active_nav': 'returns',
+            'return_types': ReturnRequest.ReturnType.choices,
+        }
+        ctx.update(_catalog_context())
+        ctx.update(_package_ctx())
+        return render(request, 'ops/return_create.html', ctx)
 
     if request.user.is_representative:
         representative = request.user
@@ -1241,12 +1403,12 @@ def return_create(request):
         representative = User.objects.filter(pk=rep_id, is_active=True).first()
         if not representative:
             messages.error(request, 'اختر المندوب أولاً.')
-            return redirect('ops:returns')
+            return redirect('ops:return_create')
 
     branch = (request.POST.get('branch') or '').strip()
     if not branch:
         messages.error(request, 'اختر الفرع.')
-        return redirect('ops:returns')
+        return redirect('ops:return_create')
 
     item_names = request.POST.getlist('item_name')
     item_numbers = request.POST.getlist('item_number')
@@ -1283,7 +1445,7 @@ def return_create(request):
 
     if not rows:
         messages.error(request, 'أضف صنفاً واحداً على الأقل مع الاسم وسبب الإرجاع.')
-        return redirect('ops:returns')
+        return redirect('ops:return_create')
 
     batch = ReturnBatch.objects.create(
         representative=representative,
@@ -1469,13 +1631,22 @@ def return_item_update(request, pk):
 
 
 @login_required
-@require_POST
 def return_batch_update(request, pk):
     batch = get_object_or_404(_return_batch_queryset(request.user), pk=pk)
     can_edit = request.user.is_manager or batch.representative_id == request.user.id
     if not can_edit:
         messages.error(request, 'لا يمكنك تعديل هذا الملف.')
         return redirect('ops:returns')
+
+    if request.method != 'POST':
+        ctx = {
+            'batch': batch,
+            'return_types': ReturnRequest.ReturnType.choices,
+            'active_nav': 'returns',
+        }
+        ctx.update(_catalog_context())
+        ctx.update(_package_ctx())
+        return render(request, 'ops/return_edit.html', ctx)
 
     items = {item.pk: item for item in batch.items.all()}
     if not items:
@@ -1813,8 +1984,20 @@ def daily_orders_list(request):
 
 
 @login_required
-@require_POST
 def daily_order_create(request):
+    if request.method != 'POST':
+        today = timezone.localdate()
+        ctx = {
+            'representatives': _representatives_qs(),
+            'branches': Branch.active_names(),
+            'suppliers': Supplier.active_names(),
+            'order_date': today,
+            'active_nav': 'orders',
+        }
+        ctx.update(_catalog_context())
+        ctx.update(_package_ctx())
+        return render(request, 'ops/daily_order_create.html', ctx)
+
     if request.user.is_representative:
         representative = request.user
     else:
@@ -1822,17 +2005,17 @@ def daily_order_create(request):
         representative = User.objects.filter(pk=rep_id, is_active=True).first()
         if not representative:
             messages.error(request, 'اختر المندوب أولاً.')
-            return redirect('ops:daily_orders')
+            return redirect('ops:daily_order_create')
 
     branch = (request.POST.get('branch') or '').strip()
     if not branch:
         messages.error(request, 'اختر الفرع.')
-        return redirect('ops:daily_orders')
+        return redirect('ops:daily_order_create')
 
     supplier = (request.POST.get('supplier') or '').strip()
     if not supplier:
         messages.error(request, 'اختر المورد.')
-        return redirect('ops:daily_orders')
+        return redirect('ops:daily_order_create')
 
     date_raw = (request.POST.get('order_date') or '').strip()
     today = timezone.localdate()
@@ -1875,7 +2058,7 @@ def daily_order_create(request):
         package = (packages[i] if i < len(packages) else '').strip()
         if not package:
             messages.error(request, f'اختر العبوة للصنف «{item_name}».')
-            return redirect('ops:daily_orders')
+            return redirect('ops:daily_order_create')
         qty_raw = (quantities[i] if i < len(quantities) else '1').strip()
         try:
             quantity = int(qty_raw)
@@ -1883,7 +2066,7 @@ def daily_order_create(request):
             quantity = 0
         if quantity < 1:
             messages.error(request, f'أدخل كمية صحيحة للصنف «{item_name}».')
-            return redirect('ops:daily_orders')
+            return redirect('ops:daily_order_create')
         DailyOrder.objects.create(
             order_date=order_date,
             batch_number=batch_number,
@@ -1902,7 +2085,7 @@ def daily_order_create(request):
 
     if not created:
         messages.error(request, 'أضف صنفاً واحداً على الأقل مع اسم الصنف.')
-        return redirect('ops:daily_orders')
+        return redirect('ops:daily_order_create')
 
     messages.success(request, f'تم تسجيل ملف طلبية {batch_number} بـ {created} صنف.')
     first = DailyOrder.objects.filter(batch_number=batch_number).order_by('pk').first()
@@ -1933,13 +2116,33 @@ def _daily_order_batch_qs(seed: DailyOrder):
 
 
 @login_required
-@require_POST
 def daily_order_batch_update(request, pk):
     seed = get_object_or_404(_daily_order_queryset(request.user), pk=pk)
     can_edit = request.user.is_manager or seed.representative_id == request.user.id
     if not can_edit:
         messages.error(request, 'لا يمكنك تعديل هذا الملف.')
         return redirect('ops:daily_orders')
+
+    if request.method != 'POST':
+        items = list(_daily_order_batch_qs(seed).select_related('representative', 'created_by'))
+        batch = {
+            'batch_number': seed.batch_number or seed.order_number,
+            'seed_pk': seed.pk,
+            'representative': seed.representative,
+            'branch': seed.branch,
+            'supplier': seed.supplier,
+            'order_date': seed.order_date,
+            'created_at': seed.created_at,
+            'items': items,
+            'items_count': len(items),
+        }
+        ctx = {
+            'batch': batch,
+            'active_nav': 'orders',
+        }
+        ctx.update(_catalog_context())
+        ctx.update(_package_ctx())
+        return render(request, 'ops/daily_order_edit.html', ctx)
 
     items = {o.pk: o for o in _daily_order_batch_qs(seed)}
     if not items:
@@ -2746,14 +2949,12 @@ def item_create_api(request):
 
     if not name:
         return JsonResponse({'ok': False, 'error': 'اسم الصنف مطلوب.'}, status=400)
-    if not item_number:
-        return JsonResponse({'ok': False, 'error': 'رقم الصنف مطلوب.'}, status=400)
     if not unit:
         return JsonResponse({'ok': False, 'error': 'اختر الوحدة.'}, status=400)
 
     if CatalogItem.objects.filter(name=name).exists():
         return JsonResponse({'ok': False, 'error': f'الصنف «{name}» موجود مسبقاً.'}, status=400)
-    if CatalogItem.objects.filter(item_number=item_number).exists():
+    if item_number and CatalogItem.objects.filter(item_number=item_number).exists():
         return JsonResponse({'ok': False, 'error': f'رقم الصنف «{item_number}» مستخدم مسبقاً.'}, status=400)
 
     item = CatalogItem.objects.create(
@@ -2773,27 +2974,36 @@ def item_create_api(request):
 
 
 @login_required
-@require_POST
 def item_create(request):
+    if request.method != 'POST':
+        return render(request, 'ops/item_create.html', {
+            'unit_choices': DAILY_ORDER_PACKAGES,
+            'active_nav': 'items',
+        })
+
     name = (request.POST.get('name') or '').strip()
     item_number = (request.POST.get('item_number') or '').strip()
     unit = (request.POST.get('unit') or '').strip()
     package = (request.POST.get('package') or '').strip()
     selected_units = [u.strip() for u in request.POST.getlist('units') if u.strip()]
 
-    if not name or not item_number:
-        messages.error(request, 'الاسم ورقم الصنف مطلوبان.')
-        return redirect('ops:items')
+    if not name:
+        messages.error(request, 'اسم الصنف مطلوب.')
+        return redirect('ops:item_create')
 
     existing = CatalogItem.objects.filter(name=name).first()
     if existing:
         messages.error(request, f'الصنف «{name}» موجود مسبقاً.')
-        return redirect('ops:items')
+        return redirect('ops:item_create')
+
+    if item_number and CatalogItem.objects.filter(item_number=item_number).exists():
+        messages.error(request, f'رقم الصنف «{item_number}» مستخدم مسبقاً.')
+        return redirect('ops:item_create')
 
     merged_units = unit or (selected_units[0] if selected_units else '') or package
     if not merged_units:
         messages.error(request, 'اختر وحدة.')
-        return redirect('ops:items')
+        return redirect('ops:item_create')
 
     CatalogItem.objects.create(
         name=name,
@@ -2992,10 +3202,18 @@ def offers_list(request):
 
 
 @login_required
-@require_POST
 def offers_create(request):
     from django.contrib.auth import get_user_model
     User = get_user_model()
+
+    if request.method != 'POST':
+        ctx = {
+            'representatives': _representatives_qs(),
+            'active_nav': 'offers',
+        }
+        ctx.update(_catalog_context())
+        ctx.update(_package_ctx())
+        return render(request, 'ops/offers_create.html', ctx)
 
     if request.user.is_representative:
         representative = request.user
@@ -3004,7 +3222,7 @@ def offers_create(request):
         representative = User.objects.filter(pk=rep_id, is_active=True).first()
         if not representative:
             messages.error(request, 'اختر المندوب أولاً.')
-            return redirect('ops:offers')
+            return redirect('ops:offers_create')
 
     item_names = request.POST.getlist('item_name')
     item_numbers = request.POST.getlist('item_number')
@@ -3056,17 +3274,30 @@ def offers_create(request):
         )
         return redirect(f"{reverse('ops:offers')}?open={created[0].pk}")
     messages.error(request, 'أضف صفاً واحداً على الأقل مع اسم الصنف.')
-    return redirect('ops:offers')
+    return redirect('ops:offers_create')
 
 
 @login_required
-@require_POST
 def offers_batch_update(request, pk):
     seed = get_object_or_404(_offer_queryset(request.user), pk=pk)
     can_edit = request.user.is_manager or seed.representative_id == request.user.id
     if not can_edit:
         messages.error(request, 'لا يمكنك تعديل هذا الملف.')
         return redirect('ops:offers')
+
+    if request.method != 'POST':
+        batches = _group_offer_batches(_offer_batch_items(seed))
+        batch = batches[0] if batches else None
+        if not batch:
+            messages.error(request, 'الملف غير موجود.')
+            return redirect('ops:offers')
+        ctx = {
+            'batch': batch,
+            'active_nav': 'offers',
+        }
+        ctx.update(_catalog_context())
+        ctx.update(_package_ctx())
+        return render(request, 'ops/offers_edit.html', ctx)
 
     items = {o.pk: o for o in _offer_batch_items(seed)}
     if not items:

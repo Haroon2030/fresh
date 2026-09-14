@@ -79,17 +79,17 @@
     }
 
     .stat-card-blue {
-        border-color: #93c5fd;
-        border-right: 4px solid #1d4ed8;
-        background: linear-gradient(145deg, #eff6ff 0%, #ffffff 55%);
+        border-color: #a8c5db;
+        border-right: 4px solid #3d7aad;
+        background: linear-gradient(145deg, #e8f1f7 0%, #ffffff 55%);
     }
-    .stat-card-blue .stat-hint { color: #1d4ed8; }
+    .stat-card-blue .stat-hint { color: #3d7aad; }
     .stat-card-blue .stat-icon {
-        background: #1d4ed8;
+        background: #3d7aad;
         color: #fff;
-        border-color: #1e40af;
+        border-color: #2f628c;
     }
-    .stat-card-blue .stat-bar-fill { background: #1d4ed8; }
+    .stat-card-blue .stat-bar-fill { background: #3d7aad; }
 
     .stat-card-amber {
         border-color: #fcd34d;
@@ -196,11 +196,10 @@
         <h2 class="font-headline-lg text-headline-lg font-bold text-primary">المشتريات</h2>
         <p class="font-body-md text-body-md text-on-surface-variant mt-xs">إدارة ومتابعة طلبات الشراء من المندوبين.</p>
     </div>
-    <button type="button" class="btn-primary-app w-full sm:w-auto"
-            onclick="document.getElementById('newSupplyModal').classList.remove('hidden')">
-        <span class="material-symbols-outlined">add</span>
-        طلب شراء جديد
-    </button>
+    <a href="{% url 'ops:supply_create' %}" class="btn-primary-app">
+            <span class="material-symbols-outlined">add</span>
+            طلب شراء جديد
+        </a>
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-3 gap-md">
@@ -284,7 +283,7 @@
             <tr>
                 <th>رقم الملف</th>
                 <th>المندوب</th>
-                <th>الفرع</th>
+                <th>الشركة</th>
                 <th>المورد</th>
                 <th>التاريخ</th>
                 <th>الحالة</th>
@@ -318,9 +317,9 @@
                             <span class="material-symbols-outlined">visibility</span>
                         </button>
                         {% if user.is_manager or batch.representative.id == user.id %}
-                        <button type="button" class="act-btn act-icon act-edit" title="تعديل" data-open-batch="{{ batch.seed_pk }}">
+                        <a href="{% url 'ops:supply_batch_update' batch.seed_pk %}" class="act-btn act-icon act-edit" title="تعديل">
                             <span class="material-symbols-outlined">edit</span>
-                        </button>
+                        </a>
                         {% endif %}
                         {% if user.is_manager %}
                         {% if batch.display_status == 'pending' or batch.display_status == 'mixed' %}
@@ -418,549 +417,14 @@
     </div>
 </div>
 
-{% if user.is_manager or batch.representative.id == user.id %}
-{# مودال التعديل #}
-<div class="app-modal hidden batch-detail-modal" id="batchModal-{{ batch.seed_pk }}">
-    <div class="app-modal-panel app-modal-panel--xl">
-        <div class="app-modal-head">
-            <div class="app-modal-head-main">
-                <h3>تعديل أصناف الملف {{ batch.batch_number }}</h3>
-                <p class="app-modal-sub">
-                    {{ batch.representative.display_name }} · {{ batch.branch|default:"—" }} · {{ batch.supplier|default:"—" }} · {{ batch.created_at|date:"Y/m/d" }}
-                </p>
-            </div>
-            <div class="app-modal-head-actions">
-                <a href="{% url 'ops:supply_batch_pdf' batch.seed_pk %}" class="app-modal-head-btn">
-                    <span class="material-symbols-outlined">download</span>
-                    تحميل PDF
-                </a>
-                <button type="button" class="app-modal-close" aria-label="إغلاق" data-close-batch="{{ batch.seed_pk }}">
-                    <span class="material-symbols-outlined">close</span>
-                </button>
-            </div>
-        </div>
-        <form method="post" action="{% url 'ops:supply_batch_update' batch.seed_pk %}" class="flex flex-col overflow-hidden flex-1 min-h-0">
-            {% csrf_token %}
-            <div class="app-modal-body">
-                <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
-                    <table class="excel-grid batch-detail-grid w-full" data-supply-edit>
-                        <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>رقم الطلب</th>
-                            <th>رقم الصنف</th>
-                            <th>الاسم</th>
-                            <th>الوحدة</th>
-                            <th>الكمية</th>
-                            <th>الإجمالي</th>
-                            <th>الحالة</th>
-                            <th style="width:56px"></th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {% for order in batch.items %}
-                        <tr data-edit-row>
-                            <td class="cell-center">{{ forloop.counter }}</td>
-                            <td dir="ltr">{{ order.order_number }}</td>
-                            <td>
-                                <input type="hidden" name="order_id" value="{{ order.pk }}">
-                                <input name="item_number" type="text" value="{{ order.item_number }}" class="cell-input" dir="ltr" placeholder="رقم الصنف">
-                            </td>
-                            <td><input name="item_name" type="text" value="{{ order.item_name }}" required class="cell-input" placeholder="اسم الصنف"></td>
-                            <td><input name="unit" type="text" value="{{ order.unit }}" class="cell-input" placeholder="الوحدة"></td>
-                            <td>
-                                <input name="quantity" type="number" min="1" value="{{ order.quantity }}" required class="cell-input num-entry" data-edit-qty>
-                                <input type="hidden" name="unit_price" value="{{ order.unit_price }}" data-edit-price>
-                                <input type="hidden" name="notes" value="{{ order.notes }}">
-                            </td>
-                            <td class="cell-center cell-strong" dir="ltr" data-edit-total>{{ order.total_amount|floatformat:2 }}</td>
-                            <td class="cell-center">
-                                {% if order.status == 'completed' %}
-                                <span class="status-chip status-ok">مكتمل</span>
-                                {% elif order.status == 'rejected' %}
-                                <span class="status-chip status-bad">مرفوض</span>
-                                {% else %}
-                                <span class="status-chip status-pending">قيد الانتظار</span>
-                                {% endif %}
-                            </td>
-                            <td class="cell-action cell-center">
-                                <button type="submit"
-                                        class="act-btn act-icon act-delete"
-                                        form="supply-order-delete-{{ order.pk }}"
-                                        title="حذف الصف"
-                                        onclick="return confirm('حذف الصنف «{{ order.item_name|escapejs }}» من الملف؟');">
-                                    <span class="material-symbols-outlined">delete</span>
-                                </button>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr><td colspan="9" class="empty-row">لا أصناف.</td></tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="app-modal-foot">
-                <button type="button" class="btn-ghost-app" data-close-batch="{{ batch.seed_pk }}">إلغاء</button>
-                <button type="submit" class="btn-primary-app">حفظ التعديلات</button>
-            </div>
-        </form>
-        {% for order in batch.items %}
-        <form id="supply-order-delete-{{ order.pk }}" method="post" action="{% url 'ops:supply_order_delete' order.pk %}" class="hidden">
-            {% csrf_token %}
-        </form>
-        {% endfor %}
-    </div>
-</div>
-{% endif %}
 {% endfor %}
 
-<div class="app-modal hidden" id="newSupplyModal">
-    <div class="app-modal-panel app-modal-panel--xl">
-        <div class="app-modal-head">
-            <div class="app-modal-head-main">
-                <h3>طلب شراء جديد</h3>
-            </div>
-            <div class="app-modal-head-actions">
-                <button type="button" class="app-modal-head-btn" id="toggleQuickItemBtn" title="إضافة صنف للكتالوج">
-                    <span class="material-symbols-outlined">playlist_add</span>
-                    إضافة صنف
-                </button>
-                <button type="button" class="app-modal-close" aria-label="إغلاق"
-                        onclick="document.getElementById('newSupplyModal').classList.add('hidden')">
-                    <span class="material-symbols-outlined">close</span>
-                </button>
-            </div>
-        </div>
-        <form method="post" action="{% url 'ops:supply_create' %}" class="flex flex-col overflow-hidden" id="supplyMultiForm">
-            {% csrf_token %}
-            <div class="app-modal-body flex flex-col gap-md">
-                <div id="quickItemPanel" class="hidden rounded-lg border border-[#c7d2fe] bg-[#eef2ff] p-md">
-                    <div class="flex items-center justify-between gap-sm mb-sm">
-                        <span class="font-bold text-[13px] text-[#312e81]">إضافة صنف جديد للكتالوج</span>
-                        <button type="button" id="closeQuickItemBtn" class="text-[#4338ca] text-xs font-bold">إخفاء</button>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-sm items-end">
-                        <div class="flex flex-col gap-xs">
-                            <label class="text-xs font-bold text-[#4338ca]" for="quickItemName">الاسم</label>
-                            <input type="text" id="quickItemName" class="cell-input" placeholder="اسم الصنف" autocomplete="off">
-                        </div>
-                        <div class="flex flex-col gap-xs">
-                            <label class="text-xs font-bold text-[#4338ca]" for="quickItemNumber">رقم الصنف</label>
-                            <input type="text" id="quickItemNumber" class="cell-input" placeholder="مثل 06100" dir="ltr" autocomplete="off">
-                        </div>
-                        <div class="flex flex-col gap-xs">
-                            <label class="text-xs font-bold text-[#4338ca]" for="quickItemUnit">الوحدة</label>
-                            <div class="flex flex-col gap-1">
-                                <select id="quickItemUnit" class="cell-select">
-                                    <option value="">اختر...</option>
-                                    {% for u in unit_choices %}
-                                    <option value="{{ u }}">{{ u }}</option>
-                                    {% endfor %}
-                                    <option value="كيلو">كيلو</option>
-                                    <option value="قطعة">قطعة</option>
-                                    <option value="__custom__">+ وحدة جديدة...</option>
-                                </select>
-                                <input type="text" id="quickItemUnitCustom" class="cell-input hidden" placeholder="اكتب الوحدة الجديدة" autocomplete="off">
-                            </div>
-                        </div>
-                        <button type="button" id="saveQuickItemBtn" class="btn-primary-app !h-[28px] !px-3 !text-xs !rounded-md">
-                            <span class="material-symbols-outlined text-[16px]">save</span>
-                            حفظ الصنف
-                        </button>
-                    </div>
-                    <p id="quickItemMsg" class="text-xs mt-sm font-semibold text-[#4338ca] hidden"></p>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-md">
-                    {% if user.is_representative %}
-                    <input type="hidden" name="representative" value="{{ user.pk }}">
-                    {% else %}
-                    <div class="flex flex-col gap-sm">
-                        <label class="font-label-md text-label-md text-on-surface filter-field-label" for="supplyRep">
-                            <span class="material-symbols-outlined">badge</span>
-                            المندوب
-                        </label>
-                        <select name="representative" id="supplyRep" required
-                                class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface app-select">
-                            <option value="">اختر المندوب...</option>
-                            {% for rep in representatives %}
-                            <option value="{{ rep.pk }}">{{ rep.display_name }}</option>
-                            {% empty %}
-                            <option value="" disabled>لا يوجد مناديب — أضفهم من شاشة المستخدمين</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    {% endif %}
-                    <div class="flex flex-col gap-sm">
-                        <label class="font-label-md text-label-md text-on-surface filter-field-label" for="supplyBranch">
-                            <span class="material-symbols-outlined">store</span>
-                            الفرع
-                        </label>
-                        <select name="branch" id="supplyBranch" required
-                                class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface app-select">
-                            <option value="">اختر الفرع...</option>
-                            {% for b in branches %}
-                            <option value="{{ b }}" {% if b == default_branch %}selected{% endif %}>{{ b }}</option>
-                            {% empty %}
-                            <option value="" disabled>أضف فروعاً من التهيئة أولاً</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="flex flex-col gap-sm">
-                        <label class="font-label-md text-label-md text-on-surface filter-field-label" for="supplySupplier">
-                            <span class="material-symbols-outlined">corporate_fare</span>
-                            المورد
-                        </label>
-                        <select name="supplier" id="supplySupplier" required
-                                class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface app-select">
-                            <option value="">اختر المورد...</option>
-                            {% for s in suppliers %}
-                            <option value="{{ s }}">{{ s }}</option>
-                            {% empty %}
-                            <option value="" disabled>أضف موردين من التهيئة أولاً</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="flex flex-col gap-sm">
-                        <label class="font-label-md text-label-md text-on-surface filter-field-label" for="expectedDate">
-                            <span class="material-symbols-outlined">event</span>
-                            التاريخ المتوقع
-                        </label>
-                        <input type="date" name="expected_date" id="expectedDate"
-                               class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md text-on-surface">
-                    </div>
-                </div>
-
-                <div class="flex items-center justify-between gap-sm">
-                    <span class="font-label-md text-label-md font-bold text-on-surface">أصناف الطلب</span>
-                    <button type="button" id="addSupplyRow"
-                            class="flex items-center gap-xs px-md py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface hover:bg-surface-container-low transition-colors">
-                        <span class="material-symbols-outlined text-[18px]">add</span>
-                        إضافة صف
-                    </button>
-                </div>
-
-                <div class="excel-sheet overflow-x-auto border border-[#b4b4b4] rounded-sm bg-white shadow-sm">
-                    <table class="excel-grid w-full text-right border-collapse">
-                        <thead>
-                        <tr>
-                            <th style="width:44px">#</th>
-                            <th>الاسم</th>
-                            <th>رقم الصنف</th>
-                            <th style="width:90px">الوحدة</th>
-                            <th style="width:80px">الكمية</th>
-                            <th style="width:100px">سعر الشراء</th>
-                            <th style="width:72px">إجراء</th>
-                        </tr>
-                        </thead>
-                        <tbody id="supplyRows"></tbody>
-                    </table>
-                </div>
-                <p class="font-body-md text-body-md text-on-surface-variant text-xs">اكتب اسم صنف جديد حتى لو غير موجود في الكتالوج — يكفي الاسم للحفظ. أضف عدة صفوف ثم احفظ ملفاً واحداً.</p>
-            </div>
-            <div class="app-modal-foot">
-                <button type="button" class="btn-ghost-app"
-                        onclick="document.getElementById('newSupplyModal').classList.add('hidden')">
-                    إلغاء
-                </button>
-                <button type="submit" class="btn-primary-app">حفظ الملف</button>
-            </div>
-        </form>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}
 {% include "ops/_catalog_suggest.html" %}
-<script>
-(function () {
-    const tbody = document.getElementById('supplyRows');
-    const addBtn = document.getElementById('addSupplyRow');
-    const form = document.getElementById('supplyMultiForm');
-    if (!tbody || !addBtn) return;
 
-    let catalog = [];
-    try { catalog = JSON.parse('{{ catalog_json|escapejs }}') || []; } catch (e) { catalog = []; }
-    window.FarshCatalogSuggest.setCatalog(catalog);
 
-    const inputClass = 'cell-input';
-    const CS = window.FarshCatalogSuggest;
-    const defaultUnits = ['كيلو', 'جرم', 'كرتون', 'قطعة', 'كيس', 'ربطة', 'طبق', 'دستة'];
-
-    function splitUnits(value) {
-        return String(value || '')
-            .replace(/،/g, ',')
-            .split(',')
-            .map((x) => x.trim())
-            .filter(Boolean);
-    }
-
-    function collectCatalogUnits() {
-        const bag = new Set(defaultUnits);
-        catalog.forEach((item) => {
-            splitUnits(item.unit).forEach((u) => bag.add(u));
-        });
-        return Array.from(bag);
-    }
-
-    let unitChoices = collectCatalogUnits();
-
-    function unitSelectHtml() {
-        const options = ['<option value="">اختر...</option>']
-            .concat(unitChoices.map((u) => `<option value="${u}">${u}</option>`))
-            .join('');
-        return `<select name="unit" class="cell-select">${options}</select>`;
-    }
-
-    function renumber() {
-        tbody.querySelectorAll('tr').forEach((tr, i) => {
-            const num = tr.querySelector('[data-row-num]');
-            if (num) num.textContent = String(i + 1);
-        });
-    }
-
-    function bindCatalog(tr) {
-        CS.bindRow(tr, {
-            unitField: '[name="unit"]',
-            onApply: () => tr.querySelector('input[name="quantity"]')?.focus(),
-            onEnter: (row) => {
-                const name = row.querySelector('input[name="item_name"]')?.value.trim();
-                if (!name) {
-                    row.querySelector('input[name="item_name"]')?.focus();
-                    return;
-                }
-                addRow();
-            },
-        });
-    }
-
-    function addRow() {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td class="row-num" data-row-num></td>
-            <td>${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: inputClass + ' catalog-suggest-input' })}</td>
-            <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: inputClass + ' catalog-suggest-input' })}</td>
-            <td>${unitSelectHtml()}</td>
-            <td><input name="quantity" type="number" min="1" required value="1" placeholder="1" class="${inputClass} num-entry"></td>
-            <td><input name="unit_price" type="number" min="0" step="0.01" value="0" placeholder="0.00" class="${inputClass} num-entry" dir="ltr"></td>
-            <td class="cell-action">
-                <div class="row-actions">
-                    <button type="button" class="remove-row" title="حذف الصف">حذف</button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(tr);
-        renumber();
-        bindCatalog(tr);
-        tr.querySelector('input[name="item_name"]')?.focus();
-    }
-
-    // Enter داخل المودال لا يحفظ ولا يغلق — فقط يتنقّل / يضيف صفاً
-    if (form) {
-        form.addEventListener('keydown', (e) => {
-            if (e.key !== 'Enter') return;
-            if (e.target.matches('textarea, button, input[type="submit"]')) return;
-            e.preventDefault();
-        });
-        form.addEventListener('submit', (e) => {
-            CS.closeSuggest();
-            const rows = [...tbody.querySelectorAll('tr')];
-            const filled = rows.filter((tr) => tr.querySelector('input[name="item_name"]')?.value.trim());
-            if (!filled.length) {
-                e.preventDefault();
-                rows[0]?.querySelector('input[name="item_name"]')?.focus();
-                return;
-            }
-            rows.forEach((tr) => {
-                if (!tr.querySelector('input[name="item_name"]')?.value.trim()) tr.remove();
-            });
-        });
-    }
-
-    addBtn.addEventListener('click', addRow);
-    tbody.addEventListener('click', (e) => {
-        const btn = e.target.closest('.remove-row');
-        if (!btn) return;
-        if (tbody.querySelectorAll('tr').length <= 1) return;
-        btn.closest('tr').remove();
-        renumber();
-        CS.closeSuggest();
-    });
-    tbody.addEventListener('keydown', (e) => {
-        if (e.key !== 'Enter') return;
-        if (e.target.classList.contains('catalog-suggest-input')) return;
-        const cell = e.target.closest('td');
-        if (!cell) return;
-        e.preventDefault();
-        const tr = cell.parentElement;
-        const idx = Array.from(tr.children).indexOf(cell);
-        const nextRow = tr.nextElementSibling;
-        if (nextRow) {
-            const next = nextRow.children[idx]?.querySelector('input, select');
-            if (next) next.focus();
-        } else {
-            addRow();
-        }
-    });
-
-    addRow();
-
-    // إضافة صنف للكتالوج من داخل المودال
-    const quickPanel = document.getElementById('quickItemPanel');
-    const toggleQuick = document.getElementById('toggleQuickItemBtn');
-    const closeQuick = document.getElementById('closeQuickItemBtn');
-    const saveQuick = document.getElementById('saveQuickItemBtn');
-    const quickMsg = document.getElementById('quickItemMsg');
-    const createUrl = '{% url "ops:item_create_api" %}';
-    const csrf = form.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
-
-    function showQuickMsg(text, isError) {
-        if (!quickMsg) return;
-        quickMsg.textContent = text;
-        quickMsg.classList.remove('hidden');
-        quickMsg.style.color = isError ? '#b91c1c' : '#047857';
-    }
-
-    function fillRowWithItem(item) {
-        let target = [...tbody.querySelectorAll('tr')].find((tr) => {
-            const name = tr.querySelector('input[name="item_name"]')?.value.trim();
-            return !name;
-        });
-        if (!target) {
-            addRow();
-            target = tbody.querySelector('tr:last-child');
-        }
-        if (!target) return;
-        CS.applyItem(target, item, {
-            unitField: '[name="unit"]',
-            onApply: () => target.querySelector('input[name="quantity"]')?.focus(),
-        });
-    }
-
-    function ensureUnitOption(unit) {
-        if (!unit || unit === '__custom__') return;
-        if (!unitChoices.includes(unit)) unitChoices.push(unit);
-        tbody.querySelectorAll('select[name="unit"]').forEach((sel) => {
-            if (![...sel.options].some((o) => o.value === unit)) {
-                const opt = document.createElement('option');
-                opt.value = unit;
-                opt.textContent = unit;
-                sel.appendChild(opt);
-            }
-        });
-        const quickUnit = document.getElementById('quickItemUnit');
-        if (quickUnit && ![...quickUnit.options].some((o) => o.value === unit)) {
-            const opt = document.createElement('option');
-            opt.value = unit;
-            opt.textContent = unit;
-            const customOpt = [...quickUnit.options].find((o) => o.value === '__custom__');
-            if (customOpt) quickUnit.insertBefore(opt, customOpt);
-            else quickUnit.appendChild(opt);
-        }
-    }
-
-    function resolveQuickUnit() {
-        const sel = document.getElementById('quickItemUnit');
-        const custom = document.getElementById('quickItemUnitCustom');
-        const picked = (sel?.value || '').trim();
-        if (picked === '__custom__') return (custom?.value || '').trim();
-        return picked;
-    }
-
-    function syncQuickUnitCustom() {
-        const sel = document.getElementById('quickItemUnit');
-        const custom = document.getElementById('quickItemUnitCustom');
-        if (!sel || !custom) return;
-        const isCustom = sel.value === '__custom__';
-        custom.classList.toggle('hidden', !isCustom);
-        if (isCustom) {
-            custom.focus();
-        } else {
-            custom.value = '';
-        }
-    }
-
-    toggleQuick?.addEventListener('click', () => {
-        quickPanel?.classList.toggle('hidden');
-        if (quickPanel && !quickPanel.classList.contains('hidden')) {
-            document.getElementById('quickItemName')?.focus();
-        }
-    });
-    closeQuick?.addEventListener('click', () => quickPanel?.classList.add('hidden'));
-    document.getElementById('quickItemUnit')?.addEventListener('change', syncQuickUnitCustom);
-
-    saveQuick?.addEventListener('click', async () => {
-        const name = document.getElementById('quickItemName')?.value.trim() || '';
-        const item_number = document.getElementById('quickItemNumber')?.value.trim() || '';
-        const unit = resolveQuickUnit();
-        if (!name || !item_number || !unit) {
-            showQuickMsg('أكمل الاسم ورقم الصنف والوحدة (اختيار أو كتابة وحدة جديدة).', true);
-            return;
-        }
-        saveQuick.disabled = true;
-        try {
-            const body = new FormData();
-            body.append('name', name);
-            body.append('item_number', item_number);
-            body.append('unit', unit);
-            body.append('csrfmiddlewaretoken', csrf);
-            const res = await fetch(createUrl, {
-                method: 'POST',
-                body,
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            });
-            const data = await res.json();
-            if (!data.ok) {
-                showQuickMsg(data.error || 'تعذّر الحفظ.', true);
-                return;
-            }
-            CS.addItem(data.item);
-            catalog = CS.getCatalog();
-            ensureUnitOption(data.item.unit);
-            fillRowWithItem(data.item);
-            showQuickMsg(`تم إضافة «${data.item.name}» ووضعه في الصف.`, false);
-            document.getElementById('quickItemName').value = '';
-            document.getElementById('quickItemNumber').value = '';
-            document.getElementById('quickItemUnit').value = '';
-            const custom = document.getElementById('quickItemUnitCustom');
-            if (custom) {
-                custom.value = '';
-                custom.classList.add('hidden');
-            }
-        } catch (err) {
-            showQuickMsg('تعذّر الاتصال. حاول مرة أخرى.', true);
-        } finally {
-            saveQuick.disabled = false;
-        }
-    });
-})();
-</script>
-<script>
-(function () {
-    const CS = window.FarshCatalogSuggest;
-    if (!CS) return;
-    document.querySelectorAll('table[data-supply-edit]').forEach((table) => {
-        CS.bindTable(table, {
-            unitField: '[name="unit"]',
-            onApply: (tr) => tr.querySelector('input[name="quantity"]')?.focus(),
-        });
-    });
-})();
-</script>
 {% include "ops/_batch_modals_js.html" %}
-<script>
-(function () {
-    function refreshTotal(tr) {
-        const price = parseFloat(tr.querySelector('[data-edit-price]')?.value || '0') || 0;
-        const qty = parseFloat(tr.querySelector('[data-edit-qty]')?.value || '0') || 0;
-        const totalEl = tr.querySelector('[data-edit-total]');
-        if (totalEl) totalEl.textContent = (price * qty).toFixed(2);
-    }
-    document.addEventListener('input', (e) => {
-        const tr = e.target.closest('[data-edit-row]');
-        if (!tr) return;
-        if (e.target.matches('[data-edit-price], [data-edit-qty]')) refreshTotal(tr);
-    });
-})();
-</script>
+
 {% endblock %}

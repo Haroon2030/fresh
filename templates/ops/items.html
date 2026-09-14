@@ -190,11 +190,10 @@
             <span class="material-symbols-outlined">download</span>
             نموذج Excel
         </a>
-        <button type="button" class="btn-primary-app"
-                onclick="document.getElementById('newItemModal').classList.remove('hidden')">
+        <a href="{% url 'ops:item_create' %}" class="btn-primary-app">
             <span class="material-symbols-outlined">add</span>
             صنف جديد
-        </button>
+        </a>
     </div>
 </div>
 </div>
@@ -350,56 +349,6 @@
         {% endif %}
     </div>
 </div>
-</div>
-{% endblock %}
-
-{% block modals %}
-<div class="app-modal hidden" id="newItemModal">
-    <div class="app-modal-panel app-modal-panel--md">
-        <div class="app-modal-head">
-            <div class="app-modal-head-main">
-                <h3>إضافة صنف</h3>
-            </div>
-            <div class="app-modal-head-actions">
-                <button type="button" class="app-modal-close" aria-label="إغلاق"
-                        onclick="document.getElementById('newItemModal').classList.add('hidden')">
-                    <span class="material-symbols-outlined">close</span>
-                </button>
-            </div>
-        </div>
-        <form method="post" action="{% url 'ops:item_create' %}" class="flex flex-col overflow-hidden">
-            {% csrf_token %}
-            <div class="app-modal-body flex flex-col gap-md">
-                <div class="flex flex-col gap-sm">
-                    <label class="font-label-md text-label-md text-on-surface">رقم الصنف</label>
-                    <input name="item_number" required
-                           class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md"
-                           placeholder="مثال: CHR-001">
-                </div>
-                <div class="flex flex-col gap-sm">
-                    <label class="font-label-md text-label-md text-on-surface">الاسم</label>
-                    <input name="name" required
-                           class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md"
-                           placeholder="اسم الصنف">
-                </div>
-                <div class="flex flex-col gap-sm">
-                    <label class="font-label-md text-label-md text-on-surface">الوحدة</label>
-                    <select name="unit" required class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md app-select">
-                        <option value="">اختر...</option>
-                        {% for pkg in unit_choices %}
-                        <option value="{{ pkg }}">{{ pkg }}</option>
-                        {% endfor %}
-                    </select>
-                    <input type="hidden" name="package" value="">
-                </div>
-            </div>
-            <div class="app-modal-foot">
-                <button type="button" class="btn-ghost-app"
-                        onclick="document.getElementById('newItemModal').classList.add('hidden')">إلغاء</button>
-                <button type="submit" class="btn-primary-app">حفظ</button>
-            </div>
-        </form>
-    </div>
 </div>
 {% endblock %}
 

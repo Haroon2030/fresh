@@ -478,7 +478,13 @@ class TaskResponsePhoto(models.Model):
 
 class CatalogItem(models.Model):
     name = models.CharField(max_length=255, verbose_name='الاسم')
-    item_number = models.CharField(max_length=100, db_index=True, verbose_name='رقم الصنف')
+    item_number = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        db_index=True,
+        verbose_name='رقم الصنف / الباركود',
+    )
     unit = models.CharField(
         max_length=500,
         blank=True,
@@ -501,7 +507,9 @@ class CatalogItem(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.name} ({self.item_number})'
+        if self.item_number:
+            return f'{self.name} ({self.item_number})'
+        return self.name
 
     @property
     def units_list(self):
@@ -514,6 +522,9 @@ class CatalogItem(models.Model):
 
 class Branch(models.Model):
     """فروع التشغيل — تُستخدم في مهام الزيارة وغيرها."""
+
+    # اسم الشركة لطلبات الشراء (توريد) — ليس فرعاً تشغيلياً
+    COMPANY_NAME = 'أسواق الرشيد'
 
     name = models.CharField(max_length=150, unique=True, verbose_name='اسم الفرع')
     is_active = models.BooleanField(default=True, verbose_name='نشط')

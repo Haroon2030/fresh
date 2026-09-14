@@ -145,22 +145,20 @@ def parse_items_workbook(file_obj) -> tuple[list[dict], list[str]]:
         if not package:
             errors.append(f'الصف {i}: العبوة مطلوبة.')
             continue
-        if not item_number:
-            errors.append(f'الصف {i}: رقم الصنف مطلوب (أو اتركه فارغاً تحت صف له رقم).')
-            continue
 
-        dedupe_key = (name.casefold(), package.casefold(), item_number.casefold())
+        dedupe_key = (name.casefold(), package.casefold(), (item_number or '').casefold())
         if dedupe_key in seen_keys:
             errors.append(f'الصف {i}: صف مكرر ({name} / {package}).')
             continue
         seen_keys.add(dedupe_key)
 
         last_name = name
-        last_number = item_number
+        if item_number:
+            last_number = item_number
 
         items.append({
             'name': name,
-            'item_number': item_number,
+            'item_number': item_number or '',
             'unit': unit,
             'package': package,
         })

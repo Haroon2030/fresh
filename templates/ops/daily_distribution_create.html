@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}ملف توزيع جديد - عمليات الفرش{% endblock %}
+
+{% block content %}
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-md mb-md">
+    <div>
+        <a href="{% url 'ops:daily_distribution' %}" class="inline-flex items-center gap-1 text-sm font-bold text-on-surface-variant hover:text-primary mb-1">
+            <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+            رجوع للقائمة
+        </a>
+        <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">ملف توزيع توريد يومي</h2>
+        <p class="font-body-md text-body-md text-on-surface-variant mt-xs">إنشاء ملف توزيع توريد يومي.</p>
+    </div>
+</div>
+
+<div id="newDistPanel" class="app-inline-create app-create-page">
+    <div class="app-inline-create-inner">
+        <div class="app-inline-create-head">
+            <h3>ملف توزيع توريد يومي</h3>
+            <a href="{% url 'ops:daily_distribution' %}" class="app-modal-close" aria-label="إغلاق"><span class="material-symbols-outlined">close</span></a>
+        </div>
+        <form method="post" action="{% url 'ops:daily_distribution_create' %}" class="flex flex-col overflow-hidden" id="distMultiForm">
+            {% csrf_token %}
+            <div class="app-modal-body flex flex-col gap-md">
+                <div class="flex flex-col gap-sm max-w-xs">
+                    <label class="font-label-md text-label-md text-on-surface" for="distDate">تاريخ التوزيع</label>
+                    <input type="date" name="distribution_date" id="distDate" value="{{ dist_date|date:'Y-m-d' }}" required
+                           class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
+                </div>
+
+                <div class="flex items-center justify-between gap-sm">
+                    <span class="font-label-md text-label-md font-bold text-on-surface">أصناف الملف</span>
+                    <button type="button" id="addDistRow"
+                            class="flex items-center gap-xs px-md py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface hover:bg-surface-container-low transition-colors">
+                        <span class="material-symbols-outlined text-[18px]">add</span>
+                        إضافة صف
+                    </button>
+                </div>
+
+                <div class="excel-sheet overflow-x-auto border border-[#b4b4b4] rounded-sm bg-white shadow-sm">
+                    <table class="excel-grid w-full text-right border-collapse">
+                        <thead>
+                        <tr>
+                            <th style="width:40px">#</th>
+                            <th>اسم الصنف</th>
+                            <th style="width:100px">رقم الصنف</th>
+                            <th>اسم الفرع</th>
+                            <th style="width:100px">الكمية الموزعة</th>
+                            <th style="width:48px"></th>
+                        </tr>
+                        </thead>
+                        <tbody id="distRows"></tbody>
+                    </table>
+                </div>
+                <p class="font-body-md text-body-md text-on-surface-variant text-xs m-0">
+                    اكتب صنف جديد حتى لو غير موجود في الكتالوج — Enter يضيف صفاً ولا يحفظ المودال. كل حفظ = ملف واحد.
+                </p>
+            </div>
+            <div class="app-modal-foot">
+                <a href="{% url 'ops:daily_distribution' %}" class="btn-ghost-app">إلغاء</a>
+                <button type="submit" class="btn-primary-app">حفظ الملف</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% include "ops/_catalog_suggest.html" %}
+<script>
+(function () {
+    const tbody = document.getElementById('distRows');
+    const addBtn = document.getElementById('addDistRow');
+    const form = document.getElementById('distMultiForm');
+    if (!tbody || !addBtn) return;
+
+    let catalog = [];
+    try { catalog = JSON.parse('{{ catalog_json|escapejs }}') || []; } catch (e) { catalog = []; }
+    window.FarshCatalogSuggest.setCatalog(catalog);
+    const CS = window.FarshCatalogSuggest;
+
+    const inputClass = 'cell-input';
+    const branchOptions = `{% for b in branches %}<option value="{{ b|escapejs }}" {% if b == default_branch %}selected{% endif %}>{{ b|escapejs }}</option>{% endfor %}`;
+
+    function renumber() {
+        tbody.querySelectorAll('tr').forEach((tr, i) => {
+            const num = tr.querySelector('[data-row-num]');
+            if (num) num.textContent = String(i + 1);
+        });
+    }
+
+    function bindCatalog(tr) {
+        CS.bindRow(tr, {
+            onApply: () => tr.querySelector('select[name="branch"]')?.focus(),
+            onEnter: (row) => {
+                const name = row.querySelector('input[name="item_name"]')?.value.trim();
+                if (!name) {
+                    row.querySelector('input[name="item_name"]')?.focus();
+                    return;
+                }
+                addRow();
+            },
+        });
+    }
+
+    function addRow() {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="row-num" data-row-num></td>
+            <td>${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: inputClass + ' catalog-suggest-input' })}</td>
+            <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: inputClass + ' catalog-suggest-input' })}</td>
+            <td>
+                <select name="branch" required class="cell-select app-select">
+                    <option value="">اختر الفرع...</option>
+                    ${branchOptions}
+                </select>
+            </td>
+            <td><input name="quantity" type="number" min="1" required value="1" placeholder="1" class="${inputClass} num-entry"></td>
+            <td class="cell-action">
+                <div class="row-actions">
+                    <button type="button" class="remove-row" title="حذف الصف">حذف</button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        renumber();
+        bindCatalog(tr);
+        tr.querySelector('input[name="item_name"]')?.focus();
+    }
+
+    if (form) {
+        form.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            if (e.target.matches('textarea, button, input[type="submit"]')) return;
+            e.preventDefault();
+        });
+        form.addEventListener('submit', (e) => {
+            CS.closeSuggest();
+            const rows = [...tbody.querySelectorAll('tr')];
+            const filled = rows.filter((tr) => tr.querySelector('input[name="item_name"]')?.value.trim());
+            if (!filled.length) {
+                e.preventDefault();
+                rows[0]?.querySelector('input[name="item_name"]')?.focus();
+                return;
+            }
+            rows.forEach((tr) => {
+                if (!tr.querySelector('input[name="item_name"]')?.value.trim()) tr.remove();
+            });
+        });
+    }
+
+    addBtn.addEventListener('click', addRow);
+    tbody.addEventListener('click', (e) => {
+        const btn = e.target.closest('.remove-row');
+        if (!btn) return;
+        if (tbody.querySelectorAll('tr').length <= 1) return;
+        btn.closest('tr').remove();
+        renumber();
+        CS.closeSuggest();
+    });
+    tbody.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        if (e.target.classList.contains('catalog-suggest-input')) return;
+        const cell = e.target.closest('td');
+        if (!cell) return;
+        e.preventDefault();
+        const tr = cell.parentElement;
+        const idx = Array.from(tr.children).indexOf(cell);
+        const nextRow = tr.nextElementSibling;
+        if (nextRow) {
+            const next = nextRow.children[idx]?.querySelector('input, select');
+            if (next) next.focus();
+        } else {
+            addRow();
+        }
+    });
+
+    addRow();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}تعديل طلبية يومية - عمليات الفرش{% endblock %}
+
+{% block content %}
+<div class="mb-md">
+    <a href="{% url 'ops:daily_orders' %}" class="inline-flex items-center gap-1 text-sm font-bold text-on-surface-variant hover:text-primary mb-1">
+        <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+        رجوع للقائمة
+    </a>
+    <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">تعديل طلبية يومية</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-xs">{{ batch.batch_number }}</p>
+</div>
+
+<div class="app-inline-create app-create-page" id="batchModal-{{ batch.seed_pk }}">
+    <div class="app-inline-create-inner">
+        <div class="app-inline-create-head">
+            <div class="app-modal-head-main">
+                <h3>تعديل أصناف الملف {{ batch.batch_number }}</h3>
+                <p class="app-modal-sub">
+                    {{ batch.representative.display_name }} · {{ batch.branch }} · {{ batch.supplier|default:"—" }} · {{ batch.order_date|date:"Y/m/d" }}
+                </p>
+            </div>
+            <div class="app-modal-head-actions">
+                <a href="{% url 'ops:daily_order_batch_pdf' batch.seed_pk %}" class="app-modal-head-btn">
+                    <span class="material-symbols-outlined">download</span>
+                    تحميل PDF
+                </a>
+                <a href="{% url 'ops:daily_orders' %}" class="app-modal-close" aria-label="إغلاق"><span class="material-symbols-outlined">close</span></a>
+            </div>
+        </div>
+        <form method="post" action="{% url 'ops:daily_order_batch_update' batch.seed_pk %}" class="flex flex-col">
+            {% csrf_token %}
+            <div class="app-modal-body">
+                <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+                    <table class="excel-grid batch-detail-grid w-full">
+                        <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>رقم الصنف</th>
+                            <th>اسم الصنف</th>
+                            <th>العبوة</th>
+                            <th>الكمية</th>
+                            <th>الحالة</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for order in batch.items %}
+                        <tr>
+                            <td class="cell-center">{{ forloop.counter }}</td>
+                            <td>
+                                <input type="hidden" name="order_id" value="{{ order.pk }}">
+                                <input name="item_number" type="text" value="{{ order.item_number }}" class="cell-input" dir="ltr" placeholder="رقم الصنف">
+                            </td>
+                            <td><input name="item_name" type="text" value="{{ order.item_name }}" required class="cell-input" placeholder="اسم الصنف"></td>
+                            <td>
+                                <select name="package" class="cell-input cell-select app-select">
+                                    <option value="">اختر...</option>
+                                    {% for p in package_choices %}
+                                    <option value="{{ p }}" {% if order.package == p %}selected{% endif %}>{{ p }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><input name="quantity" type="number" min="1" value="{{ order.quantity }}" required class="cell-input num-entry"></td>
+                            <td class="cell-center">
+                                {% if order.status == 'approved' %}
+                                <span class="status-chip status-ok">معتمد</span>
+                                {% elif order.status == 'rejected' %}
+                                <span class="status-chip status-bad">مرفوض</span>
+                                {% else %}
+                                <span class="status-chip status-pending">قيد الاعتماد</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="empty-row">لا أصناف.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="app-modal-foot">
+                <a href="{% url 'ops:daily_orders' %}" class="btn-ghost-app">إلغاء</a>
+                <button type="submit" class="btn-primary-app">حفظ التعديلات</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% include "ops/_catalog_suggest.html" %}
+{% endblock %}

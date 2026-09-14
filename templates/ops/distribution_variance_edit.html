@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}تعديل ملف نقص/زيادة - عمليات الفرش{% endblock %}
+
+{% block content %}
+<div class="mb-md">
+    <a href="{% url 'ops:distribution_variance' %}" class="inline-flex items-center gap-1 text-sm font-bold text-on-surface-variant hover:text-primary mb-1">
+        <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+        رجوع للقائمة
+    </a>
+    <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">تعديل ملف نقص/زيادة</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-xs">{{ batch.batch_number }}</p>
+</div>
+
+<div class="app-inline-create app-create-page" id="batchModal-{{ batch.seed_pk }}">
+    <div class="app-inline-create-inner">
+        <div class="app-inline-create-head">
+            <div class="app-modal-head-main">
+                <h3>تعديل الملف {{ batch.batch_number }}</h3>
+                <p class="app-modal-sub">
+                    {{ batch.created_by.display_name }} · {{ batch.record_date|date:"Y/m/d" }} · {{ batch.items_count }} سجل
+                </p>
+            </div>
+            <div class="app-modal-head-actions">
+                <a href="{% url 'ops:distribution_variance' %}" class="app-modal-close" aria-label="إغلاق"><span class="material-symbols-outlined">close</span></a>
+            </div>
+        </div>
+        <form method="post" action="{% url 'ops:distribution_variance_batch_update' batch.seed_pk %}" class="flex flex-col">
+            {% csrf_token %}
+            <div class="app-modal-body">
+                <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+                    <table class="excel-grid batch-detail-grid w-full" data-variance-edit>
+                        <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>النوع</th>
+                            <th>اسم الصنف</th>
+                            <th>رقم الصنف</th>
+                            <th>الكمية</th>
+                            <th>الفرع</th>
+                            <th>المورد</th>
+                            <th>الحالة</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for row in batch.items %}
+                        <tr>
+                            <td class="cell-center">{{ forloop.counter }}</td>
+                            <td>
+                                <input type="hidden" name="order_id" value="{{ row.pk }}">
+                                <select name="variance_type" required class="cell-select app-select">
+                                    <option value="shortage" {% if row.variance_type == 'shortage' %}selected{% endif %}>نقص</option>
+                                    <option value="excess" {% if row.variance_type == 'excess' %}selected{% endif %}>زيادة</option>
+                                </select>
+                            </td>
+                            <td><input name="item_name" type="text" value="{{ row.item_name }}" required class="cell-input" placeholder="اسم الصنف"></td>
+                            <td><input name="item_number" type="text" value="{{ row.item_number }}" class="cell-input" dir="ltr" placeholder="رقم الصنف"></td>
+                            <td><input name="quantity" type="number" min="1" value="{{ row.quantity }}" required class="cell-input num-entry"></td>
+                            <td>
+                                <select name="branch" required class="cell-select app-select">
+                                    <option value="">اختر الفرع...</option>
+                                    {% for b in branches %}
+                                    <option value="{{ b }}" {% if row.branch == b %}selected{% endif %}>{{ b }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <select name="supplier" required class="cell-select app-select">
+                                    <option value="">اختر المورد...</option>
+                                    {% for s in suppliers %}
+                                    <option value="{{ s }}" {% if row.supplier == s %}selected{% endif %}>{{ s }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td class="cell-center">
+                                {% if row.status == 'authorized' %}
+                                <span class="status-chip status-ok">معتمد</span>
+                                {% elif row.status == 'rejected' %}
+                                <span class="status-chip status-bad">مرفوض</span>
+                                {% else %}
+                                <span class="status-chip status-pending">بانتظار التعميد</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="8" class="empty-row">لا سجلات.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="app-modal-foot">
+                <a href="{% url 'ops:distribution_variance' %}" class="btn-ghost-app">إلغاء</a>
+                <button type="submit" class="btn-primary-app">حفظ التعديلات</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% include "ops/_catalog_suggest.html" %}
+<script>
+(function () {
+    const CS = window.FarshCatalogSuggest;
+    if (!CS) return;
+    document.querySelectorAll('table[data-variance-edit]').forEach((table) => {
+        CS.bindTable(table, {
+            onApply: (tr) => tr.querySelector('input[name="quantity"]')?.focus(),
+        });
+    });
+})();
+</script>
+{% endblock %}

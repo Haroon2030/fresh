@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block title %}تعديل ملف توريد - عمليات الفرش{% endblock %}
+
+{% block content %}
+<div class="mb-md">
+    <a href="{% url 'ops:supply' %}" class="inline-flex items-center gap-1 text-sm font-bold text-on-surface-variant hover:text-primary mb-1">
+        <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+        رجوع للقائمة
+    </a>
+    <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">تعديل ملف توريد</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-xs">{{ batch.batch_number }}</p>
+</div>
+
+<div class="app-inline-create app-create-page" id="batchModal-{{ batch.seed_pk }}">
+    <div class="app-inline-create-inner">
+        <div class="app-inline-create-head">
+            <div class="app-modal-head-main">
+                <h3>تعديل أصناف الملف {{ batch.batch_number }}</h3>
+                <p class="app-modal-sub">
+                    {{ batch.representative.display_name }} · {{ batch.branch|default:"—" }} · {{ batch.supplier|default:"—" }} · {{ batch.created_at|date:"Y/m/d" }}
+                </p>
+            </div>
+            <div class="app-modal-head-actions">
+                <a href="{% url 'ops:supply_batch_pdf' batch.seed_pk %}" class="app-modal-head-btn">
+                    <span class="material-symbols-outlined">download</span>
+                    تحميل PDF
+                </a>
+                <a href="{% url 'ops:supply' %}" class="app-modal-close" aria-label="إغلاق"><span class="material-symbols-outlined">close</span></a>
+            </div>
+        </div>
+        <form method="post" action="{% url 'ops:supply_batch_update' batch.seed_pk %}" class="flex flex-col">
+            {% csrf_token %}
+            <div class="app-modal-body flex flex-col gap-sm">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-sm">
+                    <div class="flex flex-col gap-xs">
+                        <label class="font-label-md text-label-md text-on-surface" for="editBranch-{{ batch.seed_pk }}">الشركة</label>
+                        <input type="hidden" name="branch" id="editBranch-{{ batch.seed_pk }}" value="{{ company_name }}">
+                        <div class="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 font-body-md text-body-md font-bold">
+                            {{ company_name }}
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-xs">
+                        <label class="font-label-md text-label-md text-on-surface" for="editSupplier-{{ batch.seed_pk }}">المورد</label>
+                        <select name="supplier" id="editSupplier-{{ batch.seed_pk }}" required
+                                class="w-full bg-surface border border-outline-variant rounded-lg py-2 px-3 font-body-md text-body-md app-select">
+                            <option value="">اختر المورد...</option>
+                            {% for s in suppliers %}
+                            <option value="{{ s }}" {% if s == batch.supplier %}selected{% endif %}>{{ s }}</option>
+                            {% endfor %}
+                            {% if batch.supplier and batch.supplier not in suppliers %}
+                            <option value="{{ batch.supplier }}" selected>{{ batch.supplier }}</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-xs">
+                        <label class="font-label-md text-label-md text-on-surface" for="editExpected-{{ batch.seed_pk }}">التاريخ المتوقع</label>
+                        <input type="date" name="expected_date" id="editExpected-{{ batch.seed_pk }}"
+                               value="{{ batch.expected_date|date:'Y-m-d' }}"
+                               class="w-full bg-surface border border-outline-variant rounded-lg py-2 px-3 font-body-md text-body-md">
+                    </div>
+                </div>
+                <div class="flex items-center justify-between gap-sm">
+                    <span class="font-label-md text-label-md font-bold text-on-surface">أصناف الملف</span>
+                    <button type="button" class="add-supply-edit-row flex items-center gap-xs px-md py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface hover:bg-surface-container-low transition-colors" data-batch-edit="{{ batch.seed_pk }}">
+                        <span class="material-symbols-outlined text-[18px]">add</span>
+                        إضافة صف
+                    </button>
+                </div>
+                <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+                    <table class="excel-grid batch-detail-grid w-full" data-supply-edit id="supplyEditTable-{{ batch.seed_pk }}">
+                        <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>اسم الصنف</th>
+                            <th>الكمية</th>
+                            <th>سعر الشراء</th>
+                            <th style="width:56px"></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for order in batch.items %}
+                        <tr data-edit-row>
+                            <td class="cell-center" data-row-num>{{ forloop.counter }}</td>
+                            <td>
+                                <input type="hidden" name="order_id" value="{{ order.pk }}">
+                                <input type="hidden" name="item_number" value="{{ order.item_number }}">
+                                <input type="hidden" name="unit" value="{{ order.unit }}">
+                                <input name="item_name" type="text" value="{{ order.item_name }}" required class="cell-input catalog-suggest-input" placeholder="اسم الصنف">
+                            </td>
+                            <td>
+                                <input name="quantity" type="number" min="1" value="{{ order.quantity }}" required class="cell-input num-entry" data-edit-qty>
+                                <input type="hidden" name="notes" value="{{ order.notes }}">
+                            </td>
+                            <td>
+                                <input name="unit_price" type="number" min="0" step="0.01" value="{{ order.unit_price }}" required class="cell-input num-entry" dir="ltr" data-edit-price placeholder="0.00">
+                            </td>
+                            <td class="cell-action cell-center">
+                                <button type="submit"
+                                        class="act-btn act-icon act-delete"
+                                        form="supply-order-delete-{{ order.pk }}"
+                                        title="حذف الصف"
+                                        onclick="return confirm('حذف الصنف «{{ order.item_name|escapejs }}» من الملف؟');">
+                                    <span class="material-symbols-outlined">delete</span>
+                                </button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr class="empty-placeholder"><td colspan="5" class="empty-row">لا أصناف — اضغط «إضافة صف».</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="app-modal-foot">
+                <a href="{% url 'ops:supply' %}" class="btn-ghost-app">إلغاء</a>
+                <button type="submit" class="btn-primary-app">حفظ التعديلات</button>
+            </div>
+        </form>
+        {% for order in batch.items %}
+        <form id="supply-order-delete-{{ order.pk }}" method="post" action="{% url 'ops:supply_order_delete' order.pk %}" class="hidden">
+            {% csrf_token %}
+        </form>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% include "ops/_catalog_suggest.html" %}
+<script>
+(function () {
+    const CS = window.FarshCatalogSuggest;
+    if (!CS) return;
+    document.querySelectorAll('table[data-supply-edit]').forEach((table) => {
+        CS.bindTable(table, {
+            unitField: '[name="unit"]',
+            onApply: (tr) => tr.querySelector('input[name="quantity"]')?.focus(),
+        });
+    });
+})();
+</script>
+<script>
+(function () {
+    function renumber(tbody) {
+        tbody.querySelectorAll('tr[data-edit-row]').forEach((tr, i) => {
+            const num = tr.querySelector('[data-row-num]');
+            if (num) num.textContent = String(i + 1);
+        });
+    }
+
+    function addEditRow(table) {
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+        tbody.querySelector('.empty-placeholder')?.remove();
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-edit-row', '');
+        tr.innerHTML = `
+            <td class="cell-center" data-row-num></td>
+            <td>
+                <input type="hidden" name="order_id" value="">
+                <input type="hidden" name="item_number" value="">
+                <input type="hidden" name="unit" value="">
+                <input name="item_name" type="text" required class="cell-input catalog-suggest-input" placeholder="اسم الصنف">
+            </td>
+            <td>
+                <input name="quantity" type="number" min="1" value="1" required class="cell-input num-entry" data-edit-qty>
+                <input type="hidden" name="notes" value="">
+            </td>
+            <td>
+                <input name="unit_price" type="number" min="0" step="0.01" value="0" required class="cell-input num-entry" dir="ltr" data-edit-price placeholder="0.00">
+            </td>
+            <td class="cell-action cell-center">
+                <button type="button" class="act-btn act-icon act-delete remove-new-edit-row" title="حذف الصف">
+                    <span class="material-symbols-outlined">delete</span>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        renumber(tbody);
+        const CS = window.FarshCatalogSuggest;
+        if (CS) {
+            CS.bindRow(tr, {
+                unitField: '[name="unit"]',
+                onApply: () => tr.querySelector('input[name="quantity"]')?.focus(),
+            });
+        }
+        tr.querySelector('input[name="item_name"]')?.focus();
+    }
+
+    document.addEventListener('click', (e) => {
+        const addBtn = e.target.closest('.add-supply-edit-row');
+        if (addBtn) {
+            const id = addBtn.getAttribute('data-batch-edit');
+            const table = document.getElementById('supplyEditTable-' + id);
+            if (table) addEditRow(table);
+            return;
+        }
+        const removeBtn = e.target.closest('.remove-new-edit-row');
+        if (removeBtn) {
+            const tr = removeBtn.closest('tr');
+            const tbody = tr?.parentElement;
+            if (!tr || !tbody) return;
+            tr.remove();
+            renumber(tbody);
+            if (!tbody.querySelector('tr[data-edit-row]')) {
+                const empty = document.createElement('tr');
+                empty.className = 'empty-placeholder';
+                empty.innerHTML = '<td colspan="5" class="empty-row">لا أصناف — اضغط «إضافة صف».</td>';
+                tbody.appendChild(empty);
+            }
+        }
+    });
+})();
+</script>
+{% endblock %}

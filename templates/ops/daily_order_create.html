@@ -1,0 +1,389 @@
+{% extends "base.html" %}
+
+{% block title %}طلبية يومية جديدة - عمليات الفرش{% endblock %}
+
+{% block extra_head %}
+<style>
+    .order-rep-select {
+        appearance: none;
+        -webkit-appearance: none;
+        background-image:
+            linear-gradient(45deg, transparent 50%, #1d4ed8 50%),
+            linear-gradient(135deg, #1d4ed8 50%, transparent 50%);
+        background-position: 10px calc(50% - 2px), 15px calc(50% - 2px);
+        background-size: 5px 5px, 5px 5px;
+        background-repeat: no-repeat;
+        padding-left: 1.75rem !important;
+    }
+    #newOrderPanel .excel-meta-sheet,
+    #newOrderPanel .excel-sheet {
+        overflow-x: auto;
+        border: 1px solid #b4b4b4;
+        border-radius: 2px;
+        background: #fff;
+    }
+    #newOrderPanel .excel-meta-grid {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
+    }
+    #newOrderPanel .excel-meta-grid th,
+    #newOrderPanel .excel-meta-grid td {
+        border: 1px solid #c6c6c6;
+        height: 28px;
+        padding: 0 !important;
+        vertical-align: middle;
+        font-size: 12px;
+        line-height: 28px;
+    }
+    #newOrderPanel .excel-meta-grid th {
+        width: 5.5rem;
+        background: #e8eef4 !important;
+        color: #334155 !important;
+        font-weight: 700;
+        text-align: center;
+        padding: 0 6px !important;
+    }
+    #newOrderPanel .excel-meta-grid .meta-input,
+    #newOrderPanel .excel-meta-grid .meta-select,
+    #newOrderPanel .excel-meta-grid .meta-static {
+        display: block;
+        width: 100%;
+        height: 28px !important;
+        min-height: 28px !important;
+        margin: 0;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        outline: none !important;
+        background: #fff !important;
+        padding: 0 8px !important;
+        font-size: 12px !important;
+        line-height: 28px !important;
+        color: #111;
+    }
+    #newOrderPanel .excel-meta-grid .meta-select {
+        padding-inline-start: 28px !important;
+        color: #1e3a8a;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    #newOrderPanel .excel-meta-grid .meta-input:focus,
+    #newOrderPanel .excel-meta-grid .meta-select:focus {
+        outline: 2px solid #1d4ed8 !important;
+        outline-offset: -2px;
+        background: #eff6ff !important;
+    }
+    #newOrderPanel .excel-meta-grid .meta-static {
+        background: #f8fafc !important;
+        font-weight: 600;
+    }
+    #newOrderPanel .excel-grid .cell-input,
+    #newOrderPanel .excel-grid .cell-select {
+        width: 100%;
+        border: 0 !important;
+        outline: none;
+        background: transparent;
+        padding: 0 6px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        font-size: 12px !important;
+        line-height: 28px !important;
+        text-align: right;
+    }
+    #newOrderPanel .excel-grid .cell-select {
+        padding-inline-start: 28px !important;
+        color: #1e3a8a !important;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    #newOrderPanel .excel-grid .cell-input:focus,
+    #newOrderPanel .excel-grid .cell-select:focus {
+        background: #eff6ff !important;
+        outline: 2px solid #1d4ed8 !important;
+        outline-offset: -2px;
+    }
+    #newOrderPanel .excel-grid .row-num {
+        text-align: center;
+        color: #64748b;
+        font-weight: 700;
+        padding: 0 4px !important;
+        width: 2.5rem;
+    }
+    #newOrderPanel .excel-grid .cell-action {
+        text-align: center;
+        padding: 0 !important;
+        width: 3rem;
+    }
+    #newOrderPanel .excel-grid .remove-row {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        color: #b91c1c;
+        cursor: pointer;
+        font-size: 0;
+    }
+    #newOrderPanel .excel-grid .remove-row::before {
+        content: 'delete';
+        font-family: 'Material Symbols Outlined';
+        font-size: 16px;
+        line-height: 1;
+    }
+    #newOrderPanel .excel-grid .remove-row:hover {
+        background: #fee2e2;
+    }
+    #newOrderPanel .order-items-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 4px;
+    }
+    #newOrderPanel .order-items-head .add-row-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid #1d4ed8;
+        border-radius: 4px;
+        background: #1d4ed8;
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-md mb-md">
+    <div>
+        <a href="{% url 'ops:daily_orders' %}" class="inline-flex items-center gap-1 text-sm font-bold text-on-surface-variant hover:text-primary mb-1">
+            <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+            رجوع للقائمة
+        </a>
+        <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">طلبية يومية جديدة</h2>
+        <p class="font-body-md text-body-md text-on-surface-variant mt-xs">تسجيل طلبية يومية جديدة كملف واحد.</p>
+    </div>
+</div>
+
+<div id="newOrderPanel" class="app-inline-create app-create-page">
+    <div class="app-inline-create-inner">
+        <div class="app-inline-create-head">
+            <h3>طلبية يومية جديدة</h3>
+            <a href="{% url 'ops:daily_orders' %}" class="app-modal-close" aria-label="إغلاق"><span class="material-symbols-outlined">close</span></a>
+        </div>
+        <form method="post" action="{% url 'ops:daily_order_create' %}" class="flex flex-col overflow-hidden" id="orderMultiForm">
+            {% csrf_token %}
+            <div class="app-modal-body flex flex-col gap-sm">
+                <div class="excel-meta-sheet">
+                    <table class="excel-meta-grid">
+                        <tbody>
+                        <tr>
+                            <th>المندوب</th>
+                            <td>
+                                {% if user.is_representative %}
+                                <input type="hidden" name="representative" value="{{ user.pk }}">
+                                <div class="meta-static">{{ user.display_name }}</div>
+                                {% else %}
+                                <select name="representative" id="orderRep" required class="meta-select order-rep-select app-select">
+                                    <option value="">اختر المندوب...</option>
+                                    {% for rep in representatives %}
+                                    <option value="{{ rep.pk }}">{{ rep.display_name }}</option>
+                                    {% empty %}
+                                    <option value="" disabled>لا يوجد مناديب</option>
+                                    {% endfor %}
+                                </select>
+                                {% endif %}
+                            </td>
+                            <th>الفرع</th>
+                            <td>
+                                <select name="branch" id="orderBranch" required class="meta-select order-rep-select app-select">
+                                    <option value="">اختر الفرع...</option>
+                                    {% for b in branches %}
+                                    <option value="{{ b }}" {% if b == default_branch %}selected{% endif %}>{{ b }}</option>
+                                    {% empty %}
+                                    <option value="" disabled>أضف فروعاً من التهيئة أولاً</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>المورد</th>
+                            <td>
+                                <select name="supplier" id="orderSupplier" required class="meta-select order-rep-select app-select">
+                                    <option value="">اختر المورد...</option>
+                                    {% for s in suppliers %}
+                                    <option value="{{ s }}">{{ s }}</option>
+                                    {% empty %}
+                                    <option value="" disabled>أضف موردين من التهيئة أولاً</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <th>التاريخ</th>
+                            <td>
+                                <input type="date" name="order_date" id="orderDate" value="{{ order_date|date:'Y-m-d' }}"
+                                       class="meta-input" required>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="order-items-head">
+                    <span class="font-label-md text-label-md font-bold text-on-surface">أصناف الطلبية</span>
+                    <button type="button" id="addOrderRow" class="add-row-btn">
+                        <span class="material-symbols-outlined text-[16px] text-white">add</span>
+                        إضافة صف
+                    </button>
+                </div>
+
+                <div class="excel-sheet">
+                    <table class="excel-grid w-full text-right border-collapse">
+                        <thead>
+                        <tr>
+                            <th style="width:40px">#</th>
+                            <th>اسم الصنف</th>
+                            <th style="width:100px">رقم الصنف</th>
+                            <th style="width:100px">العبوة</th>
+                            <th style="width:80px">الكمية</th>
+                            <th style="width:48px"></th>
+                        </tr>
+                        </thead>
+                        <tbody id="orderRows"></tbody>
+                    </table>
+                </div>
+                <p class="text-xs text-on-surface-variant font-bold m-0">اكتب صنف جديد حتى لو غير موجود في الكتالوج — Enter يضيف صفاً ولا يحفظ المودال.</p>
+            </div>
+            <div class="app-modal-foot">
+                <a href="{% url 'ops:daily_orders' %}" class="btn-ghost-app">إلغاء</a>
+                <button type="submit" class="btn-primary-app">حفظ</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% include "ops/_catalog_suggest.html" %}
+<script>
+(function () {
+    const tbody = document.getElementById('orderRows');
+    const addBtn = document.getElementById('addOrderRow');
+    const form = document.getElementById('orderMultiForm');
+    if (!tbody || !addBtn) return;
+
+    let catalog = [];
+    let packageOptions = [];
+    try { catalog = JSON.parse('{{ catalog_json|escapejs }}') || []; } catch (e) { catalog = []; }
+    try { packageOptions = JSON.parse('{{ package_choices_json|escapejs }}') || []; } catch (e) { packageOptions = []; }
+
+    window.FarshCatalogSuggest.setCatalog(catalog);
+    const CS = window.FarshCatalogSuggest;
+
+    function packageSelectHtml() {
+        const opts = ['<option value="">اختر...</option>']
+            .concat(packageOptions.map((p) => `<option value="${p}">${p}</option>`));
+        return `<select class="cell-input cell-select app-select" name="package" required>${opts.join('')}</select>`;
+    }
+
+    function renumber() {
+        tbody.querySelectorAll('tr').forEach((tr, i) => {
+            const num = tr.querySelector('[data-row-num]');
+            if (num) num.textContent = String(i + 1);
+        });
+    }
+
+    function bindCatalog(tr) {
+        CS.bindRow(tr, {
+            packageField: 'select[name="package"]',
+            packageChoices: packageOptions,
+            onApply: () => tr.querySelector('select[name="package"]')?.focus(),
+            onEnter: (row) => {
+                const name = row.querySelector('input[name="item_name"]')?.value.trim();
+                if (!name) {
+                    row.querySelector('input[name="item_name"]')?.focus();
+                    return;
+                }
+                addRow();
+            },
+        });
+    }
+
+    function addRow() {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="row-num" data-row-num></td>
+            <td>${CS.fieldHtml({ name: 'item_name', placeholder: 'ابحث عن الصنف...', required: true, inputClass: 'cell-input catalog-suggest-input' })}</td>
+            <td>${CS.fieldHtml({ name: 'item_number', placeholder: 'رقم الصنف', dir: 'ltr', inputClass: 'cell-input catalog-suggest-input' })}</td>
+            <td>${packageSelectHtml()}</td>
+            <td><input class="cell-input num-entry" name="quantity" type="number" min="1" step="1" required value="1" placeholder="1" dir="ltr"></td>
+            <td class="cell-action">
+                <button type="button" class="remove-row" title="حذف الصف" aria-label="حذف الصف"></button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        renumber();
+        bindCatalog(tr);
+        tr.querySelector('input[name="item_name"]')?.focus();
+    }
+
+    if (form) {
+        form.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            if (e.target.matches('textarea, button, input[type="submit"]')) return;
+            e.preventDefault();
+        });
+        form.addEventListener('submit', (e) => {
+            CS.closeSuggest();
+            const rows = [...tbody.querySelectorAll('tr')];
+            const filled = rows.filter((tr) => tr.querySelector('input[name="item_name"]')?.value.trim());
+            if (!filled.length) {
+                e.preventDefault();
+                rows[0]?.querySelector('input[name="item_name"]')?.focus();
+                return;
+            }
+            rows.forEach((tr) => {
+                if (!tr.querySelector('input[name="item_name"]')?.value.trim()) tr.remove();
+            });
+        });
+    }
+
+    addBtn.addEventListener('click', addRow);
+    tbody.addEventListener('click', (e) => {
+        const btn = e.target.closest('.remove-row');
+        if (!btn) return;
+        if (tbody.querySelectorAll('tr').length <= 1) return;
+        btn.closest('tr').remove();
+        renumber();
+        CS.closeSuggest();
+    });
+    tbody.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        if (e.target.classList.contains('catalog-suggest-input')) return;
+        const cell = e.target.closest('td');
+        if (!cell) return;
+        e.preventDefault();
+        const tr = cell.parentElement;
+        const idx = Array.from(tr.children).indexOf(cell);
+        const nextRow = tr.nextElementSibling;
+        if (nextRow) {
+            const next = nextRow.children[idx]?.querySelector('input, select');
+            if (next) next.focus();
+        } else {
+            addRow();
+        }
+    });
+
+    addRow();
+})();
+</script>
+{% endblock %}

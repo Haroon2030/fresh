@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}إضافة صنف - عمليات الفرش{% endblock %}
+
+{% block content %}
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-md mb-md">
+    <div>
+        <a href="{% url 'ops:items' %}" class="inline-flex items-center gap-1 text-sm font-bold text-on-surface-variant hover:text-primary mb-1">
+            <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+            رجوع للقائمة
+        </a>
+        <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">إضافة صنف</h2>
+        <p class="font-body-md text-body-md text-on-surface-variant mt-xs">أضف صنفاً جديداً إلى الكتالوج.</p>
+    </div>
+</div>
+
+<div id="newItemPanel" class="app-inline-create app-create-page">
+    <div class="app-inline-create-inner">
+        <div class="app-inline-create-head">
+            <h3>إضافة صنف</h3>
+            <a href="{% url 'ops:items' %}" class="app-modal-close" aria-label="إغلاق">
+                <span class="material-symbols-outlined">close</span>
+            </a>
+        </div>
+        <form method="post" action="{% url 'ops:item_create' %}" class="flex flex-col overflow-hidden">
+            {% csrf_token %}
+            <div class="app-modal-body flex flex-col gap-md">
+                <div class="flex flex-col gap-sm">
+                    <label class="font-label-md text-label-md text-on-surface">رقم الصنف / الباركود <span class="text-on-surface-variant font-normal">(اختياري)</span></label>
+                    <input name="item_number"
+                           class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md"
+                           placeholder="مثال: CHR-001 — يمكن تركه فارغاً">
+                </div>
+                <div class="flex flex-col gap-sm">
+                    <label class="font-label-md text-label-md text-on-surface">الاسم</label>
+                    <input name="name" required
+                           class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md"
+                           placeholder="اسم الصنف">
+                </div>
+                <div class="flex flex-col gap-sm">
+                    <label class="font-label-md text-label-md text-on-surface">الوحدة</label>
+                    <select name="unit" required class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md app-select">
+                        <option value="">اختر...</option>
+                        {% for pkg in unit_choices %}
+                        <option value="{{ pkg }}">{{ pkg }}</option>
+                        {% endfor %}
+                    </select>
+                    <input type="hidden" name="package" value="">
+                </div>
+            </div>
+            <div class="app-modal-foot">
+                <a href="{% url 'ops:items' %}" class="btn-ghost-app">إلغاء</a>
+                <button type="submit" class="btn-primary-app">حفظ</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}تعديل مرتجع - عمليات الفرش{% endblock %}
+
+{% block content %}
+<div class="mb-md">
+    <a href="{% url 'ops:returns' %}" class="inline-flex items-center gap-1 text-sm font-bold text-on-surface-variant hover:text-primary mb-1">
+        <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+        رجوع للقائمة
+    </a>
+    <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">تعديل مرتجع</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-xs">{{ batch.return_number }}</p>
+</div>
+
+<div class="app-inline-create app-create-page" id="batchModal-{{ batch.pk }}">
+    <div class="app-inline-create-inner">
+        <div class="app-inline-create-head">
+            <div class="app-modal-head-main">
+                <h3>تعديل ملف {{ batch.return_number }}</h3>
+                <p class="app-modal-sub">
+                    {{ batch.representative.display_name }} · {{ batch.branch }} · {{ batch.created_at|date:"Y/m/d H:i" }}
+                </p>
+            </div>
+            <div class="app-modal-head-actions">
+                <a href="{% url 'ops:return_batch_pdf' batch.pk %}" class="app-modal-head-btn">
+                    <span class="material-symbols-outlined">download</span>
+                    تحميل PDF
+                </a>
+                <a href="{% url 'ops:returns' %}" class="app-modal-close" aria-label="إغلاق"><span class="material-symbols-outlined">close</span></a>
+            </div>
+        </div>
+        <form method="post" action="{% url 'ops:return_batch_update' batch.pk %}" class="flex flex-col">
+            {% csrf_token %}
+            <div class="app-modal-body flex flex-col gap-md">
+                <div class="app-table-sheet batch-detail-sheet overflow-x-auto bg-white border border-[#dbeafe] rounded-lg">
+                    <table class="excel-grid batch-detail-grid resizable-cols w-full text-right border-collapse" data-resize-key="batch-edit-{{ batch.pk }}" data-return-edit>
+                        <colgroup>
+                            <col style="width:44px">
+                            <col style="width:140px">
+                            <col style="width:120px">
+                            <col style="width:90px">
+                            <col style="width:70px">
+                            <col style="width:110px">
+                            <col style="width:160px">
+                            <col style="width:100px">
+                        </colgroup>
+                        <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>رقم الصنف</th>
+                            <th>الاسم</th>
+                            <th>العبوة</th>
+                            <th>الكمية</th>
+                            <th>النوع</th>
+                            <th>سبب الإرجاع</th>
+                            <th>الحالة</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for item in batch.items.all %}
+                        <tr>
+                            <td class="row-num">{{ forloop.counter }}</td>
+                            <td>
+                                <input type="hidden" name="order_id" value="{{ item.pk }}">
+                                <input name="item_number" type="text" value="{{ item.item_number }}" class="cell-input" dir="ltr" placeholder="رقم الصنف">
+                            </td>
+                            <td><input name="item_name" type="text" value="{{ item.item_name }}" required class="cell-input" placeholder="اسم الصنف"></td>
+                            <td>
+                                <select name="package" class="cell-input cell-select app-select">
+                                    <option value="">اختر...</option>
+                                    {% for p in package_choices %}
+                                    <option value="{{ p }}" {% if item.package == p %}selected{% endif %}>{{ p }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><input name="quantity" type="number" min="1" value="{{ item.quantity }}" required class="cell-input num-entry"></td>
+                            <td>
+                                <select name="return_type" class="cell-select" required>
+                                    {% for val, label in return_types %}
+                                    <option value="{{ val }}" {% if item.return_type == val %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><input name="reason" type="text" value="{{ item.reason }}" required class="cell-input" placeholder="سبب الإرجاع"></td>
+                            <td class="cell-center">
+                                {% if item.status == 'accepted' %}
+                                <span class="status-chip status-ok">مقبول</span>
+                                {% elif item.status == 'rejected' %}
+                                <span class="status-chip status-bad">مرفوض</span>
+                                {% elif item.status == 'pending' and item.rep_decision == 'authorized' %}
+                                <span class="status-chip status-wait">بانتظار الاعتماد</span>
+                                {% elif item.status == 'pending' %}
+                                <span class="status-chip status-pending">قيد الانتظار</span>
+                                {% else %}
+                                <span class="status-chip status-wait">{{ item.get_rep_decision_display }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="8" class="empty-row">لا توجد أصناف في هذا الملف.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="app-modal-foot">
+                <a href="{% url 'ops:returns' %}" class="btn-ghost-app">إلغاء</a>
+                <button type="submit" class="btn-primary-app">حفظ التعديلات</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% include "ops/_catalog_suggest.html" %}
+{% endblock %}
