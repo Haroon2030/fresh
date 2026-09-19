@@ -1,4 +1,7 @@
-{# نموذج ورقي: فرع + تاريخ + عمودان (صنف/عدد/سعر/إجمالي) + دخول/سيارة/إجمالي #}
+{# نموذج ورقي: فرع + تاريخ + عمودان (صنف/عدد/سعر/إجمالي) + سيارة/إجمالي #}
+{# sheet_readonly=True → عرض فقط بنفس الشكل | sheet_omit_style=True → بدون تكرار CSS #}
+{% load l10n %}
+{% if not sheet_omit_style %}
 <style>
     .paper-form {
         max-width: 980px;
@@ -102,12 +105,32 @@
         background: transparent;
         direction: ltr;
     }
+    .paper-table input[type="number"],
+    .paper-foot-table input[type="number"],
+    .paper-meta input[type="number"] {
+        -moz-appearance: textfield;
+        appearance: textfield;
+    }
+    .paper-table input[type="number"]::-webkit-outer-spin-button,
+    .paper-table input[type="number"]::-webkit-inner-spin-button,
+    .paper-foot-table input[type="number"]::-webkit-outer-spin-button,
+    .paper-foot-table input[type="number"]::-webkit-inner-spin-button,
+    .paper-meta input[type="number"]::-webkit-outer-spin-button,
+    .paper-meta input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
     .paper-table input:focus { background: #fff8dc; }
     .paper-table .total-cell {
         font-weight: 800;
         direction: ltr;
         padding: 0 4px;
         color: #dc2626;
+    }
+    .paper-table .num-cell {
+        font-weight: 700;
+        direction: ltr;
+        padding: 0 4px;
     }
     .paper-foot {
         border-top: 2px solid #111;
@@ -150,6 +173,10 @@
         direction: ltr;
         font-weight: 800;
     }
+    .paper-foot-table .val-cell {
+        text-align: center;
+        direction: ltr;
+    }
     .paper-custom {
         border-top: 1px solid #111;
     }
@@ -184,33 +211,25 @@
         padding: 0 6px;
         font-weight: 700;
     }
-    .paper-table .custom-actions {
-        width: 28px;
-        border: 1px solid #111;
-    }
-    .paper-table .remove-custom {
-        width: 100%;
-        height: 28px;
-        border: 0;
-        background: #fff1f2;
-        color: #be123c;
-        font-weight: 800;
-        cursor: pointer;
-        font-size: 14px;
-        line-height: 1;
-    }
 </style>
+{% endif %}
 
-<div class="paper-form" id="paperForm">
+<div class="paper-form"{% if not sheet_readonly %} id="paperForm"{% endif %}>
     <div class="paper-meta">
         <div class="meta-item">
             <span>فرع</span>
+            {% if not sheet_readonly %}
             <input type="hidden" name="branch" value="{{ company_name }}">
+            {% endif %}
             <span class="meta-fixed">{{ company_name }}</span>
         </div>
         <div class="meta-item">
             <span>التاريخ:</span>
+            {% if sheet_readonly %}
+            <span class="meta-fixed" dir="ltr">{{ settlement_date|date:'Y-m-d' }}</span>
+            {% else %}
             <input type="date" name="settlement_date" value="{{ settlement_date|date:'Y-m-d' }}" required>
+            {% endif %}
         </div>
     </div>
 
@@ -225,11 +244,17 @@
                 </colgroup>
                 <tbody>
                 {% for row in right_rows %}
-                <tr data-paper-row>
+                <tr{% if not sheet_readonly %} data-paper-row{% endif %}>
                     <td class="item-cell" title="{{ row.item_name }}">{{ row.item_name }}</td>
-                    <td><input type="number" name="qty_right" min="0" step="0.001" value="{{ row.quantity }}" data-qty></td>
-                    <td><input type="number" name="price_right" min="0" step="0.01" value="{{ row.unit_price }}" data-price></td>
+                    {% if sheet_readonly %}
+                    <td class="num-cell">{{ row.quantity }}</td>
+                    <td class="num-cell">{% if row.unit_price != '' %}{{ row.unit_price|floatformat:2 }}{% endif %}</td>
+                    <td class="total-cell">{% if row.line_total %}{{ row.line_total|floatformat:2 }}{% else %}0.00{% endif %}</td>
+                    {% else %}
+                    <td><input type="number" name="qty_right" min="0" step="0.001" value="{{ row.quantity|unlocalize }}" data-qty></td>
+                    <td><input type="number" name="price_right" min="0" step="0.01" value="{{ row.unit_price|unlocalize }}" data-price></td>
                     <td class="total-cell" data-line-total>{{ row.line_total|floatformat:2 }}</td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
                 </tbody>
@@ -245,11 +270,17 @@
                 </colgroup>
                 <tbody>
                 {% for row in left_rows %}
-                <tr data-paper-row>
+                <tr{% if not sheet_readonly %} data-paper-row{% endif %}>
                     <td class="item-cell" title="{{ row.item_name }}">{{ row.item_name }}</td>
-                    <td><input type="number" name="qty_left" min="0" step="0.001" value="{{ row.quantity }}" data-qty></td>
-                    <td><input type="number" name="price_left" min="0" step="0.01" value="{{ row.unit_price }}" data-price></td>
+                    {% if sheet_readonly %}
+                    <td class="num-cell">{{ row.quantity }}</td>
+                    <td class="num-cell">{% if row.unit_price != '' %}{{ row.unit_price|floatformat:2 }}{% endif %}</td>
+                    <td class="total-cell">{% if row.line_total %}{{ row.line_total|floatformat:2 }}{% else %}0.00{% endif %}</td>
+                    {% else %}
+                    <td><input type="number" name="qty_left" min="0" step="0.001" value="{{ row.quantity|unlocalize }}" data-qty></td>
+                    <td><input type="number" name="price_left" min="0" step="0.01" value="{{ row.unit_price|unlocalize }}" data-price></td>
                     <td class="total-cell" data-line-total>{{ row.line_total|floatformat:2 }}</td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
                 </tbody>
@@ -257,6 +288,7 @@
         </div>
     </div>
 
+    {% if not sheet_readonly or custom_rows %}
     <div class="paper-custom">
         <table class="paper-table paper-custom-table">
             <colgroup>
@@ -265,39 +297,58 @@
                 <col style="width:20%">
                 <col style="width:22%">
             </colgroup>
-            <tbody id="paperCustomBody">
+            <tbody{% if not sheet_readonly %} id="paperCustomBody"{% endif %}>
             {% for row in custom_rows %}
-            <tr data-paper-row data-custom-row>
+            <tr{% if not sheet_readonly %} data-paper-row data-custom-row{% endif %}>
+                {% if sheet_readonly %}
+                <td class="item-cell">{{ row.item_name }}</td>
+                <td class="num-cell">{{ row.quantity }}</td>
+                <td class="num-cell">{% if row.unit_price != '' %}{{ row.unit_price|floatformat:2 }}{% endif %}</td>
+                <td class="total-cell">{% if row.line_total %}{{ row.line_total|floatformat:2 }}{% else %}0.00{% endif %}</td>
+                {% else %}
                 <td>
                     <input type="text" name="custom_name" class="item-input" value="{{ row.item_name }}" placeholder="اسم الصنف" autocomplete="off">
                 </td>
-                <td><input type="number" name="custom_qty" min="0" step="0.001" value="{{ row.quantity }}" data-qty></td>
-                <td><input type="number" name="custom_price" min="0" step="0.01" value="{{ row.unit_price }}" data-price></td>
+                <td><input type="number" name="custom_qty" min="0" step="0.001" value="{{ row.quantity|unlocalize }}" data-qty></td>
+                <td><input type="number" name="custom_price" min="0" step="0.01" value="{{ row.unit_price|unlocalize }}" data-price></td>
                 <td class="total-cell" data-line-total>{{ row.line_total|floatformat:2 }}</td>
+                {% endif %}
             </tr>
             {% endfor %}
             </tbody>
         </table>
     </div>
+    {% endif %}
 
+    {% if not sheet_readonly %}
     <div class="paper-add-bar">
         <button type="button" id="paperAddRow">+ صف جديد</button>
     </div>
+    {% endif %}
 
     <div class="paper-foot">
         <table class="paper-foot-table">
             <tr>
                 <td>السيارة</td>
-                <td><input type="number" name="vehicle_amount" id="paperVehicle" min="0" step="0.01" value="{{ vehicle_amount }}" data-extra></td>
+                {% if sheet_readonly %}
+                <td class="val-cell">{% if vehicle_amount %}{{ vehicle_amount|floatformat:2 }}{% else %}0.00{% endif %}</td>
+                {% else %}
+                <td><input type="number" name="vehicle_amount" id="paperVehicle" min="0" step="0.01" value="{{ vehicle_amount|unlocalize }}" data-extra></td>
+                {% endif %}
             </tr>
             <tr>
                 <td>الإجمالي</td>
+                {% if sheet_readonly %}
+                <td class="grand">{% if grand_total != None %}{{ grand_total|floatformat:2 }}{% else %}0.00{% endif %}</td>
+                {% else %}
                 <td class="grand" data-grand-total>0.00</td>
+                {% endif %}
             </tr>
         </table>
     </div>
 </div>
 
+{% if not sheet_readonly %}
 <script>
 (function () {
     const root = document.getElementById('paperForm');
@@ -340,22 +391,24 @@
     root.addEventListener('input', (e) => {
         if (e.target.matches('[data-qty], [data-price], [data-extra]')) refresh();
     });
-    root.addEventListener('focusin', (e) => {
-        const el = e.target;
-        if (!el.matches('[data-qty], [data-price], [data-extra]')) return;
-        el.dataset.prevValue = el.value;
-        el.value = '';
-    });
-    root.addEventListener('focusout', (e) => {
-        const el = e.target;
-        if (!el.matches('[data-qty], [data-price], [data-extra]')) return;
-        if (String(el.value).trim() === '' && el.dataset.prevValue != null) {
-            el.value = el.dataset.prevValue;
-        }
-        delete el.dataset.prevValue;
-        refresh();
-    });
     document.getElementById('paperAddRow')?.addEventListener('click', () => addCustomRow(true));
+    function cellInputs() {
+        return Array.from(root.querySelectorAll('input:not([type="hidden"])')).filter(
+            (el) => !el.disabled && el.offsetParent !== null
+        );
+    }
+    root.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        const el = e.target;
+        if (!el.matches('input')) return;
+        e.preventDefault();
+        const list = cellInputs();
+        const i = list.indexOf(el);
+        if (i >= 0 && i < list.length - 1) {
+            list[i + 1].focus();
+        }
+    });
     refresh();
 })();
 </script>
+{% endif %}

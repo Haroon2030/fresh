@@ -200,13 +200,15 @@ def cost_settlement_list(request):
     if status_filter in {c.value for c in CostSettlement.Status}:
         qs = qs.filter(status=status_filter)
 
+    company_name = Branch.COMPANY_NAME
     batches = []
     for row in qs:
         filled = [ln for ln in row.lines.all() if (ln.quantity or 0) > 0]
+        cols = _build_form_columns(row)
         batches.append({
             'seed_pk': row.pk,
             'batch_number': row.batch_number,
-            'branch': row.branch or '—',
+            'branch': row.branch or company_name,
             'settlement_date': row.settlement_date,
             'account': row.accounting_account,
             'status': row.status,
@@ -216,11 +218,15 @@ def cost_settlement_list(request):
             'grand_total': row.grand_total,
             'created_by': row.created_by,
             'items': filled,
+            'right_rows': cols['right_rows'],
+            'left_rows': cols['left_rows'],
+            'custom_rows': cols['custom_rows'],
         })
 
     return render(request, 'ops/cost_settlements.html', {
         'active_nav': 'cost_settlements',
         'batches': batches,
+        'company_name': company_name,
         'status_filter': status_filter,
         'open': request.GET.get('open') or '',
     })

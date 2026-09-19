@@ -6,7 +6,7 @@
 <div class="flex flex-col md:flex-row md:items-center justify-between mb-lg gap-md">
     <div>
         <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">طلب يومي من السوق</h2>
-        <p class="text-on-surface-variant font-body-md text-body-md mt-xs">ملفات النموذج الورقي — أصناف ثابتة مع العدد والسعر والحساب المحاسبي.</p>
+        <p class="text-on-surface-variant font-body-md text-body-md mt-xs">ملفات النموذج الورقي — أصناف ثابتة مع العدد والسعر.</p>
     </div>
     <a href="{% url 'ops:cost_settlement_create' %}" class="btn-primary-app">
         <span class="material-symbols-outlined">add</span>
@@ -36,7 +36,6 @@
                 <th>رقم الملف</th>
                 <th>الفرع</th>
                 <th>التاريخ</th>
-                <th>الحساب</th>
                 <th>الأصناف</th>
                 <th>الإجمالي</th>
                 <th>إجراء</th>
@@ -49,7 +48,6 @@
                 <td class="cell-strong" dir="ltr">{{ batch.batch_number }}</td>
                 <td>{{ batch.branch }}</td>
                 <td class="cell-center" dir="ltr">{{ batch.settlement_date|date:"Y/m/d" }}</td>
-                <td>{% if batch.account %}{{ batch.account.code }} — {{ batch.account.name }}{% else %}—{% endif %}</td>
                 <td class="cell-center">{{ batch.items_count }}</td>
                 <td class="cell-center cell-strong" dir="ltr">{{ batch.grand_total|floatformat:2 }}</td>
                 <td class="cell-center">
@@ -73,7 +71,7 @@
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="8" class="empty-row">لا ملفات بعد — اضغط «نموذج جديد».</td></tr>
+            <tr><td colspan="7" class="empty-row">لا ملفات بعد — اضغط «نموذج جديد».</td></tr>
             {% endfor %}
             </tbody>
         </table>
@@ -84,7 +82,7 @@
 {% block modals %}
 {% for batch in batches %}
 <div id="batchViewModal-{{ batch.seed_pk }}" class="app-modal hidden" role="dialog" aria-modal="true">
-    <div class="app-modal-panel app-modal-panel--lg">
+    <div class="app-modal-panel app-modal-panel--xl">
         <div class="app-modal-head">
             <div class="app-modal-head-main">
                 <h3>{{ batch.batch_number }}</h3>
@@ -94,31 +92,8 @@
                 <span class="material-symbols-outlined">close</span>
             </button>
         </div>
-        <div class="app-modal-body">
-            <div class="app-table-sheet overflow-x-auto bg-white border rounded-lg">
-                <table class="excel-grid w-full">
-                    <thead>
-                    <tr><th>#</th><th>الصنف</th><th>العدد</th><th>السعر</th><th>الإجمالي</th></tr>
-                    </thead>
-                    <tbody>
-                    {% for item in batch.items %}
-                    <tr>
-                        <td class="cell-center">{{ forloop.counter }}</td>
-                        <td>{{ item.item_name }}</td>
-                        <td class="cell-center" dir="ltr">{{ item.quantity }}</td>
-                        <td class="cell-center" dir="ltr">{{ item.unit_price|floatformat:2 }}</td>
-                        <td class="cell-center" dir="ltr">{{ item.line_total|floatformat:2 }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="5" class="empty-row">لا أصناف بعدد.</td></tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            <div class="mt-md grid grid-cols-2 gap-sm font-bold text-sm" style="font-family:Cairo,sans-serif">
-                <div class="p-2 border">السيارة: <span dir="ltr">{{ batch.vehicle_amount|floatformat:2 }}</span></div>
-                <div class="p-2 border bg-[#15803d] text-white">الإجمالي: <span dir="ltr">{{ batch.grand_total|floatformat:2 }}</span></div>
-            </div>
+        <div class="app-modal-body" style="max-height:min(78vh,900px);overflow:auto">
+            {% include "ops/_cost_settlement_sheet.html" with sheet_readonly=True sheet_omit_style=forloop.counter0 company_name=company_name settlement_date=batch.settlement_date vehicle_amount=batch.vehicle_amount grand_total=batch.grand_total right_rows=batch.right_rows left_rows=batch.left_rows custom_rows=batch.custom_rows %}
         </div>
         <div class="app-modal-foot">
             <button type="button" class="btn-ghost-app" data-close-batch-view="{{ batch.seed_pk }}">إغلاق</button>
