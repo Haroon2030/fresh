@@ -566,12 +566,28 @@
             border-radius: var(--app-radius);
             box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
             position: sticky;
-            top: 12px;
-            z-index: 20;
+            top: 0;
+            z-index: 30;
             margin-bottom: 4px;
         }
         @media (min-width: 768px) {
-            .app-topbar { display: flex; }
+            .app-topbar {
+                display: flex;
+                position: fixed;
+                top: 16px;
+                left: 16px;
+                right: calc(260px + 16px);
+                width: auto;
+                margin-bottom: 0;
+                z-index: 35;
+            }
+            body.sidebar-collapsed .app-topbar {
+                right: calc(72px + 16px);
+            }
+            /* مساحة تحت الشريط الثابت حتى لا يغطي المحتوى */
+            #mainContent.has-fixed-topbar {
+                padding-top: calc(16px + 60px + 16px);
+            }
         }
         .app-topbar-search {
             position: relative;
@@ -1699,7 +1715,7 @@
 {% endif %}
 
 {% block body %}
-<main id="mainContent" class="flex-1 {% if user.is_authenticated %}md:mr-[260px] pb-20 md:pb-0{% endif %} p-md md:p-lg flex flex-col min-h-screen">
+<main id="mainContent" class="flex-1 {% if user.is_authenticated %}md:mr-[260px] pb-20 md:pb-0 has-fixed-topbar{% endif %} p-md md:p-lg flex flex-col min-h-screen">
     {% if user.is_authenticated %}
     <header class="app-topbar">
         <div class="flex items-center gap-md flex-1 min-w-0">
