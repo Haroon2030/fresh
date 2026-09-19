@@ -11,6 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from ops.pdf_docs import (
+    build_cost_settlement_pdf,
     build_daily_orders_pdf,
     build_distribution_batch_pdf,
     build_offers_batch_pdf,
@@ -730,6 +731,75 @@ def schedule_daily_distribution_notify(row_ids: list[int], actor_id: int) -> Non
             )
 
     _run_in_background(f"dist-{row_ids[:1]}", _run)
+
+
+def schedule_cost_settlement_notify(settlement_id: int, actor_id: int) -> None:
+    """بعد حفظ طلب يومي من السوق → PDF واتساب للمستلم والمحاسب والمدير والعمليات والمدخل."""
+
+    def _run():
+        from ops.models import CostSettlement
+
+        User = get_user_model()
+        settlement = (
+            CostSettlement.objects.select_related("created_by")
+            .prefetch_related("lines")
+            .filter(pk=settlement_id)
+            .first()
+        )
+        actor = User.objects.filter(pk=actor_id).first()
+        if not settlement or not actor:
+            return
+
+        settlement.ensure_public_token()
+        if not settlement.public_token:
+            settlement.save(update_fields=["public_token"])
+
+        try:
+            pdf_bytes, filename = build_cost_settlement_pdf(settlement, actor=actor)
+        except Exception:
+            logger.exception("PDF build failed for cost settlement %s", settlement_id)
+            return
+
+        pdf_url = _public_pdf_url(
+            "ops:cost_settlement_pdf_public_file",
+            settlement.public_token,
+        )
+        msg = _pdf_caption(
+            "إشعار طلب يومي من السوق",
+            instruction="نُرفق ملف الطلب اليومي. يرجى المراجعة والمتابعة.",
+        )
+
+        # المستلم + المحاسب + العمليات + المدير (قسم/نظام)
+        roles = User.RETURN_AUTHORIZE_NOTIFY_ROLES
+        extra = []
+        # المدخل (من أنشأ/حفظ الملف)
+        entrant = settlement.created_by or actor
+        entrant_phone = _user_phone(entrant)
+        if entrant_phone:
+            extra.append({
+                "phone": entrant_phone,
+                "label": f"{entrant.display_name} — المدخل",
+                "role": getattr(entrant, "role", "") or "data",
+                "user_id": getattr(entrant, "pk", None),
+                "message": msg,
+            })
+
+        result = _notify_pdf_to_roles(
+            msg,
+            pdf_bytes=pdf_bytes,
+            filename=filename,
+            pdf_url=pdf_url,
+            roles=roles,
+            extra=extra,
+        )
+        if result.get("error"):
+            logger.warning(
+                "Cost settlement notify failed for %s: %s",
+                settlement_id,
+                result.get("error"),
+            )
+
+    _run_in_background(f"cstb-{settlement_id}", _run)
 
 
 def schedule_variance_authorized(variance_id: int, actor_id: int) -> None:

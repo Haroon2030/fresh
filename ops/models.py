@@ -1043,6 +1043,13 @@ class CostSettlement(models.Model):
         related_name='created_cost_settlements',
         verbose_name='أنشئ بواسطة',
     )
+    public_token = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        editable=False,
+        verbose_name='رمز PDF',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1056,6 +1063,15 @@ class CostSettlement(models.Model):
 
     def __str__(self):
         return self.batch_number
+
+    def ensure_public_token(self):
+        if not self.public_token:
+            import secrets
+            self.public_token = secrets.token_urlsafe(24)
+
+    def save(self, *args, **kwargs):
+        self.ensure_public_token()
+        super().save(*args, **kwargs)
 
     @property
     def lines_total(self):
@@ -1071,7 +1087,6 @@ class CostSettlement(models.Model):
     @property
     def items_count(self):
         return self.lines.filter(quantity__gt=0).count()
-
 
 class CostSettlementLine(models.Model):
     """صف صنف داخل ملف تسوية التكاليف."""

@@ -13,7 +13,9 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from .cost_settlement_template import COST_SETTLEMENT_LEFT_ITEMS, COST_SETTLEMENT_RIGHT_ITEMS
 from .models import AccountingAccount, Branch, CostSettlement, CostSettlementLine
-from .views import rep_forbidden
+from .notify_ops import schedule_cost_settlement_notify
+from .pdf_docs import build_cost_settlement_pdf
+from .views import _pdf_http_response, rep_forbidden
 
 
 def _dec(value, default='0'):
@@ -273,7 +275,15 @@ def cost_settlement_create(request):
                 CostSettlementLine(settlement=settlement, **ln) for ln in lines_data
             ])
 
+        settlement.ensure_public_token()
+        if not settlement.public_token:
+            settlement.save(update_fields=['public_token'])
+        schedule_cost_settlement_notify(settlement.pk, request.user.pk)
         messages.success(request, f'تم حفظ الملف {settlement.batch_number}.')
+        messages.info(
+            request,
+            'جاري إرسال PDF للمستلم والمحاسب والمدير والعمليات والمدخل.',
+        )
         return redirect(f"{reverse('ops:cost_settlements')}?open={settlement.pk}")
 
     return render(request, 'ops/cost_settlement_create.html', {
@@ -319,7 +329,15 @@ def cost_settlement_update(request, pk):
             CostSettlementLine.objects.bulk_create([
                 CostSettlementLine(settlement=settlement, **ln) for ln in lines_data
             ])
+        settlement.ensure_public_token()
+        if not settlement.public_token:
+            settlement.save(update_fields=['public_token'])
+        schedule_cost_settlement_notify(settlement.pk, request.user.pk)
         messages.success(request, f'تم تحديث الملف {settlement.batch_number}.')
+        messages.info(
+            request,
+            'جاري إرسال PDF للمستلم والمحاسب والمدير والعمليات والمدخل.',
+        )
         return redirect(f"{reverse('ops:cost_settlements')}?open={settlement.pk}")
 
     return render(request, 'ops/cost_settlement_edit.html', {
@@ -348,3 +366,42 @@ def cost_settlement_delete(request, pk):
     settlement.delete()
     messages.success(request, f'تم حذف الملف {ref}.')
     return redirect('ops:cost_settlements')
+
+
+@login_required
+@rep_forbidden
+@require_http_methods(['GET'])
+def cost_settlement_pdf(request, pk):
+    settlement = get_object_or_404(
+        CostSettlement.objects.select_related('created_by').prefetch_related('lines'),
+        pk=pk,
+    )
+    try:
+        pdf_bytes, filename = build_cost_settlement_pdf(settlement, actor=request.user)
+    except Exception:
+        messages.error(request, 'تعذّر إنشاء ملف PDF.')
+        return redirect('ops:cost_settlements')
+    return _pdf_http_response(pdf_bytes, filename)
+
+
+@require_http_methods(['GET'])
+def cost_settlement_pdf_public(request, token):
+    """رابط PDF عام للمشاركة عبر واتساب."""
+    from django.http import HttpResponse
+
+    settlement = (
+        CostSettlement.objects.select_related('created_by')
+        .prefetch_related('lines')
+        .filter(public_token=token)
+        .first()
+    )
+    if not settlement:
+        return HttpResponse('غير موجود', status=404)
+    try:
+        pdf_bytes, filename = build_cost_settlement_pdf(
+            settlement,
+            actor=settlement.created_by,
+        )
+    except Exception:
+        return HttpResponse('تعذّر إنشاء الملف', status=500)
+    return _pdf_http_response(pdf_bytes, filename)

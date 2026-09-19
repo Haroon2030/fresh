@@ -55,6 +55,9 @@
                         <button type="button" class="act-btn act-icon act-view" data-open-batch-view="{{ batch.seed_pk }}" title="عرض">
                             <span class="material-symbols-outlined">visibility</span>
                         </button>
+                        <a href="{% url 'ops:cost_settlement_pdf' batch.seed_pk %}" class="act-btn act-icon act-pdf" title="تحميل PDF" target="_blank" rel="noopener">
+                            <span class="material-symbols-outlined">download</span>
+                        </a>
                         {% if user.is_manager or batch.created_by.id == user.id %}
                         <a href="{% url 'ops:cost_settlement_update' batch.seed_pk %}" class="act-btn act-icon act-edit" title="تعديل">
                             <span class="material-symbols-outlined">edit</span>
@@ -88,9 +91,15 @@
                 <h3>{{ batch.batch_number }}</h3>
                 <p class="app-modal-sub">{{ batch.branch }} · {{ batch.settlement_date|date:"Y/m/d" }}</p>
             </div>
-            <button type="button" class="app-modal-close" data-close-batch-view="{{ batch.seed_pk }}" aria-label="إغلاق">
-                <span class="material-symbols-outlined">close</span>
-            </button>
+            <div class="app-modal-head-actions">
+                <a href="{% url 'ops:cost_settlement_pdf' batch.seed_pk %}" class="app-modal-head-btn" target="_blank" rel="noopener">
+                    <span class="material-symbols-outlined">download</span>
+                    تحميل PDF
+                </a>
+                <button type="button" class="app-modal-close" data-close-batch-view="{{ batch.seed_pk }}" aria-label="إغلاق">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
         </div>
         <div class="app-modal-body" style="max-height:min(78vh,900px);overflow:auto">
             {% include "ops/_cost_settlement_sheet.html" with sheet_readonly=True sheet_omit_style=forloop.counter0 company_name=company_name settlement_date=batch.settlement_date vehicle_amount=batch.vehicle_amount grand_total=batch.grand_total right_rows=batch.right_rows left_rows=batch.left_rows custom_rows=batch.custom_rows %}

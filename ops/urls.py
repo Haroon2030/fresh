@@ -73,6 +73,12 @@ urlpatterns = [
     path('settlements/create/', views_cost_settlement.cost_settlement_create, name='cost_settlement_create'),
     path('settlements/<int:pk>/update/', views_cost_settlement.cost_settlement_update, name='cost_settlement_update'),
     path('settlements/<int:pk>/delete/', views_cost_settlement.cost_settlement_delete, name='cost_settlement_delete'),
+    path('settlements/<int:pk>/pdf/', views_cost_settlement.cost_settlement_pdf, name='cost_settlement_pdf'),
+    path(
+        'settlements/p/<str:token>/document.pdf',
+        views_cost_settlement.cost_settlement_pdf_public,
+        name='cost_settlement_pdf_public_file',
+    ),
     path('items/', views.items_list, name='items'),
     path('items/create/', views.item_create, name='item_create'),
     path('items/api/create/', views.item_create_api, name='item_create_api'),

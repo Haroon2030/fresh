@@ -843,3 +843,194 @@ def build_task_pdf(task, *, actor=None) -> tuple[bytes, str]:
     safe = str(task.pk)
     filename = f"task_{safe}.pdf"
     return _build(story, title=f"مهمة {task.title}"), filename
+
+
+def _paper_qty(value) -> str:
+    try:
+        from decimal import Decimal
+        q = Decimal(value or 0)
+        if q == 0:
+            return ""
+        text = format(q.normalize(), "f")
+        if "." in text:
+            text = text.rstrip("0").rstrip(".")
+        return text
+    except Exception:
+        return str(value or "")
+
+
+def _paper_col_table(names: list[str], line_map: dict, styles) -> Table:
+    """عمود نموذج ورقي: صنف · عدد · سعر · إجمالي."""
+    font = _ensure_font()
+    tiny = ParagraphStyle(
+        "ArPaperCell",
+        parent=styles["cell"],
+        fontSize=7,
+        leading=9,
+    )
+    tiny_ltr = ParagraphStyle(
+        "ArPaperCellLtr",
+        parent=styles["cell_ltr"],
+        fontSize=7,
+        leading=9,
+        alignment=TA_CENTER,
+    )
+    tiny_total = ParagraphStyle(
+        "ArPaperTotal",
+        parent=tiny_ltr,
+        textColor=colors.HexColor("#dc2626"),
+    )
+    head = [
+        Paragraph(_ar("الإجمالي"), styles["cell_head"]),
+        Paragraph(_ar("السعر"), styles["cell_head"]),
+        Paragraph(_ar("العدد"), styles["cell_head"]),
+        Paragraph(_ar("الصنف"), styles["cell_head"]),
+    ]
+    rows = [head]
+    for i, name in enumerate(names):
+        line = line_map.get(i)
+        qty = _paper_qty(line.quantity) if line else ""
+        price = _money(line.unit_price) if line and line.unit_price else ""
+        total = _money(line.line_total) if line and line.line_total else ""
+        rows.append([
+            Paragraph(_ltr_span(total) if total else "", tiny_total),
+            Paragraph(_ltr_span(price) if price else "", tiny_ltr),
+            Paragraph(_ltr_span(qty) if qty else "", tiny_ltr),
+            Paragraph(_ar(name), tiny),
+        ])
+    page_half = (A4[0] - 2.4 * cm) / 2 - 4
+    widths = [page_half * 0.22, page_half * 0.20, page_half * 0.20, page_half * 0.38]
+    tbl = Table(rows, colWidths=widths)
+    tbl.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+                ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
+                ("FONTNAME", (0, 0), (-1, -1), font),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("ALIGN", (3, 1), (3, -1), "RIGHT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#111111")),
+                ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#111111")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ]
+        )
+    )
+    return tbl
+
+
+def build_cost_settlement_pdf(settlement, *, actor=None) -> tuple[bytes, str]:
+    """PDF لطلب يومي من السوق — مطابق للنموذج الورقي (عمودان)."""
+    from .cost_settlement_template import COST_SETTLEMENT_LEFT_ITEMS, COST_SETTLEMENT_RIGHT_ITEMS
+
+    styles = _styles()
+    actor = actor or settlement.created_by
+    batch_ref = settlement.batch_number or f"#CSTB-{settlement.pk}"
+    created = _fmt_dt(getattr(settlement, "created_at", None))
+    custom_base = 1000
+
+    by_right, by_left = {}, {}
+    custom_lines = []
+    for line in settlement.lines.all():
+        if line.sort_order >= custom_base:
+            custom_lines.append(line)
+        elif line.column_side == "left":
+            by_left[line.sort_order] = line
+        else:
+            by_right[line.sort_order] = line
+
+    story: list = []
+    story.extend(_letterhead(styles, org_line="إدارة المشتريات — طلب يومي من السوق"))
+    story.extend(
+        _doc_heading(
+            styles,
+            title="طلب يومي من السوق",
+            subtitle="نموذج ورقي — صنف · عدد · سعر · إجمالي",
+            ref=batch_ref,
+            dated=created,
+        )
+    )
+    story.append(
+        _meta_grid(
+            [
+                ("رقم الملف", batch_ref),
+                ("التاريخ", _fmt_date(settlement.settlement_date)),
+                ("الفرع", settlement.branch or "—"),
+                ("أنشئ بواسطة", f"{actor.display_name} — {role_label(actor)}" if actor else "—"),
+            ],
+            styles,
+        )
+    )
+    story.append(Spacer(1, 0.25 * cm))
+
+    right_tbl = _paper_col_table(COST_SETTLEMENT_RIGHT_ITEMS, by_right, styles)
+    left_tbl = _paper_col_table(COST_SETTLEMENT_LEFT_ITEMS, by_left, styles)
+    page_w = A4[0] - 2.4 * cm
+    cols = Table([[left_tbl, right_tbl]], colWidths=[page_w / 2, page_w / 2])
+    cols.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+            ]
+        )
+    )
+    story.append(cols)
+
+    if custom_lines:
+        story.append(Spacer(1, 0.2 * cm))
+        story.append(Paragraph(_ar("أصناف إضافية"), styles["h"]))
+        custom_headers = ["الإجمالي", "السعر", "العدد", "الصنف", "#"]
+        custom_rows = []
+        for i, line in enumerate(custom_lines, 1):
+            custom_rows.append([
+                _money(line.line_total) if line.line_total else "",
+                _money(line.unit_price) if line.unit_price else "",
+                _paper_qty(line.quantity),
+                line.item_name,
+                str(i),
+            ])
+        story.append(_data_table(custom_headers, custom_rows, styles))
+
+    story.append(Spacer(1, 0.25 * cm))
+    foot_w = page_w * 0.5
+    vehicle = float(settlement.vehicle_amount or 0)
+    grand = float(settlement.grand_total or 0)
+    foot = Table(
+        [
+            [
+                Paragraph(_ltr_span(_money(vehicle)), styles["meta_ltr"]),
+                Paragraph(_ar("السيارة"), styles["meta_label"]),
+            ],
+            [
+                Paragraph(_ltr_span(_money(grand)), styles["meta_ltr"]),
+                Paragraph(_ar("الإجمالي"), styles["meta_value"]),
+            ],
+        ],
+        colWidths=[foot_w * 0.55, foot_w * 0.45],
+    )
+    foot.setStyle(
+        TableStyle(
+            [
+                ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#111111")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#111111")),
+                ("BACKGROUND", (1, 0), (1, 0), META_BG),
+                ("BACKGROUND", (1, 1), (1, 1), META_BG),
+                ("BACKGROUND", (0, 1), (0, 1), colors.HexColor("#15803d")),
+                ("TEXTCOLOR", (0, 1), (0, 1), WHITE),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    story.append(foot)
+    story.extend(_footer_note(styles, "صادر من نظام عمليات الفرش — طلب يومي من السوق."))
+    safe_ref = str(batch_ref).replace("#", "").replace("/", "-")
+    filename = f"market_order_{safe_ref}.pdf"
+    return _build(story, title=f"طلب يومي {batch_ref}"), filename
