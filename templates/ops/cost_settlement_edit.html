@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}تعديل طلب يومي من السوق{% endblock %}
+
+{% block content %}
+<div class="mb-md">
+    <a href="{% url 'ops:cost_settlements' %}" class="inline-flex items-center gap-1 text-sm font-bold text-on-surface-variant hover:text-primary mb-1">
+        <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+        رجوع
+    </a>
+    <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">تعديل طلب يومي من السوق</h2>
+    <p class="font-body-md text-body-md text-on-surface-variant mt-xs">{{ settlement.batch_number }}</p>
+</div>
+
+<form method="post" action="{% url 'ops:cost_settlement_update' settlement.pk %}" class="flex flex-col gap-md">
+    {% csrf_token %}
+    {% include "ops/_cost_settlement_sheet.html" %}
+    <div class="flex justify-end gap-sm max-w-[980px] mx-auto w-full">
+        <a href="{% url 'ops:cost_settlements' %}" class="btn-ghost-app">إلغاء</a>
+        <button type="submit" class="btn-primary-app">حفظ التعديلات</button>
+    </div>
+</form>
+{% endblock %}

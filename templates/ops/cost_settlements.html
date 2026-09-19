@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}طلب يومي من السوق - عمليات الفرش{% endblock %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row md:items-center justify-between mb-lg gap-md">
+    <div>
+        <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">طلب يومي من السوق</h2>
+        <p class="text-on-surface-variant font-body-md text-body-md mt-xs">ملفات النموذج الورقي — أصناف ثابتة مع العدد والسعر والحساب المحاسبي.</p>
+    </div>
+    <a href="{% url 'ops:cost_settlement_create' %}" class="btn-primary-app">
+        <span class="material-symbols-outlined">add</span>
+        طلب جديد
+    </a>
+</div>
+
+<div class="app-table-frame ops-excel-frame w-full">
+    <div class="ops-excel-toolbar">
+        <div class="toolbar-title">
+            <span class="material-symbols-outlined">filter_list</span>
+            الملفات
+        </div>
+        <form method="get">
+            <select name="status" onchange="this.form.submit()">
+                <option value="" {% if not status_filter %}selected{% endif %}>الكل</option>
+                <option value="posted" {% if status_filter == 'posted' %}selected{% endif %}>معتمد</option>
+                <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>مسودة</option>
+            </select>
+        </form>
+    </div>
+    <div class="app-table-sheet overflow-x-auto bg-white">
+        <table class="excel-grid app-data-grid w-full">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>رقم الملف</th>
+                <th>الفرع</th>
+                <th>التاريخ</th>
+                <th>الحساب</th>
+                <th>الأصناف</th>
+                <th>الإجمالي</th>
+                <th>إجراء</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for batch in batches %}
+            <tr>
+                <td class="cell-center">{{ forloop.counter }}</td>
+                <td class="cell-strong" dir="ltr">{{ batch.batch_number }}</td>
+                <td>{{ batch.branch }}</td>
+                <td class="cell-center" dir="ltr">{{ batch.settlement_date|date:"Y/m/d" }}</td>
+                <td>{% if batch.account %}{{ batch.account.code }} — {{ batch.account.name }}{% else %}—{% endif %}</td>
+                <td class="cell-center">{{ batch.items_count }}</td>
+                <td class="cell-center cell-strong" dir="ltr">{{ batch.grand_total|floatformat:2 }}</td>
+                <td class="cell-center">
+                    <div class="flex gap-1 justify-center">
+                        <button type="button" class="act-btn act-icon act-view" data-open-batch-view="{{ batch.seed_pk }}" title="عرض">
+                            <span class="material-symbols-outlined">visibility</span>
+                        </button>
+                        {% if user.is_manager or batch.created_by.id == user.id %}
+                        <a href="{% url 'ops:cost_settlement_update' batch.seed_pk %}" class="act-btn act-icon act-edit" title="تعديل">
+                            <span class="material-symbols-outlined">edit</span>
+                        </a>
+                        <form method="post" action="{% url 'ops:cost_settlement_delete' batch.seed_pk %}" class="inline"
+                              onsubmit="return confirm('حذف {{ batch.batch_number }}؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="act-btn act-icon act-delete" title="حذف">
+                                <span class="material-symbols-outlined">delete</span>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" class="empty-row">لا ملفات بعد — اضغط «نموذج جديد».</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% for batch in batches %}
+<div id="batchViewModal-{{ batch.seed_pk }}" class="app-modal hidden" role="dialog" aria-modal="true">
+    <div class="app-modal-panel app-modal-panel--lg">
+        <div class="app-modal-head">
+            <div class="app-modal-head-main">
+                <h3>{{ batch.batch_number }}</h3>
+                <p class="app-modal-sub">{{ batch.branch }} · {{ batch.settlement_date|date:"Y/m/d" }}</p>
+            </div>
+            <button type="button" class="app-modal-close" data-close-batch-view="{{ batch.seed_pk }}" aria-label="إغلاق">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="app-modal-body">
+            <div class="app-table-sheet overflow-x-auto bg-white border rounded-lg">
+                <table class="excel-grid w-full">
+                    <thead>
+                    <tr><th>#</th><th>الصنف</th><th>العدد</th><th>السعر</th><th>الإجمالي</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for item in batch.items %}
+                    <tr>
+                        <td class="cell-center">{{ forloop.counter }}</td>
+                        <td>{{ item.item_name }}</td>
+                        <td class="cell-center" dir="ltr">{{ item.quantity }}</td>
+                        <td class="cell-center" dir="ltr">{{ item.unit_price|floatformat:2 }}</td>
+                        <td class="cell-center" dir="ltr">{{ item.line_total|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="empty-row">لا أصناف بعدد.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-md grid grid-cols-2 gap-sm font-bold text-sm" style="font-family:Cairo,sans-serif">
+                <div class="p-2 border">السيارة: <span dir="ltr">{{ batch.vehicle_amount|floatformat:2 }}</span></div>
+                <div class="p-2 border bg-[#15803d] text-white">الإجمالي: <span dir="ltr">{{ batch.grand_total|floatformat:2 }}</span></div>
+            </div>
+        </div>
+        <div class="app-modal-foot">
+            <button type="button" class="btn-ghost-app" data-close-batch-view="{{ batch.seed_pk }}">إغلاق</button>
+            {% if user.is_manager or batch.created_by.id == user.id %}
+            <a href="{% url 'ops:cost_settlement_update' batch.seed_pk %}" class="btn-primary-app">تعديل</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% include "ops/_batch_modals_js.html" %}
+{% endblock %}

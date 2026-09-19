@@ -1,8 +1,11 @@
 from django.contrib import admin
 
 from .models import (
+    AccountingAccount,
     Branch,
     CatalogItem,
+    CostSettlement,
+    CostSettlementLine,
     DailyOrder,
     DailySupplyDistribution,
     DistributionVariance,
@@ -15,6 +18,26 @@ from .models import (
     TaskResponsePhoto,
     WhatsAppRoleContact,
 )
+
+
+@admin.register(AccountingAccount)
+class AccountingAccountAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'is_active', 'sort_order')
+    list_editable = ('is_active', 'sort_order')
+    search_fields = ('code', 'name')
+
+
+@admin.register(CostSettlement)
+class CostSettlementAdmin(admin.ModelAdmin):
+    list_display = ('batch_number', 'branch', 'settlement_date', 'accounting_account', 'status', 'created_by')
+    list_filter = ('status', 'settlement_date')
+    search_fields = ('batch_number', 'branch')
+
+
+@admin.register(CostSettlementLine)
+class CostSettlementLineAdmin(admin.ModelAdmin):
+    list_display = ('settlement', 'item_name', 'quantity', 'unit_price', 'column_side')
+    search_fields = ('item_name', 'settlement__batch_number')
 
 
 @admin.register(Branch)

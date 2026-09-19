@@ -1,0 +1,44 @@
+---
+description: أسماء الوكلاء بالعربية ومنع تشغيل المكرر منها
+alwaysApply: true
+---
+
+# وكلاء معتمدون فقط (بدون تكرار)
+
+عند إطلاق Task: استخدم **فقط** الوكلاء أدناه.
+حقل `description` يكون بالعربية دائماً (3–6 كلمات).
+
+## القائمة المعتمدة (بعد إزالة المكرر)
+
+| النوع الداخلي | الاسم العربي | متى يُستخدم |
+|---------------|--------------|-------------|
+| explore | مستكشف المشروع | بحث سريع في الكود/الملفات |
+| generalPurpose | وكيل عام | مهمة متعددة الخطوات ليست تخصصاً أدناه |
+| shell | وكيل الأوامر | أوامر طرفية وgit/تشغيل |
+| cursor-guide | دليل Cursor | أسئلة منتج Cursor فقط |
+| ci-investigator | محقق التكامل المستمر | فحص CI فاشل في PR |
+| Senior Django Engineer Subagent | مهندس Django أول | Django/views/models/APIs |
+| Senior Database Engineer | مهندس قواعد بيانات أول | مخطط/migrations/استعلامات |
+| Frontend Senior Engineer | مهندس واجهات أول | قوالب/CSS/JS واجهة |
+| Code Review Senior Engineer | مهندس مراجعة كود أول | مراجعة جودة التغييرات |
+| Security Senior Engineer | مهندس أمن أول | أمن وتصميم/إصلاح |
+| QA & Testing Senior Engineer | مهندس اختبارات أول | اختبارات وخطط تحقق |
+| PERF TITAN — PRINCIPAL PERFORMANCE ENGINEER | مهندس أداء أول | بطء/تحسين أداء |
+| DevOps & Production Senior Engineer | مهندس DevOps وإنتاج أول | نشر/تشغيل/إنتاج |
+| Observability Senior Subagent | وكيل المراقبة والتشخيص | سجلات/مراقبة/تشخيص |
+| Integration Senior Subagent | وكيل التكامل | تكاملات خارجية/APIs طرف ثالث |
+| best-of-n-runner | مشغّل المحاولات المتوازية | تجارب متوازية معزولة فقط |
+
+## ممنوع تشغيله (مكرر — احذفه من عندك إن ظهر)
+
+| احذف | البديل |
+|------|--------|
+| bugbot | Code Review Senior Engineer |
+| security-review | Security Senior Engineer |
+
+## ملاحظة إعادة الفحص (2026-09-19)
+
+- لا يوجد الآن زوج مكرر للأداء (`Performance Senior Subagent` اختفى؛ الموجود `PERF TITAN` فقط).
+- لا يوجد `TITAN — EXPERT PROBLEM SOLVER` في القائمة الحالية.
+- `explore` و`generalPurpose` ليسا تكراراً كاملاً: الأول استكشاف كود، والثاني مهام عامة.
+- `QA` و`Code Review` متقاربان لكن مختلفان (اختبار vs مراجعة).

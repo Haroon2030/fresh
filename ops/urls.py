@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from . import views_cost_settlement
 
 app_name = 'ops'
 
@@ -68,6 +69,10 @@ urlpatterns = [
     path('tasks/<int:pk>/move/', views.task_move, name='task_move'),
     path('tasks/<int:pk>/review/', views.task_review, name='task_review'),
     path('tasks/p/<str:token>/', views.task_public, name='task_public'),
+    path('settlements/', views_cost_settlement.cost_settlement_list, name='cost_settlements'),
+    path('settlements/create/', views_cost_settlement.cost_settlement_create, name='cost_settlement_create'),
+    path('settlements/<int:pk>/update/', views_cost_settlement.cost_settlement_update, name='cost_settlement_update'),
+    path('settlements/<int:pk>/delete/', views_cost_settlement.cost_settlement_delete, name='cost_settlement_delete'),
     path('items/', views.items_list, name='items'),
     path('items/create/', views.item_create, name='item_create'),
     path('items/api/create/', views.item_create_api, name='item_create_api'),

@@ -1591,6 +1591,10 @@
 
         {% if not user.is_representative %}
         <div class="nav-section-label">متابعة وتحليل</div>
+        <a class="nav-link {% if active_nav == 'cost_settlements' %}is-active{% endif %}" href="{% url 'ops:cost_settlements' %}" title="طلب يومي من السوق">
+            <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'cost_settlements' %}filled-icon{% endif %}">request_quote</span></span>
+            <span class="nav-label">طلب يومي من السوق</span>
+        </a>
         <a class="nav-link {% if active_nav == 'price_compare' %}is-active{% endif %}" href="{% url 'ops:price_compare' %}" title="مقارنة أسعار الشراء بين الموردين">
             <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'price_compare' %}filled-icon{% endif %}">compare_arrows</span></span>
             <span class="nav-label">مقارنة الأسعار</span>

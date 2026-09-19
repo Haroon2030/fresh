@@ -970,3 +970,157 @@ class OfferItem(models.Model):
     def save(self, *args, **kwargs):
         self.ensure_public_token()
         super().save(*args, **kwargs)
+
+
+class AccountingAccount(models.Model):
+    """حساب محاسبي بسيط لربط تسويات التكاليف."""
+
+    code = models.CharField(max_length=50, verbose_name='رمز الحساب')
+    name = models.CharField(max_length=255, verbose_name='اسم الحساب')
+    is_active = models.BooleanField(default=True, verbose_name='نشط')
+    sort_order = models.PositiveSmallIntegerField(default=0, verbose_name='الترتيب')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'code']
+        verbose_name = 'حساب محاسبي'
+        verbose_name_plural = 'الحسابات المحاسبية'
+        constraints = [
+            models.UniqueConstraint(fields=['code'], name='ops_accountingaccount_code_uniq'),
+        ]
+
+    def __str__(self):
+        return f'{self.code} — {self.name}'
+
+
+class CostSettlement(models.Model):
+    """ملف تسوية تكاليف (#CSTB-…) مطابق للنموذج الورقي."""
+
+    class Status(models.TextChoices):
+        DRAFT = 'draft', 'مسودة'
+        POSTED = 'posted', 'معتمد'
+        CANCELLED = 'cancelled', 'ملغى'
+
+    batch_number = models.CharField(
+        max_length=20,
+        unique=True,
+        editable=False,
+        verbose_name='رقم الملف',
+    )
+    branch = models.CharField(max_length=150, blank=True, verbose_name='الفرع')
+    settlement_date = models.DateField(db_index=True, verbose_name='التاريخ')
+    accounting_account = models.ForeignKey(
+        AccountingAccount,
+        on_delete=models.PROTECT,
+        related_name='settlements',
+        null=True,
+        blank=True,
+        verbose_name='الحساب المحاسبي',
+    )
+    entry_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=0,
+        verbose_name='الدخول',
+    )
+    vehicle_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=0,
+        verbose_name='السيارة',
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        verbose_name='الحالة',
+    )
+    notes = models.TextField(blank=True, verbose_name='ملاحظات')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='created_cost_settlements',
+        verbose_name='أنشئ بواسطة',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-settlement_date', '-pk']
+        verbose_name = 'تسوية تكاليف'
+        verbose_name_plural = 'تسويات التكاليف'
+        indexes = [
+            models.Index(fields=['settlement_date', 'status']),
+        ]
+
+    def __str__(self):
+        return self.batch_number
+
+    @property
+    def lines_total(self):
+        total = 0
+        for line in self.lines.all():
+            total += line.line_total
+        return total
+
+    @property
+    def grand_total(self):
+        return (self.lines_total or 0) + (self.entry_amount or 0) + (self.vehicle_amount or 0)
+
+    @property
+    def items_count(self):
+        return self.lines.filter(quantity__gt=0).count()
+
+
+class CostSettlementLine(models.Model):
+    """صف صنف داخل ملف تسوية التكاليف."""
+
+    class ColumnSide(models.TextChoices):
+        RIGHT = 'right', 'يمين'
+        LEFT = 'left', 'يسار'
+
+    settlement = models.ForeignKey(
+        CostSettlement,
+        on_delete=models.CASCADE,
+        related_name='lines',
+        verbose_name='ملف التسوية',
+    )
+    item_name = models.CharField(max_length=255, verbose_name='الصنف')
+    quantity = models.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        default=0,
+        verbose_name='العدد',
+    )
+    unit_price = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        verbose_name='السعر',
+    )
+    column_side = models.CharField(
+        max_length=10,
+        choices=ColumnSide.choices,
+        default=ColumnSide.RIGHT,
+        verbose_name='العمود',
+    )
+    sort_order = models.PositiveSmallIntegerField(default=0, verbose_name='الترتيب')
+    notes = models.CharField(max_length=255, blank=True, verbose_name='ملاحظة')
+
+    class Meta:
+        ordering = ['column_side', 'sort_order', 'pk']
+        verbose_name = 'صنف تسوية'
+        verbose_name_plural = 'أصناف التسوية'
+        indexes = [
+            models.Index(fields=['settlement', 'column_side', 'sort_order']),
+        ]
+
+    def __str__(self):
+        return f'{self.item_name} × {self.quantity}'
+
+    @property
+    def line_total(self):
+        from decimal import Decimal
+        return (self.quantity or Decimal('0')) * (self.unit_price or Decimal('0'))
+
