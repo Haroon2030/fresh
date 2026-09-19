@@ -554,159 +554,6 @@
             color: var(--sb-muted);
         }
 
-        .app-topbar {
-            display: none;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
-            min-height: 60px;
-            padding: 10px 14px;
-            background: #ffffff !important;
-            background-color: #ffffff !important;
-            opacity: 1;
-            backdrop-filter: none;
-            -webkit-backdrop-filter: none;
-            isolation: isolate;
-            border: 1px solid var(--app-border);
-            border-radius: var(--app-radius);
-            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
-            position: sticky;
-            top: 0;
-            z-index: 30;
-            margin-bottom: 4px;
-        }
-        @media (min-width: 768px) {
-            .app-topbar {
-                display: flex;
-                position: fixed;
-                top: 16px;
-                left: 16px;
-                right: calc(260px + 16px);
-                width: auto;
-                margin-bottom: 0;
-                z-index: 35;
-                background: #ffffff !important;
-                background-color: #ffffff !important;
-            }
-            body.sidebar-collapsed .app-topbar {
-                right: calc(72px + 16px);
-            }
-            /* مساحة تحت الشريط الثابت حتى لا يغطي المحتوى */
-            #mainContent.has-fixed-topbar {
-                padding-top: calc(16px + 60px + 16px);
-            }
-        }
-        .app-topbar-search {
-            position: relative;
-            flex: 1;
-            max-width: 420px;
-        }
-        .app-topbar-search > .material-symbols-outlined {
-            position: absolute;
-            right: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #94a3b8;
-            font-size: 20px;
-            pointer-events: none;
-            z-index: 1;
-        }
-        .app-topbar-search input[type="search"],
-        .app-topbar-search input[type="text"],
-        .app-topbar-search input:not([type]) {
-            width: 100%;
-            min-height: 40px;
-            background: #f8fafc !important;
-            border: 1px solid var(--app-border) !important;
-            border-radius: 10px !important;
-            padding: 8px 40px 8px 14px !important;
-            font-size: 13px !important;
-            font-weight: 600;
-            color: var(--app-text);
-            outline: none;
-            transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
-        }
-        .app-topbar-search input:focus {
-            background: #fff !important;
-            border-color: #a8c5db !important;
-            box-shadow: 0 0 0 3px rgba(61, 122, 173, 0.14);
-        }
-        .app-topbar-actions {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .app-icon-btn {
-            width: 36px;
-            height: 36px;
-            border: 1px solid transparent;
-            border-radius: 10px;
-            background: transparent;
-            color: var(--app-brand);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: background .15s ease, color .15s ease, border-color .15s ease;
-        }
-        .app-icon-btn:hover {
-            background: var(--app-brand-soft);
-            color: var(--app-brand-dark);
-            border-color: var(--app-border);
-        }
-        .app-icon-btn .material-symbols-outlined {
-            font-size: 20px;
-            color: inherit;
-        }
-        .app-topbar-divider {
-            width: 1px;
-            height: 28px;
-            background: var(--app-border);
-            margin: 0 4px;
-        }
-        .app-topbar-user {
-            display: none;
-            text-align: left;
-            line-height: 1.25;
-        }
-        @media (min-width: 1024px) {
-            .app-topbar-user { display: block; }
-        }
-        .app-topbar-user strong {
-            display: block;
-            font-family: 'Cairo', sans-serif;
-            font-size: 13px;
-            font-weight: 800;
-            color: var(--app-text);
-        }
-        .app-topbar-user span {
-            display: block;
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--app-text-muted);
-            margin-top: 2px;
-        }
-        .app-logout-btn {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            border: 1px solid #fecaca;
-            background: #fff1f2;
-            color: #b91c1c;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: background .15s ease, border-color .15s ease;
-        }
-        .app-logout-btn:hover {
-            background: #ffe4e6;
-            border-color: #fca5a5;
-        }
-        .app-logout-btn .material-symbols-outlined {
-            font-size: 18px;
-            color: inherit !important;
-        }
         .page-flash {
             display: flex;
             flex-direction: column;
@@ -1722,42 +1569,7 @@
 {% endif %}
 
 {% block body %}
-<main id="mainContent" class="flex-1 {% if user.is_authenticated %}md:mr-[260px] pb-20 md:pb-0 has-fixed-topbar{% endif %} p-md md:p-lg flex flex-col min-h-screen">
-    {% if user.is_authenticated %}
-    <header class="app-topbar">
-        <div class="flex items-center gap-md flex-1 min-w-0">
-            <button type="button" id="sidebarToggleHeader" class="app-icon-btn shrink-0" title="طي / فتح القائمة" aria-label="طي / فتح القائمة">
-                <span class="material-symbols-outlined">menu</span>
-            </button>
-            <div class="app-topbar-search">
-            {% block header_search %}
-            <span class="material-symbols-outlined">search</span>
-            <input placeholder="بحث..." type="text" disabled>
-            {% endblock %}
-            </div>
-        </div>
-        <div class="app-topbar-actions">
-            <button type="button" class="app-icon-btn" title="الإشعارات" aria-label="الإشعارات">
-                <span class="material-symbols-outlined">notifications</span>
-            </button>
-            <button type="button" class="app-icon-btn" id="btnSupportHelp" title="معلومات الصيانة والدعم" aria-label="معلومات الصيانة والدعم">
-                <span class="material-symbols-outlined">help</span>
-            </button>
-            <div class="app-topbar-divider" aria-hidden="true"></div>
-            <div class="app-topbar-user">
-                <strong>{{ user.display_name }}</strong>
-                <span>{{ user.get_role_display }}</span>
-            </div>
-            <form method="post" action="{% url 'accounts:logout' %}">
-                {% csrf_token %}
-                <button type="submit" class="app-logout-btn" title="تسجيل الخروج" aria-label="تسجيل الخروج">
-                    <span class="material-symbols-outlined">logout</span>
-                </button>
-            </form>
-        </div>
-    </header>
-    {% endif %}
-
+<main id="mainContent" class="flex-1 {% if user.is_authenticated %}md:mr-[260px] pb-20 md:pb-0{% endif %} p-md md:p-lg flex flex-col min-h-screen">
     {% if messages %}
     <div class="page-flash">
         {% for message in messages %}
@@ -1844,7 +1656,6 @@
     const icon = document.getElementById('sidebarToggleIcon');
     const toggleBtns = [
         document.getElementById('sidebarToggle'),
-        document.getElementById('sidebarToggleHeader'),
     ].filter(Boolean);
 
     function apply(collapsed) {
