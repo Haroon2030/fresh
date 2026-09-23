@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 import json
 import os
 import re
@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Avg, Max, Q
+from django.db.models import Avg, Max, Prefetch, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -22,6 +22,8 @@ from .forms import TaskForm
 from .models import (
     Branch,
     CatalogItem,
+    CostSettlement,
+    CostSettlementLine,
     DailyOrder,
     DailySupplyDistribution,
     DistributionVariance,
@@ -793,35 +795,46 @@ def daily_distribution_list(request):
     return render(request, 'ops/daily_distribution.html', ctx)
 
 
-@login_required
-def daily_distribution_create(request):
-    if request.method != 'POST':
-        today = timezone.localdate()
-        ctx = {
-            'dist_date': today,
-            'branches': Branch.active_names(),
-            'active_nav': 'distribution',
-        }
-        ctx.update(_catalog_context())
-        return render(request, 'ops/daily_distribution_create.html', ctx)
+def _parse_dist_date(raw, fallback=None):
+    fallback = fallback or timezone.localdate()
+    raw = (raw or '').strip()
+    if not raw:
+        return fallback
+    try:
+        return datetime.strptime(raw, '%Y-%m-%d').date()
+    except ValueError:
+        return fallback
 
-    date_raw = (request.POST.get('distribution_date') or '').strip()
-    today = timezone.localdate()
-    if date_raw:
-        try:
-            dist_date = datetime.strptime(date_raw, '%Y-%m-%d').date()
-        except ValueError:
-            dist_date = today
-    else:
-        dist_date = today
 
-    item_names = request.POST.getlist('item_name')
-    item_numbers = request.POST.getlist('item_number')
-    branches = request.POST.getlist('branch')
-    quantities = request.POST.getlist('quantity')
-    notes_list = request.POST.getlist('notes')
-    default_branch = Branch.default_name()
+def _settlements_for_distribution(user, dist_date):
+    qs = (
+        CostSettlement.objects.filter(settlement_date=dist_date)
+        .exclude(status=CostSettlement.Status.CANCELLED)
+        .select_related('created_by')
+        .prefetch_related(
+            Prefetch(
+                'lines',
+                queryset=CostSettlementLine.objects.order_by('column_side', 'sort_order'),
+            )
+        )
+        .order_by('-pk')
+    )
+    if getattr(user, 'is_representative', False):
+        qs = qs.filter(created_by=user)
+    return list(qs)
 
+
+def _dist_qty_from_settlement_line(qty) -> int:
+    try:
+        q = Decimal(qty or 0)
+    except (InvalidOperation, TypeError):
+        return 1
+    if q <= 0:
+        return 0
+    return max(1, int(q.to_integral_value(rounding=ROUND_HALF_UP)))
+
+
+def _next_dist_batch_number() -> str:
     last_batch = (
         DailySupplyDistribution.objects.exclude(batch_number='')
         .order_by('-id')
@@ -836,11 +849,147 @@ def daily_distribution_create(request):
             batch_seq = (DailySupplyDistribution.objects.aggregate(Max('id'))['id__max'] or 0) + 1
     else:
         batch_seq = (DailySupplyDistribution.objects.aggregate(Max('id'))['id__max'] or 0) + 1
-    batch_number = f'#DIST-{batch_seq:04d}'
-    import secrets
-    batch_token = secrets.token_urlsafe(24)
+    return f'#DIST-{batch_seq:04d}'
 
+
+def _catalog_item_number_by_name() -> dict:
+    return {
+        (row['name'] or '').strip(): (row.get('item_number') or '').strip()
+        for row in CatalogItem.objects.order_by('name').values('name', 'item_number')[:3000]
+    }
+
+
+@login_required
+def daily_distribution_create(request):
+    from .views_cost_settlement import _build_form_columns
+
+    if request.method != 'POST':
+        today = timezone.localdate()
+        dist_date = _parse_dist_date(request.GET.get('date'), today)
+        settlements = _settlements_for_distribution(request.user, dist_date)
+        selected_pk = (request.GET.get('settlement') or '').strip()
+        force_manual = (request.GET.get('manual') or '').strip() in {'1', 'true', 'yes'}
+        selected = None
+        sheet = None
+        if selected_pk.isdigit():
+            pk = int(selected_pk)
+            selected = next((s for s in settlements if s.pk == pk), None)
+            if selected is None:
+                selected = (
+                    CostSettlement.objects.filter(pk=pk)
+                    .exclude(status=CostSettlement.Status.CANCELLED)
+                    .prefetch_related('lines')
+                    .first()
+                )
+                if selected and getattr(request.user, 'is_representative', False):
+                    if selected.created_by_id != request.user.id:
+                        selected = None
+            if selected:
+                if selected.settlement_date != dist_date:
+                    dist_date = selected.settlement_date
+                    settlements = _settlements_for_distribution(request.user, dist_date)
+                cols = _build_form_columns(selected)
+                sheet = {
+                    'company_name': selected.branch or Branch.COMPANY_NAME,
+                    'settlement_date': selected.settlement_date,
+                    'vehicle_amount': selected.vehicle_amount,
+                    'grand_total': selected.grand_total,
+                    'right_rows': cols['right_rows'],
+                    'left_rows': cols['left_rows'],
+                    'custom_rows': cols['custom_rows'],
+                }
+        elif settlements and not force_manual:
+            # أول طلب لليوم يظهر مباشرة بنفس الشكل الورقي
+            selected = settlements[0]
+            cols = _build_form_columns(selected)
+            sheet = {
+                'company_name': selected.branch or Branch.COMPANY_NAME,
+                'settlement_date': selected.settlement_date,
+                'vehicle_amount': selected.vehicle_amount,
+                'grand_total': selected.grand_total,
+                'right_rows': cols['right_rows'],
+                'left_rows': cols['left_rows'],
+                'custom_rows': cols['custom_rows'],
+            }
+        ctx = {
+            'dist_date': dist_date,
+            'branches': Branch.active_names(),
+            'active_nav': 'distribution',
+            'today_settlements': settlements,
+            'selected_settlement': selected,
+            'sheet': sheet,
+        }
+        ctx.update(_catalog_context())
+        return render(request, 'ops/daily_distribution_create.html', ctx)
+
+    today = timezone.localdate()
+    dist_date = _parse_dist_date(request.POST.get('distribution_date'), today)
+    default_branch = Branch.default_name()
+    settlement_id = (request.POST.get('source_settlement_id') or '').strip()
+    import secrets
+    batch_number = _next_dist_batch_number()
+    batch_token = secrets.token_urlsafe(24)
     created_ids = []
+
+    # مسار: توزيع من نموذج طلب السوق (نفس الشكل → حفظ بفرع مكتوب)
+    if settlement_id.isdigit():
+        settlement = get_object_or_404(
+            CostSettlement.objects.prefetch_related('lines'),
+            pk=int(settlement_id),
+        )
+        if request.user.is_representative and settlement.created_by_id != request.user.id:
+            messages.error(request, 'غير مصرح باستخدام هذا الطلب.')
+            return redirect('ops:daily_distribution_create')
+        branch = (request.POST.get('branch_name') or '').strip() or default_branch
+        if not branch:
+            messages.error(request, 'اكتب اسم الفرع للتوزيع.')
+            return redirect(
+                f"{reverse('ops:daily_distribution_create')}"
+                f"?date={dist_date.isoformat()}&settlement={settlement.pk}"
+            )
+        catalog_map = _catalog_item_number_by_name()
+        for line in settlement.lines.all():
+            qty = _dist_qty_from_settlement_line(line.quantity)
+            if qty <= 0:
+                continue
+            name = (line.item_name or '').strip()
+            if not name:
+                continue
+            row = DailySupplyDistribution.objects.create(
+                batch_number=batch_number,
+                distribution_date=dist_date,
+                item_name=name,
+                item_number=catalog_map.get(name, ''),
+                branch=branch,
+                quantity=qty,
+                notes=f'من {settlement.batch_number}',
+                created_by=request.user,
+                public_token=batch_token,
+            )
+            created_ids.append(row.pk)
+        if not created_ids:
+            messages.error(request, 'لا أصناف بكمية في طلب السوق المحدد.')
+            return redirect(
+                f"{reverse('ops:daily_distribution_create')}"
+                f"?date={dist_date.isoformat()}&settlement={settlement.pk}"
+            )
+        schedule_daily_distribution_notify(created_ids, request.user.pk)
+        messages.success(
+            request,
+            f'تم حفظ ملف التوزيع {batch_number} من {settlement.batch_number} '
+            f'للفرع «{branch}» ({len(created_ids)} صنف).',
+        )
+        return redirect(
+            f"{reverse('ops:daily_distribution')}?date={dist_date.isoformat()}&open={created_ids[0]}"
+        )
+
+    # مسار يدوي (جدول أصناف)
+    item_names = request.POST.getlist('item_name')
+    item_numbers = request.POST.getlist('item_number')
+    branches = request.POST.getlist('branch')
+    quantities = request.POST.getlist('quantity')
+    notes_list = request.POST.getlist('notes')
+
     for i, item_name in enumerate(item_names):
         item_name = (item_name or '').strip()
         if not item_name:

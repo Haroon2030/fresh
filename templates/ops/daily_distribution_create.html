@@ -10,7 +10,7 @@
             رجوع للقائمة
         </a>
         <h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">ملف توزيع توريد يومي</h2>
-        <p class="font-body-md text-body-md text-on-surface-variant mt-xs">إنشاء ملف توزيع توريد يومي.</p>
+        <p class="font-body-md text-body-md text-on-surface-variant mt-xs">يظهر طلب السوق لليوم بنفس النموذج الورقي — اكتب اسم الفرع ثم احفظ التوزيع.</p>
     </div>
 </div>
 
@@ -20,13 +20,83 @@
             <h3>ملف توزيع توريد يومي</h3>
             <a href="{% url 'ops:daily_distribution' %}" class="app-modal-close" aria-label="إغلاق"><span class="material-symbols-outlined">close</span></a>
         </div>
+
+        {% if sheet and selected_settlement %}
+        <form method="post" action="{% url 'ops:daily_distribution_create' %}" class="flex flex-col overflow-hidden" id="distFromMarketForm">
+            {% csrf_token %}
+            <input type="hidden" name="source_settlement_id" value="{{ selected_settlement.pk }}">
+            <div class="app-modal-body flex flex-col gap-md">
+                <div class="flex flex-col sm:flex-row flex-wrap gap-md items-end">
+                    <div class="flex flex-col gap-sm min-w-[160px]">
+                        <label class="font-label-md text-label-md text-on-surface" for="distDate">تاريخ التوزيع</label>
+                        <input type="date" name="distribution_date" id="distDate" value="{{ dist_date|date:'Y-m-d' }}" required
+                               class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
+                    </div>
+                    <div class="flex flex-col gap-sm min-w-[220px] flex-1">
+                        <label class="font-label-md text-label-md text-on-surface" for="settlementPick">طلب السوق</label>
+                        <select id="settlementPick"
+                                class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
+                            {% for s in today_settlements %}
+                            <option value="{{ s.pk }}" {% if selected_settlement.pk == s.pk %}selected{% endif %}>
+                                {{ s.batch_number }} — {{ s.settlement_date|date:"Y/m/d" }} ({{ s.items_count }} صنف)
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-sm min-w-[220px] flex-1">
+                        <label class="font-label-md text-label-md text-on-surface" for="branchName">اسم الفرع (للتوزيع)</label>
+                        <input type="text" name="branch_name" id="branchName" list="branchDatalist"
+                               value="{{ default_branch }}" required autocomplete="off"
+                               placeholder="اكتب اسم الفرع..."
+                               class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
+                        <datalist id="branchDatalist">
+                            {% for b in branches %}
+                            <option value="{{ b }}"></option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                </div>
+
+                <p class="font-body-md text-body-md text-on-surface-variant text-xs m-0">
+                    النموذج أدناه هو طلب السوق <strong dir="ltr">{{ selected_settlement.batch_number }}</strong> بنفس الشكل الورقي. عند الحفظ تُوزَّع الأصناف ذات الكمية على الفرع المكتوب.
+                </p>
+
+                {% include "ops/_cost_settlement_sheet.html" with sheet_readonly=True company_name=sheet.company_name settlement_date=sheet.settlement_date vehicle_amount=sheet.vehicle_amount grand_total=sheet.grand_total right_rows=sheet.right_rows left_rows=sheet.left_rows custom_rows=sheet.custom_rows %}
+            </div>
+            <div class="app-modal-foot">
+                <a href="{% url 'ops:daily_distribution' %}" class="btn-ghost-app">إلغاء</a>
+                <a href="{% url 'ops:daily_distribution_create' %}?date={{ dist_date|date:'Y-m-d' }}&manual=1" class="btn-ghost-app">إدخال يدوي</a>
+                <button type="submit" class="btn-primary-app">حفظ التوزيع</button>
+            </div>
+        </form>
+        {% else %}
         <form method="post" action="{% url 'ops:daily_distribution_create' %}" class="flex flex-col overflow-hidden" id="distMultiForm">
             {% csrf_token %}
             <div class="app-modal-body flex flex-col gap-md">
-                <div class="flex flex-col gap-sm max-w-xs">
-                    <label class="font-label-md text-label-md text-on-surface" for="distDate">تاريخ التوزيع</label>
-                    <input type="date" name="distribution_date" id="distDate" value="{{ dist_date|date:'Y-m-d' }}" required
-                           class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
+                <div class="flex flex-col sm:flex-row flex-wrap gap-md items-end">
+                    <div class="flex flex-col gap-sm max-w-xs">
+                        <label class="font-label-md text-label-md text-on-surface" for="distDateManual">تاريخ التوزيع</label>
+                        <input type="date" name="distribution_date" id="distDateManual" value="{{ dist_date|date:'Y-m-d' }}" required
+                               class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
+                    </div>
+                    {% if today_settlements %}
+                    <div class="flex flex-col gap-sm min-w-[220px] flex-1">
+                        <label class="font-label-md text-label-md text-on-surface" for="settlementPickEmpty">طلب السوق لليوم</label>
+                        <select id="settlementPickEmpty"
+                                class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
+                            <option value="">— اختر لإظهار النموذج الورقي —</option>
+                            {% for s in today_settlements %}
+                            <option value="{{ s.pk }}">{{ s.batch_number }} — {{ s.items_count }} صنف</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% else %}
+                    <p class="font-body-md text-body-md text-on-surface-variant text-sm m-0 pb-2">
+                        لا يوجد طلب سوق لهذا التاريخ —
+                        <a href="{% url 'ops:cost_settlement_create' %}" class="text-primary font-bold">إنشاء طلب سوق</a>
+                        أو أدخل الأصناف يدوياً أدناه.
+                    </p>
+                    {% endif %}
                 </div>
 
                 <div class="flex items-center justify-between gap-sm">
@@ -54,7 +124,7 @@
                     </table>
                 </div>
                 <p class="font-body-md text-body-md text-on-surface-variant text-xs m-0">
-                    اكتب صنف جديد حتى لو غير موجود في الكتالوج — Enter يضيف صفاً ولا يحفظ المودال. كل حفظ = ملف واحد.
+                    اكتب صنف جديد حتى لو غير موجود في الكتالوج — Enter يضيف صفاً ولا يحفظ. كل حفظ = ملف واحد.
                 </p>
             </div>
             <div class="app-modal-foot">
@@ -62,12 +132,42 @@
                 <button type="submit" class="btn-primary-app">حفظ الملف</button>
             </div>
         </form>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
 
 {% block modals %}
 {% include "ops/_catalog_suggest.html" %}
+<script>
+(function () {
+    const createBase = "{% url 'ops:daily_distribution_create' %}";
+    const dateInput = document.getElementById('distDate') || document.getElementById('distDateManual');
+    function goSettlement(pk) {
+        const date = dateInput?.value || '';
+        const q = new URLSearchParams();
+        if (date) q.set('date', date);
+        if (pk) q.set('settlement', pk);
+        window.location.href = createBase + '?' + q.toString();
+    }
+    document.getElementById('settlementPick')?.addEventListener('change', function () {
+        if (this.value) goSettlement(this.value);
+    });
+    document.getElementById('settlementPickEmpty')?.addEventListener('change', function () {
+        if (this.value) goSettlement(this.value);
+    });
+    dateInput?.addEventListener('change', function () {
+        const pick = document.getElementById('settlementPick');
+        const pk = pick?.value || '';
+        const q = new URLSearchParams();
+        q.set('date', this.value);
+        if (pk) q.set('settlement', pk);
+        {% if request.GET.manual %}q.set('manual', '1');{% endif %}
+        window.location.href = createBase + '?' + q.toString();
+    });
+})();
+</script>
+{% if not sheet or not selected_settlement %}
 <script>
 (function () {
     const tbody = document.getElementById('distRows');
@@ -179,4 +279,5 @@
     addRow();
 })();
 </script>
+{% endif %}
 {% endblock %}
