@@ -1469,11 +1469,11 @@
             <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'offers' %}filled-icon{% endif %}">local_offer</span></span>
             <span class="nav-label">أصناف العروض</span>
         </a>
-        {% if not user.is_representative %}
         <a class="nav-link {% if active_nav == 'distribution' %}is-active{% endif %}" href="{% url 'ops:daily_distribution' %}" title="توزيع التوريد على الفروع">
             <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'distribution' %}filled-icon{% endif %}">route</span></span>
             <span class="nav-label">التوزيع اليومي</span>
         </a>
+        {% if not user.is_representative %}
         <a class="nav-link {% if active_nav == 'variance' %}is-active{% endif %}" href="{% url 'ops:distribution_variance' %}" title="تسجيل نقص وزيادة التوزيع">
             <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'variance' %}filled-icon{% endif %}">balance</span></span>
             <span class="nav-label">فروقات التوزيع</span>
@@ -1587,15 +1587,15 @@
         <span class="material-symbols-outlined">request_quote</span>
         <span class="text-[10px] font-bold">طلب السوق</span>
     </a>
+    <a href="{% url 'ops:daily_distribution' %}" class="flex flex-col items-center gap-1 px-2 py-1 shrink-0 {% if active_nav == 'distribution' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+        <span class="material-symbols-outlined">route</span>
+        <span class="text-[10px] font-bold">التوزيع</span>
+    </a>
     <a href="{% url 'ops:items' %}" class="flex flex-col items-center gap-1 px-2 py-1 shrink-0 {% if active_nav == 'items' %}text-primary{% else %}text-on-surface-variant{% endif %}">
         <span class="material-symbols-outlined">inventory_2</span>
         <span class="text-[10px] font-bold">الأصناف</span>
     </a>
     {% if not user.is_representative %}
-    <a href="{% url 'ops:daily_distribution' %}" class="flex flex-col items-center gap-1 px-2 py-1 shrink-0 {% if active_nav == 'distribution' %}text-primary{% else %}text-on-surface-variant{% endif %}">
-        <span class="material-symbols-outlined">route</span>
-        <span class="text-[10px] font-bold">التوزيع</span>
-    </a>
     <a href="{% url 'ops:distribution_variance' %}" class="flex flex-col items-center gap-1 px-2 py-1 shrink-0 {% if active_nav == 'variance' %}text-primary{% else %}text-on-surface-variant{% endif %}">
         <span class="material-symbols-outlined">balance</span>
         <span class="text-[10px] font-bold">الفروقات</span>

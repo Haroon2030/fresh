@@ -334,11 +334,11 @@ def cost_settlement_update(request, pk):
         settlement.ensure_public_token()
         if not settlement.public_token:
             settlement.save(update_fields=['public_token'])
-        schedule_cost_settlement_notify(settlement.pk, request.user.pk)
+        schedule_cost_settlement_notify(settlement.pk, request.user.pk, updated=True)
         messages.success(request, f'تم تحديث الملف {settlement.batch_number}.')
         messages.info(
             request,
-            'جاري إرسال PDF للمستلم والمحاسب والمدير والعمليات والمدخل.',
+            'جاري إرسال PDF المحدّث للمستلم والمحاسب والمدير والعمليات والمدخل.',
         )
         return redirect(f"{reverse('ops:cost_settlements')}?open={settlement.pk}")
 
@@ -387,12 +387,12 @@ def cost_settlement_pdf(request, pk):
     except Exception:
         messages.error(request, 'تعذّر إنشاء ملف PDF.')
         return redirect('ops:cost_settlements')
-    return _pdf_http_response(pdf_bytes, filename)
+    return _pdf_http_response(pdf_bytes, filename, no_cache=True)
 
 
 @require_http_methods(['GET'])
 def cost_settlement_pdf_public(request, token):
-    """رابط PDF عام للمشاركة عبر واتساب."""
+    """رابط PDF عام للمشاركة عبر واتساب — يُبنى دائماً من أحدث بيانات الملف."""
     from django.http import HttpResponse
 
     settlement = (
@@ -410,4 +410,4 @@ def cost_settlement_pdf_public(request, token):
         )
     except Exception:
         return HttpResponse('تعذّر إنشاء الملف', status=500)
-    return _pdf_http_response(pdf_bytes, filename)
+    return _pdf_http_response(pdf_bytes, filename, no_cache=True)

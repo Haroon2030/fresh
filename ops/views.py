@@ -733,7 +733,6 @@ def supply_batch_pdf(request, pk):
 
 
 @login_required
-@rep_forbidden
 def daily_distribution_list(request):
     q = (request.GET.get('q') or '').strip()
     date_raw = (request.GET.get('date') or '').strip()
@@ -749,6 +748,8 @@ def daily_distribution_list(request):
     qs = DailySupplyDistribution.objects.select_related('created_by').filter(
         distribution_date=dist_date,
     )
+    if request.user.is_representative:
+        qs = qs.filter(created_by=request.user)
     if q:
         qs = qs.filter(
             Q(item_name__icontains=q)
@@ -793,7 +794,6 @@ def daily_distribution_list(request):
 
 
 @login_required
-@rep_forbidden
 def daily_distribution_create(request):
     if request.method != 'POST':
         today = timezone.localdate()
@@ -883,9 +883,11 @@ def daily_distribution_create(request):
 
 @login_required
 @require_POST
-@rep_forbidden
 def daily_distribution_delete(request, pk):
     seed = get_object_or_404(DailySupplyDistribution, pk=pk)
+    if not (request.user.is_manager or seed.created_by_id == request.user.id):
+        messages.error(request, 'لا يمكنك حذف هذا الملف.')
+        return redirect('ops:daily_distribution')
     dist_date = seed.distribution_date
     if seed.batch_number:
         label = seed.batch_number
@@ -905,10 +907,12 @@ def _dist_batch_qs(seed: DailySupplyDistribution):
 
 
 @login_required
-@rep_forbidden
 def daily_distribution_batch_update(request, pk):
     seed = get_object_or_404(DailySupplyDistribution, pk=pk)
     if request.method != 'POST':
+        if not (request.user.is_manager or seed.created_by_id == request.user.id):
+            messages.error(request, 'لا يمكنك تعديل هذا الملف.')
+            return redirect('ops:daily_distribution')
         qs = DailySupplyDistribution.objects.filter(
             batch_number=seed.batch_number
         ) if seed.batch_number else DailySupplyDistribution.objects.filter(pk=seed.pk)
@@ -1475,7 +1479,7 @@ def return_create(request):
     return _redirect_returns(batch.pk)
 
 
-def _pdf_http_response(pdf_bytes: bytes, filename: str) -> HttpResponse:
+def _pdf_http_response(pdf_bytes: bytes, filename: str, *, no_cache: bool = False) -> HttpResponse:
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     # ASCII-safe filename for Content-Disposition (WhatsApp / mobile browsers)
     import re
@@ -1489,7 +1493,13 @@ def _pdf_http_response(pdf_bytes: bytes, filename: str) -> HttpResponse:
     response['Content-Length'] = str(len(pdf_bytes))
     response['Content-Type'] = 'application/pdf'
     response['X-Content-Type-Options'] = 'nosniff'
-    response['Cache-Control'] = 'private, max-age=300'
+    if no_cache:
+        # نفس الرابط يعرض دائماً أحدث بيانات الملف (بدون كاش قديم)
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+    else:
+        response['Cache-Control'] = 'private, max-age=300'
     return response
 
 

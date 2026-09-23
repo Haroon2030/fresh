@@ -733,7 +733,7 @@ def schedule_daily_distribution_notify(row_ids: list[int], actor_id: int) -> Non
     _run_in_background(f"dist-{row_ids[:1]}", _run)
 
 
-def schedule_cost_settlement_notify(settlement_id: int, actor_id: int) -> None:
+def schedule_cost_settlement_notify(settlement_id: int, actor_id: int, *, updated: bool = False) -> None:
     """بعد حفظ طلب يومي من السوق → PDF واتساب للمستلم والمحاسب والمدير والعمليات والمدخل."""
 
     def _run():
@@ -750,6 +750,7 @@ def schedule_cost_settlement_notify(settlement_id: int, actor_id: int) -> None:
         if not settlement or not actor:
             return
 
+        # الإبقاء على نفس public_token ليتحدّث نفس رابط الملف بالبيانات الجديدة
         settlement.ensure_public_token()
         if not settlement.public_token:
             settlement.save(update_fields=["public_token"])
@@ -764,10 +765,16 @@ def schedule_cost_settlement_notify(settlement_id: int, actor_id: int) -> None:
             "ops:cost_settlement_pdf_public_file",
             settlement.public_token,
         )
-        msg = _pdf_caption(
-            "إشعار طلب يومي من السوق",
-            instruction="نُرفق ملف الطلب اليومي. يرجى المراجعة والمتابعة.",
-        )
+        if updated:
+            msg = _pdf_caption(
+                "تحديث طلب يومي من السوق",
+                instruction="نُرفق ملف الطلب المحدّث (نفس الرابط). يرجى المراجعة والمتابعة.",
+            )
+        else:
+            msg = _pdf_caption(
+                "إشعار طلب يومي من السوق",
+                instruction="نُرفق ملف الطلب اليومي. يرجى المراجعة والمتابعة.",
+            )
 
         # المستلم + المحاسب + العمليات + المدير (قسم/نظام)
         roles = User.RETURN_AUTHORIZE_NOTIFY_ROLES
