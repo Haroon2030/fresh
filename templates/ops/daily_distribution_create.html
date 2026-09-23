@@ -36,10 +36,16 @@
                         <label class="font-label-md text-label-md text-on-surface" for="settlementPick">طلب السوق</label>
                         <select id="settlementPick"
                                 class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
+                            {% for opt in settlement_options %}
+                            <option value="{{ opt.settlement.pk }}" {% if selected_settlement.pk == opt.settlement.pk %}selected{% endif %}>
+                                {{ opt.settlement.batch_number }} — متبقي {{ opt.remaining_items }} صنف
+                            </option>
+                            {% empty %}
                             {% for s in today_settlements %}
                             <option value="{{ s.pk }}" {% if selected_settlement.pk == s.pk %}selected{% endif %}>
-                                {{ s.batch_number }} — {{ s.settlement_date|date:"Y/m/d" }} ({{ s.items_count }} صنف)
+                                {{ s.batch_number }} — {{ s.settlement_date|date:"Y/m/d" }}
                             </option>
+                            {% endfor %}
                             {% endfor %}
                         </select>
                     </div>
@@ -58,10 +64,11 @@
                 </div>
 
                 <p class="font-body-md text-body-md text-on-surface-variant text-xs m-0">
-                    النموذج أدناه هو طلب السوق <strong dir="ltr">{{ selected_settlement.batch_number }}</strong> بنفس الشكل الورقي. عند الحفظ تُوزَّع الأصناف ذات الكمية على الفرع المكتوب.
+                    النموذج أدناه هو طلب السوق <strong dir="ltr">{{ selected_settlement.batch_number }}</strong> بنفس الشكل الورقي.
+                    عدّل <strong>كمية التوزيع</strong> لكل صنف (الحد الأقصى = المتبقي). طلب السوق الأصلي لا يتغير.
                 </p>
 
-                {% include "ops/_cost_settlement_sheet.html" with sheet_readonly=True company_name=sheet.company_name settlement_date=sheet.settlement_date vehicle_amount=sheet.vehicle_amount grand_total=sheet.grand_total right_rows=sheet.right_rows left_rows=sheet.left_rows custom_rows=sheet.custom_rows %}
+                {% include "ops/_cost_settlement_sheet.html" with sheet_readonly=True sheet_dist_qty_edit=True company_name=sheet.company_name settlement_date=sheet.settlement_date vehicle_amount=sheet.vehicle_amount grand_total=sheet.grand_total right_rows=sheet.right_rows left_rows=sheet.left_rows custom_rows=sheet.custom_rows %}
             </div>
             <div class="app-modal-foot">
                 <a href="{% url 'ops:daily_distribution' %}" class="btn-ghost-app">إلغاء</a>
@@ -85,8 +92,12 @@
                         <select id="settlementPickEmpty"
                                 class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
                             <option value="">— اختر لإظهار النموذج الورقي —</option>
+                            {% for opt in settlement_options %}
+                            <option value="{{ opt.settlement.pk }}">{{ opt.settlement.batch_number }} — متبقي {{ opt.remaining_items }} صنف</option>
+                            {% empty %}
                             {% for s in today_settlements %}
                             <option value="{{ s.pk }}">{{ s.batch_number }} — {{ s.items_count }} صنف</option>
+                            {% endfor %}
                             {% endfor %}
                         </select>
                     </div>

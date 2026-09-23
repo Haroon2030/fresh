@@ -733,11 +733,30 @@ class DailySupplyDistribution(models.Model):
         editable=False,
         verbose_name='رمز PDF',
     )
+    source_cost_settlement = models.ForeignKey(
+        'CostSettlement',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='distributions',
+        verbose_name='طلب السوق المصدر',
+    )
+    source_settlement_line = models.ForeignKey(
+        'CostSettlementLine',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='distributions',
+        verbose_name='سطر طلب السوق',
+    )
 
     class Meta:
         ordering = ['-distribution_date', '-created_at']
         verbose_name = 'توزيع توريد يومي'
         verbose_name_plural = 'توزيع التوريد اليومي'
+        indexes = [
+            models.Index(fields=['source_cost_settlement', 'source_settlement_line']),
+        ]
 
     def __str__(self):
         return f'{self.item_name} → {self.branch} × {self.quantity}'

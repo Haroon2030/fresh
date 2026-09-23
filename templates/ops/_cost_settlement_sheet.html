@@ -263,9 +263,24 @@
                 </colgroup>
                 <tbody>
                 {% for row in right_rows %}
-                <tr{% if not sheet_readonly %} data-paper-row{% endif %}>
+                <tr{% if not sheet_readonly or sheet_dist_qty_edit %} data-paper-row{% endif %}{% if sheet_dist_qty_edit %} data-dist-row{% endif %}>
                     <td class="item-cell" title="{{ row.item_name }}">{{ row.item_name }}</td>
-                    {% if sheet_readonly %}
+                    {% if sheet_dist_qty_edit %}
+                    <td>
+                        {% if row.source_line_id and row.remaining %}
+                        <input type="hidden" name="dist_line_id" value="{{ row.source_line_id }}">
+                        <input type="number" name="dist_qty" min="0" max="{{ row.remaining|unlocalize }}" step="1"
+                               value="{{ row.remaining|unlocalize }}"
+                               data-qty data-price="{{ row.unit_price|default:0|unlocalize }}"
+                               data-max="{{ row.remaining|unlocalize }}"
+                               title="الحد الأقصى المتبقي {{ row.remaining }}">
+                        {% else %}
+                        <span class="num-cell" style="display:block;padding:4px">{{ row.quantity }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="num-cell">{% if row.unit_price != '' %}{{ row.unit_price|floatformat:2 }}{% endif %}</td>
+                    <td class="total-cell" data-line-total>{% if row.line_total %}{{ row.line_total|floatformat:2 }}{% else %}0.00{% endif %}</td>
+                    {% elif sheet_readonly %}
                     <td class="num-cell">{{ row.quantity }}</td>
                     <td class="num-cell">{% if row.unit_price != '' %}{{ row.unit_price|floatformat:2 }}{% endif %}</td>
                     <td class="total-cell">{% if row.line_total %}{{ row.line_total|floatformat:2 }}{% else %}0.00{% endif %}</td>
@@ -289,9 +304,24 @@
                 </colgroup>
                 <tbody>
                 {% for row in left_rows %}
-                <tr{% if not sheet_readonly %} data-paper-row{% endif %}>
+                <tr{% if not sheet_readonly or sheet_dist_qty_edit %} data-paper-row{% endif %}{% if sheet_dist_qty_edit %} data-dist-row{% endif %}>
                     <td class="item-cell" title="{{ row.item_name }}">{{ row.item_name }}</td>
-                    {% if sheet_readonly %}
+                    {% if sheet_dist_qty_edit %}
+                    <td>
+                        {% if row.source_line_id and row.remaining %}
+                        <input type="hidden" name="dist_line_id" value="{{ row.source_line_id }}">
+                        <input type="number" name="dist_qty" min="0" max="{{ row.remaining|unlocalize }}" step="1"
+                               value="{{ row.remaining|unlocalize }}"
+                               data-qty data-price="{{ row.unit_price|default:0|unlocalize }}"
+                               data-max="{{ row.remaining|unlocalize }}"
+                               title="الحد الأقصى المتبقي {{ row.remaining }}">
+                        {% else %}
+                        <span class="num-cell" style="display:block;padding:4px">{{ row.quantity }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="num-cell">{% if row.unit_price != '' %}{{ row.unit_price|floatformat:2 }}{% endif %}</td>
+                    <td class="total-cell" data-line-total>{% if row.line_total %}{{ row.line_total|floatformat:2 }}{% else %}0.00{% endif %}</td>
+                    {% elif sheet_readonly %}
                     <td class="num-cell">{{ row.quantity }}</td>
                     <td class="num-cell">{% if row.unit_price != '' %}{{ row.unit_price|floatformat:2 }}{% endif %}</td>
                     <td class="total-cell">{% if row.line_total %}{{ row.line_total|floatformat:2 }}{% else %}0.00{% endif %}</td>
@@ -307,10 +337,17 @@
         </div>
     </div>
 
-    {% if not sheet_readonly or custom_rows %}
+    {% if not sheet_readonly or custom_rows or sheet_dist_qty_edit %}
     <div class="paper-custom">
         <table class="paper-table paper-custom-table">
-            {% if sheet_readonly %}
+            {% if sheet_readonly and not sheet_dist_qty_edit %}
+            <colgroup>
+                <col style="width:38%">
+                <col style="width:20%">
+                <col style="width:20%">
+                <col style="width:22%">
+            </colgroup>
+            {% elif sheet_dist_qty_edit %}
             <colgroup>
                 <col style="width:38%">
                 <col style="width:20%">
@@ -326,10 +363,26 @@
                 <col style="width:10%">
             </colgroup>
             {% endif %}
-            <tbody{% if not sheet_readonly %} id="paperCustomBody"{% endif %}>
+            <tbody{% if not sheet_readonly and not sheet_dist_qty_edit %} id="paperCustomBody"{% endif %}>
             {% for row in custom_rows %}
-            <tr{% if not sheet_readonly %} data-paper-row data-custom-row{% endif %}>
-                {% if sheet_readonly %}
+            <tr{% if not sheet_readonly or sheet_dist_qty_edit %} data-paper-row{% endif %}{% if sheet_dist_qty_edit %} data-dist-row{% endif %}{% if not sheet_readonly and not sheet_dist_qty_edit %} data-custom-row{% endif %}>
+                {% if sheet_dist_qty_edit %}
+                <td class="item-cell">{{ row.item_name }}</td>
+                <td>
+                    {% if row.source_line_id and row.remaining %}
+                    <input type="hidden" name="dist_line_id" value="{{ row.source_line_id }}">
+                    <input type="number" name="dist_qty" min="0" max="{{ row.remaining|unlocalize }}" step="1"
+                           value="{{ row.remaining|unlocalize }}"
+                           data-qty data-price="{{ row.unit_price|default:0|unlocalize }}"
+                           data-max="{{ row.remaining|unlocalize }}"
+                           title="الحد الأقصى المتبقي {{ row.remaining }}">
+                    {% else %}
+                    <span class="num-cell" style="display:block;padding:4px">{{ row.quantity }}</span>
+                    {% endif %}
+                </td>
+                <td class="num-cell">{% if row.unit_price != '' %}{{ row.unit_price|floatformat:2 }}{% endif %}</td>
+                <td class="total-cell" data-line-total>{% if row.line_total %}{{ row.line_total|floatformat:2 }}{% else %}0.00{% endif %}</td>
+                {% elif sheet_readonly %}
                 <td class="item-cell">{{ row.item_name }}</td>
                 <td class="num-cell">{{ row.quantity }}</td>
                 <td class="num-cell">{% if row.unit_price != '' %}{{ row.unit_price|floatformat:2 }}{% endif %}</td>
@@ -352,7 +405,7 @@
     </div>
     {% endif %}
 
-    {% if not sheet_readonly %}
+    {% if not sheet_readonly and not sheet_dist_qty_edit %}
     <div class="paper-add-bar">
         <button type="button" id="paperAddRow">+ صف جديد</button>
     </div>
@@ -362,7 +415,7 @@
         <table class="paper-foot-table">
             <tr>
                 <td>السيارة</td>
-                {% if sheet_readonly %}
+                {% if sheet_readonly or sheet_dist_qty_edit %}
                 <td class="val-cell">{% if vehicle_amount %}{{ vehicle_amount|floatformat:2 }}{% else %}0.00{% endif %}</td>
                 {% else %}
                 <td><input type="number" name="vehicle_amount" id="paperVehicle" min="0" step="0.01" value="{{ vehicle_amount|unlocalize }}" data-extra></td>
@@ -370,7 +423,9 @@
             </tr>
             <tr>
                 <td>الإجمالي</td>
-                {% if sheet_readonly %}
+                {% if sheet_dist_qty_edit %}
+                <td class="grand" data-dist-grand>{% if grand_total != None %}{{ grand_total|floatformat:2 }}{% else %}0.00{% endif %}</td>
+                {% elif sheet_readonly %}
                 <td class="grand">{% if grand_total != None %}{{ grand_total|floatformat:2 }}{% else %}0.00{% endif %}</td>
                 {% else %}
                 <td class="grand" data-grand-total>0.00</td>
@@ -380,7 +435,47 @@
     </div>
 </div>
 
-{% if not sheet_readonly %}
+{% if sheet_dist_qty_edit %}
+<script>
+(function () {
+    const root = document.getElementById('paperForm');
+    if (!root) return;
+    const vehicle = {{ vehicle_amount|default_if_none:0|unlocalize }};
+    function n(el) {
+        const v = parseFloat(String(el && el.value || '').replace(',', ''));
+        return Number.isFinite(v) ? v : 0;
+    }
+    function clamp(inp) {
+        const max = parseFloat(inp.getAttribute('data-max') || inp.max || '0');
+        let v = n(inp);
+        if (v < 0) v = 0;
+        if (Number.isFinite(max) && v > max) v = max;
+        if (String(inp.value) !== String(v) && inp.value !== '') inp.value = v ? String(v) : '';
+        return v;
+    }
+    function refresh() {
+        let lines = 0;
+        root.querySelectorAll('[data-dist-row]').forEach((tr) => {
+            const qtyEl = tr.querySelector('[data-qty]');
+            const price = parseFloat(qtyEl && qtyEl.getAttribute('data-price') || '0') || 0;
+            const qty = qtyEl ? clamp(qtyEl) : 0;
+            const total = qty * price;
+            lines += total;
+            const cell = tr.querySelector('[data-line-total]');
+            if (cell) cell.textContent = total.toFixed(2);
+        });
+        const g = root.querySelector('[data-dist-grand]');
+        if (g) g.textContent = (lines + (Number(vehicle) || 0)).toFixed(2);
+    }
+    root.addEventListener('input', (e) => {
+        if (e.target.matches('[data-qty]')) refresh();
+    });
+    refresh();
+})();
+</script>
+{% endif %}
+
+{% if not sheet_readonly and not sheet_dist_qty_edit %}
 <script>
 (function () {
     const root = document.getElementById('paperForm');

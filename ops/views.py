@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Avg, Max, Prefetch, Q
+from django.db.models import Avg, Max, Prefetch, Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -828,10 +828,109 @@ def _dist_qty_from_settlement_line(qty) -> int:
     try:
         q = Decimal(qty or 0)
     except (InvalidOperation, TypeError):
-        return 1
+        return 0
     if q <= 0:
         return 0
-    return max(1, int(q.to_integral_value(rounding=ROUND_HALF_UP)))
+    n = int(q.to_integral_value(rounding=ROUND_HALF_UP))
+    return n if n > 0 else 0
+
+
+def _settlement_distributed_by_line(settlement) -> dict[int, Decimal]:
+    """مجموع الكميات الموزّعة لكل سطر طلب سوق (لا يغيّر طلب السوق)."""
+    rows = (
+        DailySupplyDistribution.objects.filter(
+            source_cost_settlement_id=settlement.pk,
+            source_settlement_line_id__isnull=False,
+        )
+        .values('source_settlement_line_id')
+        .annotate(total=Sum('quantity'))
+    )
+    return {
+        int(r['source_settlement_line_id']): Decimal(r['total'] or 0)
+        for r in rows
+        if r['source_settlement_line_id']
+    }
+
+
+def _settlement_line_remaining(line, distributed_map: dict[int, Decimal]) -> Decimal:
+    orig = Decimal(line.quantity or 0)
+    used = distributed_map.get(line.pk, Decimal(0))
+    rem = orig - used
+    return rem if rem > 0 else Decimal('0')
+
+
+def _build_distribution_remaining_sheet(settlement):
+    """
+    نفس شكل طلب السوق لكن بالكميات المتبقية بعد التوزيعات السابقة.
+    طلب السوق في قاعدة البيانات لا يُعدَّل.
+    """
+    from .views_cost_settlement import CUSTOM_SORT_BASE, _build_form_columns
+
+    cols = _build_form_columns(settlement)
+    distributed = _settlement_distributed_by_line(settlement)
+    by_key = {}
+    custom_lines = []
+    for line in settlement.lines.all():
+        if line.sort_order >= CUSTOM_SORT_BASE:
+            custom_lines.append(line)
+        else:
+            by_key[(line.column_side, line.sort_order)] = line
+
+    def adjust_rows(side, rows):
+        out = []
+        for i, row in enumerate(rows):
+            line = by_key.get((side, i))
+            if not line:
+                out.append(row)
+                continue
+            rem = _settlement_line_remaining(line, distributed)
+            rem_int = _dist_qty_from_settlement_line(rem)
+            price = line.unit_price or Decimal('0')
+            out.append({
+                'item_name': row['item_name'],
+                'quantity': ('' if rem_int == 0 else rem_int),
+                'unit_price': ('' if not price else price),
+                'line_total': (Decimal(rem_int) * price) if rem_int else Decimal('0'),
+                'source_line_id': line.pk,
+                'remaining': rem_int,
+            })
+        return out
+
+    custom_rows = []
+    for line in custom_lines:
+        rem = _settlement_line_remaining(line, distributed)
+        rem_int = _dist_qty_from_settlement_line(rem)
+        price = line.unit_price or Decimal('0')
+        custom_rows.append({
+            'item_name': line.item_name,
+            'quantity': ('' if rem_int == 0 else rem_int),
+            'unit_price': ('' if not price else price),
+            'line_total': (Decimal(rem_int) * price) if rem_int else Decimal('0'),
+            'source_line_id': line.pk,
+            'remaining': rem_int,
+        })
+
+    right_rows = adjust_rows('right', cols['right_rows'])
+    left_rows = adjust_rows('left', cols['left_rows'])
+    lines_total = Decimal('0')
+    for row in right_rows + left_rows + custom_rows:
+        lines_total += Decimal(row.get('line_total') or 0)
+    vehicle = settlement.vehicle_amount or Decimal('0')
+    remaining_items = sum(
+        1 for row in right_rows + left_rows + custom_rows
+        if int(row.get('remaining') or 0) > 0
+    )
+    return {
+        'company_name': settlement.branch or Branch.COMPANY_NAME,
+        'settlement_date': settlement.settlement_date,
+        'vehicle_amount': vehicle,
+        'grand_total': lines_total + vehicle,
+        'right_rows': right_rows,
+        'left_rows': left_rows,
+        'custom_rows': custom_rows,
+        'remaining_items': remaining_items,
+        'original_grand_total': settlement.grand_total,
+    }
 
 
 def _next_dist_batch_number() -> str:
@@ -861,8 +960,6 @@ def _catalog_item_number_by_name() -> dict:
 
 @login_required
 def daily_distribution_create(request):
-    from .views_cost_settlement import _build_form_columns
-
     if request.method != 'POST':
         today = timezone.localdate()
         dist_date = _parse_dist_date(request.GET.get('date'), today)
@@ -871,6 +968,19 @@ def daily_distribution_create(request):
         force_manual = (request.GET.get('manual') or '').strip() in {'1', 'true', 'yes'}
         selected = None
         sheet = None
+
+        def attach_sheet(settlement):
+            return _build_distribution_remaining_sheet(settlement)
+
+        # ملخص متبقي لكل طلب في القائمة
+        settlement_options = []
+        for s in settlements:
+            rem_sheet = attach_sheet(s)
+            settlement_options.append({
+                'settlement': s,
+                'remaining_items': rem_sheet['remaining_items'],
+            })
+
         if selected_pk.isdigit():
             pk = int(selected_pk)
             selected = next((s for s in settlements if s.pk == pk), None)
@@ -888,34 +998,25 @@ def daily_distribution_create(request):
                 if selected.settlement_date != dist_date:
                     dist_date = selected.settlement_date
                     settlements = _settlements_for_distribution(request.user, dist_date)
-                cols = _build_form_columns(selected)
-                sheet = {
-                    'company_name': selected.branch or Branch.COMPANY_NAME,
-                    'settlement_date': selected.settlement_date,
-                    'vehicle_amount': selected.vehicle_amount,
-                    'grand_total': selected.grand_total,
-                    'right_rows': cols['right_rows'],
-                    'left_rows': cols['left_rows'],
-                    'custom_rows': cols['custom_rows'],
-                }
+                    settlement_options = []
+                    for s in settlements:
+                        rem_sheet = attach_sheet(s)
+                        settlement_options.append({
+                            'settlement': s,
+                            'remaining_items': rem_sheet['remaining_items'],
+                        })
+                sheet = attach_sheet(selected)
         elif settlements and not force_manual:
-            # أول طلب لليوم يظهر مباشرة بنفس الشكل الورقي
+            # أول طلب لليوم يظهر مباشرة بنفس الشكل — بالكميات المتبقية
             selected = settlements[0]
-            cols = _build_form_columns(selected)
-            sheet = {
-                'company_name': selected.branch or Branch.COMPANY_NAME,
-                'settlement_date': selected.settlement_date,
-                'vehicle_amount': selected.vehicle_amount,
-                'grand_total': selected.grand_total,
-                'right_rows': cols['right_rows'],
-                'left_rows': cols['left_rows'],
-                'custom_rows': cols['custom_rows'],
-            }
+            sheet = attach_sheet(selected)
+
         ctx = {
             'dist_date': dist_date,
             'branches': Branch.active_names(),
             'active_nav': 'distribution',
             'today_settlements': settlements,
+            'settlement_options': settlement_options,
             'selected_settlement': selected,
             'sheet': sheet,
         }
@@ -931,7 +1032,7 @@ def daily_distribution_create(request):
     batch_token = secrets.token_urlsafe(24)
     created_ids = []
 
-    # مسار: توزيع من نموذج طلب السوق (نفس الشكل → حفظ بفرع مكتوب)
+    # مسار: توزيع من نموذج طلب السوق — يخصم المتبقي فقط دون تعديل طلب السوق
     if settlement_id.isdigit():
         settlement = get_object_or_404(
             CostSettlement.objects.prefetch_related('lines'),
@@ -948,8 +1049,26 @@ def daily_distribution_create(request):
                 f"?date={dist_date.isoformat()}&settlement={settlement.pk}"
             )
         catalog_map = _catalog_item_number_by_name()
-        for line in settlement.lines.all():
-            qty = _dist_qty_from_settlement_line(line.quantity)
+        distributed = _settlement_distributed_by_line(settlement)
+        lines_by_id = {line.pk: line for line in settlement.lines.all()}
+        posted_ids = request.POST.getlist('dist_line_id')
+        posted_qtys = request.POST.getlist('dist_qty')
+        for i, raw_id in enumerate(posted_ids):
+            if not str(raw_id).isdigit():
+                continue
+            line = lines_by_id.get(int(raw_id))
+            if not line or line.settlement_id != settlement.pk:
+                continue
+            rem = _settlement_line_remaining(line, distributed)
+            rem_int = _dist_qty_from_settlement_line(rem)
+            if rem_int <= 0:
+                continue
+            raw_qty = posted_qtys[i] if i < len(posted_qtys) else ''
+            try:
+                ask = int(Decimal(str(raw_qty or '0').replace(',', '')))
+            except (InvalidOperation, TypeError, ValueError):
+                ask = 0
+            qty = max(0, min(ask, rem_int))
             if qty <= 0:
                 continue
             name = (line.item_name or '').strip()
@@ -965,10 +1084,17 @@ def daily_distribution_create(request):
                 notes=f'من {settlement.batch_number}',
                 created_by=request.user,
                 public_token=batch_token,
+                source_cost_settlement=settlement,
+                source_settlement_line=line,
             )
             created_ids.append(row.pk)
+            # خصم فوري داخل نفس الحفظ حتى لا يتجاوز المتبقي عند تكرار نفس السطر
+            distributed[line.pk] = distributed.get(line.pk, Decimal(0)) + Decimal(qty)
         if not created_ids:
-            messages.error(request, 'لا أصناف بكمية في طلب السوق المحدد.')
+            messages.error(
+                request,
+                'لا متبقي للتوزيع من هذا الطلب — إما وُزِّع بالكامل أو بلا كميات.',
+            )
             return redirect(
                 f"{reverse('ops:daily_distribution_create')}"
                 f"?date={dist_date.isoformat()}&settlement={settlement.pk}"
@@ -977,7 +1103,8 @@ def daily_distribution_create(request):
         messages.success(
             request,
             f'تم حفظ ملف التوزيع {batch_number} من {settlement.batch_number} '
-            f'للفرع «{branch}» ({len(created_ids)} صنف).',
+            f'للفرع «{branch}» ({len(created_ids)} صنف). '
+            f'طُرح من المتبقي في شاشة التوزيع فقط — طلب السوق لم يتغير.',
         )
         return redirect(
             f"{reverse('ops:daily_distribution')}?date={dist_date.isoformat()}&open={created_ids[0]}"
