@@ -1455,12 +1455,12 @@
         </a>
         {% endif %}
 
-        {% if not user.is_representative %}
         <div class="nav-section-label">متابعة وتحليل</div>
         <a class="nav-link {% if active_nav == 'cost_settlements' %}is-active{% endif %}" href="{% url 'ops:cost_settlements' %}" title="طلب يومي من السوق">
             <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'cost_settlements' %}filled-icon{% endif %}">request_quote</span></span>
             <span class="nav-label">طلب يومي من السوق</span>
         </a>
+        {% if not user.is_representative %}
         <a class="nav-link {% if active_nav == 'price_compare' %}is-active{% endif %}" href="{% url 'ops:price_compare' %}" title="مقارنة أسعار الشراء بين الموردين">
             <span class="nav-icon"><span class="material-symbols-outlined {% if active_nav == 'price_compare' %}filled-icon{% endif %}">compare_arrows</span></span>
             <span class="nav-label">مقارنة الأسعار</span>
@@ -1540,6 +1540,10 @@
     <a href="{% url 'ops:returns' %}" class="flex flex-col items-center gap-1 px-2 py-1 shrink-0 {% if active_nav == 'returns' %}text-primary{% else %}text-on-surface-variant{% endif %}">
         <span class="material-symbols-outlined">assignment_return</span>
         <span class="text-[10px] font-bold">المرتجعات</span>
+    </a>
+    <a href="{% url 'ops:cost_settlements' %}" class="flex flex-col items-center gap-1 px-2 py-1 shrink-0 {% if active_nav == 'cost_settlements' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+        <span class="material-symbols-outlined">request_quote</span>
+        <span class="text-[10px] font-bold">طلب السوق</span>
     </a>
     <a href="{% url 'ops:items' %}" class="flex flex-col items-center gap-1 px-2 py-1 shrink-0 {% if active_nav == 'items' %}text-primary{% else %}text-on-surface-variant{% endif %}">
         <span class="material-symbols-outlined">inventory_2</span>

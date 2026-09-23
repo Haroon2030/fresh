@@ -15,7 +15,7 @@ from .cost_settlement_template import COST_SETTLEMENT_LEFT_ITEMS, COST_SETTLEMEN
 from .models import AccountingAccount, Branch, CostSettlement, CostSettlementLine
 from .notify_ops import schedule_cost_settlement_notify
 from .pdf_docs import build_cost_settlement_pdf
-from .views import _pdf_http_response, rep_forbidden
+from .views import _pdf_http_response
 
 
 def _dec(value, default='0'):
@@ -190,7 +190,6 @@ def _form_meta_from_post(post, today):
 
 
 @login_required
-@rep_forbidden
 def cost_settlement_list(request):
     qs = (
         CostSettlement.objects.select_related('accounting_account', 'created_by')
@@ -198,6 +197,8 @@ def cost_settlement_list(request):
             Prefetch('lines', queryset=CostSettlementLine.objects.order_by('column_side', 'sort_order'))
         )
     )
+    if request.user.is_representative:
+        qs = qs.filter(created_by=request.user)
     status_filter = (request.GET.get('status') or '').strip()
     if status_filter in {c.value for c in CostSettlement.Status}:
         qs = qs.filter(status=status_filter)
@@ -235,7 +236,6 @@ def cost_settlement_list(request):
 
 
 @login_required
-@rep_forbidden
 @require_http_methods(['GET', 'POST'])
 def cost_settlement_create(request):
     accounts = AccountingAccount.objects.filter(is_active=True)
@@ -300,13 +300,15 @@ def cost_settlement_create(request):
 
 
 @login_required
-@rep_forbidden
 @require_http_methods(['GET', 'POST'])
 def cost_settlement_update(request, pk):
     settlement = get_object_or_404(
         CostSettlement.objects.select_related('accounting_account').prefetch_related('lines'),
         pk=pk,
     )
+    if request.user.is_representative and settlement.created_by_id != request.user.id:
+        messages.error(request, 'غير مصرح بتعديل هذا الملف.')
+        return redirect('ops:cost_settlements')
     if not (request.user.is_manager or settlement.created_by_id == request.user.id):
         messages.error(request, 'غير مصرح بتعديل هذا الملف.')
         return redirect('ops:cost_settlements')
@@ -355,10 +357,12 @@ def cost_settlement_update(request, pk):
 
 
 @login_required
-@rep_forbidden
 @require_POST
 def cost_settlement_delete(request, pk):
     settlement = get_object_or_404(CostSettlement, pk=pk)
+    if request.user.is_representative and settlement.created_by_id != request.user.id:
+        messages.error(request, 'غير مصرح بحذف هذا الملف.')
+        return redirect('ops:cost_settlements')
     if not (request.user.is_manager or settlement.created_by_id == request.user.id):
         messages.error(request, 'غير مصرح بحذف هذا الملف.')
         return redirect('ops:cost_settlements')
@@ -369,13 +373,15 @@ def cost_settlement_delete(request, pk):
 
 
 @login_required
-@rep_forbidden
 @require_http_methods(['GET'])
 def cost_settlement_pdf(request, pk):
     settlement = get_object_or_404(
         CostSettlement.objects.select_related('created_by').prefetch_related('lines'),
         pk=pk,
     )
+    if request.user.is_representative and settlement.created_by_id != request.user.id:
+        messages.error(request, 'غير مصرح بعرض هذا الملف.')
+        return redirect('ops:cost_settlements')
     try:
         pdf_bytes, filename = build_cost_settlement_pdf(settlement, actor=request.user)
     except Exception:
