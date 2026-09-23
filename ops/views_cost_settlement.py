@@ -208,6 +208,7 @@ def cost_settlement_list(request):
     for row in qs:
         filled = [ln for ln in row.lines.all() if (ln.quantity or 0) > 0]
         cols = _build_form_columns(row)
+        updated_ts = int(row.updated_at.timestamp()) if row.updated_at else row.pk
         batches.append({
             'seed_pk': row.pk,
             'batch_number': row.batch_number,
@@ -220,6 +221,7 @@ def cost_settlement_list(request):
             'vehicle_amount': row.vehicle_amount,
             'grand_total': row.grand_total,
             'created_by': row.created_by,
+            'updated_ts': updated_ts,
             'items': filled,
             'right_rows': cols['right_rows'],
             'left_rows': cols['left_rows'],
@@ -375,18 +377,25 @@ def cost_settlement_delete(request, pk):
 @login_required
 @require_http_methods(['GET'])
 def cost_settlement_pdf(request, pk):
+    # استعلام جديد في كل طلب — بدون اعتماد على كاش المتصفح أو prefetch قديم
     settlement = get_object_or_404(
-        CostSettlement.objects.select_related('created_by').prefetch_related('lines'),
+        CostSettlement.objects.select_related('created_by'),
         pk=pk,
     )
     if request.user.is_representative and settlement.created_by_id != request.user.id:
         messages.error(request, 'غير مصرح بعرض هذا الملف.')
         return redirect('ops:cost_settlements')
+    # إجبار قراءة الأسطر من DB لحظياً
+    list(settlement.lines.all())
     try:
         pdf_bytes, filename = build_cost_settlement_pdf(settlement, actor=request.user)
     except Exception:
         messages.error(request, 'تعذّر إنشاء ملف PDF.')
         return redirect('ops:cost_settlements')
+    if settlement.updated_at:
+        stamp = timezone.localtime(settlement.updated_at).strftime('%Y%m%d_%H%M%S')
+        base = filename[:-4] if filename.lower().endswith('.pdf') else filename
+        filename = f'{base}_{stamp}.pdf'
     return _pdf_http_response(pdf_bytes, filename, no_cache=True)
 
 
@@ -397,12 +406,12 @@ def cost_settlement_pdf_public(request, token):
 
     settlement = (
         CostSettlement.objects.select_related('created_by')
-        .prefetch_related('lines')
         .filter(public_token=token)
         .first()
     )
     if not settlement:
         return HttpResponse('غير موجود', status=404)
+    list(settlement.lines.all())
     try:
         pdf_bytes, filename = build_cost_settlement_pdf(
             settlement,
@@ -410,4 +419,8 @@ def cost_settlement_pdf_public(request, token):
         )
     except Exception:
         return HttpResponse('تعذّر إنشاء الملف', status=500)
+    if settlement.updated_at:
+        stamp = timezone.localtime(settlement.updated_at).strftime('%Y%m%d_%H%M%S')
+        base = filename[:-4] if filename.lower().endswith('.pdf') else filename
+        filename = f'{base}_{stamp}.pdf'
     return _pdf_http_response(pdf_bytes, filename, no_cache=True)

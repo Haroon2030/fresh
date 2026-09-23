@@ -765,6 +765,10 @@ def schedule_cost_settlement_notify(settlement_id: int, actor_id: int, *, update
             "ops:cost_settlement_pdf_public_file",
             settlement.public_token,
         )
+        # كسر كاش المتصفح لنفس مسار الرابط بعد كل حفظ
+        if settlement.updated_at:
+            sep = "&" if "?" in pdf_url else "?"
+            pdf_url = f"{pdf_url}{sep}v={int(settlement.updated_at.timestamp())}"
         if updated:
             msg = _pdf_caption(
                 "تحديث طلب يومي من السوق",

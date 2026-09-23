@@ -1494,10 +1494,12 @@ def _pdf_http_response(pdf_bytes: bytes, filename: str, *, no_cache: bool = Fals
     response['Content-Type'] = 'application/pdf'
     response['X-Content-Type-Options'] = 'nosniff'
     if no_cache:
-        # نفس الرابط يعرض دائماً أحدث بيانات الملف (بدون كاش قديم)
-        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        # نفس المسار يعرض دائماً أحدث بيانات الملف (بدون كاش متصفح/بروكسي)
+        response['Cache-Control'] = 'private, no-store, no-cache, must-revalidate, max-age=0'
         response['Pragma'] = 'no-cache'
         response['Expires'] = '0'
+        response['Surrogate-Control'] = 'no-store'
+        response['Vary'] = '*'
     else:
         response['Cache-Control'] = 'private, max-age=300'
     return response

@@ -55,7 +55,7 @@
                         <button type="button" class="act-btn act-icon act-view" data-open-batch-view="{{ batch.seed_pk }}" title="عرض">
                             <span class="material-symbols-outlined">visibility</span>
                         </button>
-                        <a href="{% url 'ops:cost_settlement_pdf' batch.seed_pk %}" class="act-btn act-icon act-pdf" title="تحميل PDF" target="_blank" rel="noopener">
+                        <a href="{% url 'ops:cost_settlement_pdf' batch.seed_pk %}?v={{ batch.updated_ts }}" class="act-btn act-icon act-pdf" title="تحميل PDF" target="_blank" rel="noopener">
                             <span class="material-symbols-outlined">download</span>
                         </a>
                         {% if user.is_manager or batch.created_by.id == user.id %}
@@ -92,7 +92,7 @@
                 <p class="app-modal-sub">{{ batch.branch }} · {{ batch.settlement_date|date:"Y/m/d" }}</p>
             </div>
             <div class="app-modal-head-actions">
-                <a href="{% url 'ops:cost_settlement_pdf' batch.seed_pk %}" class="app-modal-head-btn" target="_blank" rel="noopener">
+                <a href="{% url 'ops:cost_settlement_pdf' batch.seed_pk %}?v={{ batch.updated_ts }}" class="app-modal-head-btn" target="_blank" rel="noopener">
                     <span class="material-symbols-outlined">download</span>
                     تحميل PDF
                 </a>
