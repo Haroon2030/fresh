@@ -25,6 +25,12 @@
     <form method="post" class="p-lg bg-white flex flex-col sm:flex-row gap-md items-stretch sm:items-end">
         {% csrf_token %}
         <input type="hidden" name="action" value="add">
+        <div class="sm:w-40 flex flex-col gap-sm">
+            <label class="font-label-md text-label-md text-on-surface">رقم الفرع</label>
+            <input type="text" name="code" maxlength="20"
+                   placeholder="مثال: 101"
+                   class="w-full bg-white border border-[#bfdbfe] rounded-lg py-2.5 px-3 text-[15px] font-semibold focus:border-[#1d4ed8] focus:ring-1 focus:ring-[#1d4ed8]">
+        </div>
         <div class="flex-1 flex flex-col gap-sm">
             <label class="font-label-md text-label-md text-on-surface">اسم الفرع</label>
             <input type="text" name="name" required maxlength="150"
@@ -51,7 +57,7 @@
             <thead>
             <tr>
                 <th style="width:6%">#</th>
-                <th>اسم الفرع</th>
+                <th>رقم واسم الفرع</th>
                 <th style="width:12%">الحالة</th>
                 <th style="width:12%">الافتراضي</th>
                 <th style="width:40%">إجراءات</th>
@@ -66,6 +72,8 @@
                         {% csrf_token %}
                         <input type="hidden" name="action" value="rename">
                         <input type="hidden" name="branch_id" value="{{ b.pk }}">
+                        <input type="text" name="code" value="{{ b.code }}" maxlength="20" placeholder="الرقم"
+                               class="w-24 bg-white border border-[#bfdbfe] rounded-lg py-2 px-3 text-[14px] font-semibold focus:border-[#1d4ed8] focus:ring-1 focus:ring-[#1d4ed8]">
                         <input type="text" name="name" value="{{ b.name }}" maxlength="150"
                                class="flex-1 bg-white border border-[#bfdbfe] rounded-lg py-2 px-3 text-[14px] font-semibold focus:border-[#1d4ed8] focus:ring-1 focus:ring-[#1d4ed8]">
                         <button type="submit" class="act-btn act-ok shrink-0" title="حفظ الاسم">

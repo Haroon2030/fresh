@@ -2952,6 +2952,10 @@ def _normalize_branch_name(raw: str) -> str:
     return ' '.join(name.split())
 
 
+def _normalize_branch_code(raw: str) -> str:
+    return ''.join((raw or '').split())[:20]
+
+
 @manager_required
 @rep_forbidden
 def branches_setup(request):
@@ -2960,14 +2964,18 @@ def branches_setup(request):
         action = (request.POST.get('action') or '').strip()
         if action == 'add':
             name = _normalize_branch_name(request.POST.get('name'))
+            code = _normalize_branch_code(request.POST.get('code'))
             if not name:
                 messages.error(request, 'أدخل اسم الفرع.')
             elif Branch.objects.filter(name=name).exists():
                 messages.error(request, f'الفرع «{name}» موجود مسبقاً.')
+            elif code and Branch.objects.filter(code=code).exists():
+                messages.error(request, f'الرقم «{code}» مستخدم لفرع آخر.')
             else:
                 last = Branch.objects.order_by('-sort_order').values_list('sort_order', flat=True).first() or 0
                 make_default = not Branch.objects.filter(is_default=True).exists()
                 Branch.objects.create(
+                    code=code,
                     name=name,
                     sort_order=last + 1,
                     is_active=True,
@@ -2992,14 +3000,18 @@ def branches_setup(request):
         elif action == 'rename':
             branch = get_object_or_404(Branch, pk=request.POST.get('branch_id'))
             name = _normalize_branch_name(request.POST.get('name'))
+            code = _normalize_branch_code(request.POST.get('code'))
             if not name:
                 messages.error(request, 'أدخل اسم الفرع.')
             elif Branch.objects.exclude(pk=branch.pk).filter(name=name).exists():
                 messages.error(request, f'الاسم «{name}» مستخدم لفرع آخر.')
+            elif code and Branch.objects.exclude(pk=branch.pk).filter(code=code).exists():
+                messages.error(request, f'الرقم «{code}» مستخدم لفرع آخر.')
             else:
                 branch.name = name
-                branch.save(update_fields=['name', 'updated_at'])
-                messages.success(request, 'تم تحديث اسم الفرع.')
+                branch.code = code
+                branch.save(update_fields=['name', 'code', 'updated_at'])
+                messages.success(request, 'تم تحديث بيانات الفرع.')
         elif action == 'set_default':
             branch = get_object_or_404(Branch, pk=request.POST.get('branch_id'))
             branch.set_as_default()

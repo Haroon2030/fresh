@@ -526,6 +526,7 @@ class Branch(models.Model):
     # اسم الشركة لطلبات الشراء (توريد) — ليس فرعاً تشغيلياً
     COMPANY_NAME = 'أسواق الرشيد'
 
+    code = models.CharField(max_length=20, blank=True, default='', verbose_name='رقم الفرع')
     name = models.CharField(max_length=150, unique=True, verbose_name='اسم الفرع')
     is_active = models.BooleanField(default=True, verbose_name='نشط')
     is_default = models.BooleanField(
@@ -544,6 +545,11 @@ class Branch(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def label(self):
+        """اسم العرض في القوائم: «رقم · اسم» إن وُجد رقم."""
+        return f'{self.code} · {self.name}' if self.code else self.name
 
     @classmethod
     def active_names(cls):

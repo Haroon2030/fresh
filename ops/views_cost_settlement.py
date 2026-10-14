@@ -168,6 +168,23 @@ def _build_form_columns(settlement=None):
     }
 
 
+def _branch_options():
+    """الفروع النشطة من تهيئة الفروع — أو اسم الشركة إن لم يُهيّأ أي فرع."""
+    options = list(Branch.objects.filter(is_active=True).order_by('sort_order', 'name'))
+    if not options:
+        return [{'value': Branch.COMPANY_NAME, 'label': Branch.COMPANY_NAME}]
+    return [{'value': b.name, 'label': b.label} for b in options]
+
+
+def _pick_branch(raw, options):
+    """الفرع المختار من النموذج — يُرفض أي اسم غير موجود في الخيارات."""
+    values = {o['value'] for o in options}
+    value = (raw or '').strip()
+    if value in values:
+        return value
+    return Branch.default_name() or options[0]['value']
+
+
 def _form_meta_from_post(post, today):
     date_raw = (post.get('settlement_date') or '').strip()
     account_id = (post.get('accounting_account') or '').strip()
@@ -242,10 +259,12 @@ def cost_settlement_list(request):
 def cost_settlement_create(request):
     accounts = AccountingAccount.objects.filter(is_active=True)
     today = timezone.localdate()
-    company_name = Branch.COMPANY_NAME
+    branch_options = _branch_options()
+    company_name = Branch.default_name() or Branch.COMPANY_NAME
 
     if request.method == 'POST':
         meta = _form_meta_from_post(request.POST, today)
+        branch = _pick_branch(request.POST.get('branch'), branch_options)
         lines_data = _parse_all_lines(request.POST)
         filled = [ln for ln in lines_data if ln['quantity'] > 0 or ln['unit_price'] > 0]
         if not filled and meta['entry_amount'] <= 0 and meta['vehicle_amount'] <= 0:
@@ -253,9 +272,10 @@ def cost_settlement_create(request):
             return render(request, 'ops/cost_settlement_create.html', {
                 'active_nav': 'cost_settlements',
                 'accounts': accounts,
-                'company_name': company_name,
+                'branch_options': branch_options,
+                'company_name': branch,
                 'settlement_date': meta['settlement_date'],
-                'branch': company_name,
+                'branch': branch,
                 'account_id': meta['account_id'],
                 'entry_amount': '',
                 'vehicle_amount': meta['vehicle_amount'],
@@ -265,7 +285,7 @@ def cost_settlement_create(request):
         with transaction.atomic():
             settlement = CostSettlement.objects.create(
                 batch_number=_next_batch_number(),
-                branch=Branch.COMPANY_NAME,
+                branch=branch,
                 settlement_date=meta['settlement_date'],
                 accounting_account=meta['account'],
                 entry_amount=meta['entry_amount'],
@@ -291,6 +311,7 @@ def cost_settlement_create(request):
     return render(request, 'ops/cost_settlement_create.html', {
         'active_nav': 'cost_settlements',
         'accounts': accounts,
+        'branch_options': branch_options,
         'company_name': company_name,
         'settlement_date': today,
         'branch': company_name,
@@ -317,13 +338,18 @@ def cost_settlement_update(request, pk):
 
     accounts = AccountingAccount.objects.filter(is_active=True)
     today = timezone.localdate()
-    company_name = Branch.COMPANY_NAME
+    branch_options = _branch_options()
+    company_name = settlement.branch or Branch.COMPANY_NAME
+    if company_name not in {o['value'] for o in branch_options}:
+        # فرع أُوقف بعد إنشاء الملف — يبقى ظاهراً حتى لا يتغيّر تلقائياً عند الحفظ
+        branch_options.insert(0, {'value': company_name, 'label': company_name})
 
     if request.method == 'POST':
         meta = _form_meta_from_post(request.POST, today)
+        branch = _pick_branch(request.POST.get('branch'), branch_options)
         lines_data = _parse_all_lines(request.POST)
         with transaction.atomic():
-            settlement.branch = Branch.COMPANY_NAME
+            settlement.branch = branch
             settlement.settlement_date = meta['settlement_date']
             settlement.accounting_account = meta['account']
             settlement.entry_amount = meta['entry_amount']
@@ -348,6 +374,7 @@ def cost_settlement_update(request, pk):
         'active_nav': 'cost_settlements',
         'settlement': settlement,
         'accounts': accounts,
+        'branch_options': branch_options,
         'company_name': company_name,
         'settlement_date': settlement.settlement_date,
         'branch': company_name,

@@ -38,6 +38,13 @@
         font-weight: 700;
         background: #fff;
     }
+    .paper-meta .meta-branch-setup {
+        font-size: 12px;
+        font-weight: 800;
+        color: #1d4ed8;
+        text-decoration: none;
+        white-space: nowrap;
+    }
     .paper-meta .meta-fixed {
         min-width: 160px;
         height: 32px;
@@ -237,10 +244,19 @@
     <div class="paper-meta">
         <div class="meta-item">
             <span>فرع</span>
+            {% if sheet_readonly or not branch_options %}
             {% if not sheet_readonly %}
             <input type="hidden" name="branch" value="{{ company_name }}">
             {% endif %}
             <span class="meta-fixed">{{ company_name }}</span>
+            {% else %}
+            <select name="branch" required>
+                {% for opt in branch_options %}
+                <option value="{{ opt.value }}"{% if opt.value == company_name %} selected{% endif %}>{{ opt.label }}</option>
+                {% endfor %}
+            </select>
+            <a href="{% url 'ops:branches' %}" class="meta-branch-setup" title="إضافة فرع برقم واسم">+ فرع</a>
+            {% endif %}
         </div>
         <div class="meta-item">
             <span>التاريخ:</span>

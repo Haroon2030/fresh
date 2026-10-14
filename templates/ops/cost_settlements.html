@@ -102,7 +102,7 @@
             </div>
         </div>
         <div class="app-modal-body" style="max-height:min(78vh,900px);overflow:auto">
-            {% include "ops/_cost_settlement_sheet.html" with sheet_readonly=True sheet_omit_style=forloop.counter0 company_name=company_name settlement_date=batch.settlement_date vehicle_amount=batch.vehicle_amount grand_total=batch.grand_total right_rows=batch.right_rows left_rows=batch.left_rows custom_rows=batch.custom_rows %}
+            {% include "ops/_cost_settlement_sheet.html" with sheet_readonly=True sheet_omit_style=forloop.counter0 company_name=batch.branch settlement_date=batch.settlement_date vehicle_amount=batch.vehicle_amount grand_total=batch.grand_total right_rows=batch.right_rows left_rows=batch.left_rows custom_rows=batch.custom_rows %}
         </div>
         <div class="app-modal-foot">
             <button type="button" class="btn-ghost-app" data-close-batch-view="{{ batch.seed_pk }}">إغلاق</button>
