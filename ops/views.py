@@ -903,6 +903,7 @@ def _build_distribution_remaining_sheet(settlement):
         price = line.unit_price or Decimal('0')
         custom_rows.append({
             'item_name': line.item_name,
+            'package': line.package,
             'quantity': ('' if rem_int == 0 else rem_int),
             'unit_price': ('' if not price else price),
             'line_total': (Decimal(rem_int) * price) if rem_int else Decimal('0'),
@@ -1011,9 +1012,13 @@ def daily_distribution_create(request):
             selected = settlements[0]
             sheet = attach_sheet(selected)
 
+        from .views_cost_settlement import _branch_options
+
         ctx = {
             'dist_date': dist_date,
             'branches': Branch.active_names(),
+            'branch_options': _branch_options(),
+            'default_branch': Branch.default_name(),
             'active_nav': 'distribution',
             'today_settlements': settlements,
             'settlement_options': settlement_options,

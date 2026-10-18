@@ -49,18 +49,6 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="flex flex-col gap-sm min-w-[220px] flex-1">
-                        <label class="font-label-md text-label-md text-on-surface" for="branchName">اسم الفرع (للتوزيع)</label>
-                        <input type="text" name="branch_name" id="branchName" list="branchDatalist"
-                               value="{{ default_branch }}" required autocomplete="off"
-                               placeholder="اكتب اسم الفرع..."
-                               class="w-full bg-surface border border-outline-variant rounded-lg py-2.5 px-3 focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md">
-                        <datalist id="branchDatalist">
-                            {% for b in branches %}
-                            <option value="{{ b }}"></option>
-                            {% endfor %}
-                        </datalist>
-                    </div>
                 </div>
 
                 <p class="font-body-md text-body-md text-on-surface-variant text-xs m-0">
@@ -68,7 +56,7 @@
                     عدّل <strong>كمية التوزيع</strong> لكل صنف (الحد الأقصى = المتبقي). طلب السوق الأصلي لا يتغير.
                 </p>
 
-                {% include "ops/_cost_settlement_sheet.html" with sheet_readonly=True sheet_dist_qty_edit=True company_name=sheet.company_name settlement_date=sheet.settlement_date vehicle_amount=sheet.vehicle_amount grand_total=sheet.grand_total right_rows=sheet.right_rows left_rows=sheet.left_rows custom_rows=sheet.custom_rows %}
+                {% include "ops/_cost_settlement_sheet.html" with sheet_readonly=True sheet_dist_qty_edit=True sheet_branch_field="branch_name" company_name=default_branch settlement_date=sheet.settlement_date vehicle_amount=sheet.vehicle_amount grand_total=sheet.grand_total right_rows=sheet.right_rows left_rows=sheet.left_rows custom_rows=sheet.custom_rows %}
             </div>
             <div class="app-modal-foot">
                 <a href="{% url 'ops:daily_distribution' %}" class="btn-ghost-app">إلغاء</a>

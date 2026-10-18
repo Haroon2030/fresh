@@ -12,7 +12,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
 from .cost_settlement_template import COST_SETTLEMENT_LEFT_ITEMS, COST_SETTLEMENT_RIGHT_ITEMS
-from .models import AccountingAccount, Branch, CostSettlement, CostSettlementLine
+from .models import AccountingAccount, Branch, CatalogItem, CostSettlement, CostSettlementLine
 from .notify_ops import schedule_cost_settlement_notify
 from .pdf_docs import build_cost_settlement_pdf
 from .views import _pdf_http_response
@@ -44,16 +44,22 @@ def _next_batch_number():
     return f'#CSTB-{seq:04d}'
 
 
+def _clean_package(raw):
+    return ' '.join((raw or '').split())[:100]
+
+
 def _parse_template_lines(post):
     lines = []
     for side, names in (('right', COST_SETTLEMENT_RIGHT_ITEMS), ('left', COST_SETTLEMENT_LEFT_ITEMS)):
         qty_list = post.getlist(f'qty_{side}')
         price_list = post.getlist(f'price_{side}')
+        name_list = post.getlist(f'name_{side}')
         for i, name in enumerate(names):
             qty = _dec(qty_list[i] if i < len(qty_list) else '0')
             price = _dec(price_list[i] if i < len(price_list) else '0')
+            typed = ' '.join((name_list[i] if i < len(name_list) else '').split())
             lines.append({
-                'item_name': name,
+                'item_name': typed or name,
                 'quantity': qty,
                 'unit_price': price,
                 'column_side': side,
@@ -69,6 +75,7 @@ def _parse_custom_lines(post):
     names = post.getlist('custom_name')
     qtys = post.getlist('custom_qty')
     prices = post.getlist('custom_price')
+    packages = post.getlist('custom_package')
     lines = []
     idx = 0
     for i, raw_name in enumerate(names):
@@ -81,6 +88,7 @@ def _parse_custom_lines(post):
             name = f'صنف إضافي {idx + 1}'
         lines.append({
             'item_name': name,
+            'package': _clean_package(packages[i] if i < len(packages) else ''),
             'quantity': qty,
             'unit_price': price,
             'column_side': 'right',
@@ -98,12 +106,14 @@ def _posted_custom_rows(post):
     names = post.getlist('custom_name')
     qtys = post.getlist('custom_qty')
     prices = post.getlist('custom_price')
+    packages = post.getlist('custom_package')
     rows = []
     for i, raw_name in enumerate(names):
         qty = _dec(qtys[i] if i < len(qtys) else '0')
         price = _dec(prices[i] if i < len(prices) else '0')
         rows.append({
             'item_name': raw_name or '',
+            'package': packages[i] if i < len(packages) else '',
             'quantity': qtys[i] if i < len(qtys) else '',
             'unit_price': prices[i] if i < len(prices) else '',
             'line_total': qty * price,
@@ -111,16 +121,34 @@ def _posted_custom_rows(post):
     return rows
 
 
+def _save_custom_items_to_catalog(post):
+    """كل صنف أُضيف يدوياً في طلب السوق يُحفظ في قائمة الأصناف مع عبوته."""
+    names = post.getlist('custom_name')
+    packages = post.getlist('custom_package')
+    for i, raw_name in enumerate(names):
+        name = ' '.join((raw_name or '').split())
+        if not name:
+            continue
+        package = ' '.join(((packages[i] if i < len(packages) else '') or '').split())[:100]
+        item = CatalogItem.objects.filter(name=name).first()
+        if item is None:
+            CatalogItem.objects.create(name=name, package=package)
+        elif package and not item.package:
+            item.package = package
+            item.save(update_fields=['package', 'updated_at'])
+
+
 def _posted_columns(post):
     def col(side, names):
         qty_list = post.getlist(f'qty_{side}')
         price_list = post.getlist(f'price_{side}')
+        name_list = post.getlist(f'name_{side}')
         rows = []
         for i, name in enumerate(names):
             qty = _dec(qty_list[i] if i < len(qty_list) else '0')
             price = _dec(price_list[i] if i < len(price_list) else '0')
             rows.append({
-                'item_name': name,
+                'item_name': (name_list[i] if i < len(name_list) else '') or name,
                 'quantity': qty_list[i] if i < len(qty_list) else '',
                 'unit_price': price_list[i] if i < len(price_list) else '',
                 'line_total': qty * price,
@@ -142,6 +170,7 @@ def _build_form_columns(settlement=None):
             if line.sort_order >= CUSTOM_SORT_BASE:
                 custom_rows.append({
                     'item_name': line.item_name,
+                    'package': line.package,
                     'quantity': ('' if line.quantity == 0 else line.quantity),
                     'unit_price': ('' if line.unit_price == 0 else line.unit_price),
                     'line_total': line.line_total,
@@ -154,7 +183,7 @@ def _build_form_columns(settlement=None):
         for i, name in enumerate(names):
             line = by_key.get((side, i))
             rows.append({
-                'item_name': name,
+                'item_name': line.item_name if line else name,
                 'quantity': ('' if not line or line.quantity == 0 else line.quantity),
                 'unit_price': ('' if not line or line.unit_price == 0 else line.unit_price),
                 'line_total': line.line_total if line else Decimal('0'),
@@ -296,6 +325,7 @@ def cost_settlement_create(request):
             CostSettlementLine.objects.bulk_create([
                 CostSettlementLine(settlement=settlement, **ln) for ln in lines_data
             ])
+            _save_custom_items_to_catalog(request.POST)
 
         settlement.ensure_public_token()
         if not settlement.public_token:
@@ -359,6 +389,7 @@ def cost_settlement_update(request, pk):
             CostSettlementLine.objects.bulk_create([
                 CostSettlementLine(settlement=settlement, **ln) for ln in lines_data
             ])
+            _save_custom_items_to_catalog(request.POST)
         settlement.ensure_public_token()
         if not settlement.public_token:
             settlement.save(update_fields=['public_token'])
